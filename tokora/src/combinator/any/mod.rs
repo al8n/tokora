@@ -78,6 +78,17 @@ use super::*;
 /// let parser = expect(|tok| matches!(tok, Token::Number(_)));
 /// ```
 ///
+/// # The associated functions and the method spelling measure differently
+///
+/// The associated functions [`Any::spanned`], [`Any::sliced`] and [`Any::located`] build a parser
+/// that reads the consumed token's own span and slice, on which the
+/// [two span rules](crate::span#the-two-span-rules) agree. The **method** spelling is another
+/// parser: `Any::of().spanned()` cannot reach the associated function, which takes no receiver,
+/// so it resolves to [`ParseInput::spanned`], which measures a lookahead span — on a cold cache it
+/// opens at the end of the previous token, skipped bytes included. Its trimmed twin,
+/// `Any::of().spanned_trimmed()`, measures exactly what `Any::spanned()` does, and likewise for
+/// `sliced_trimmed` and `located_trimmed`.
+///
 /// # Error Handling
 ///
 /// `Any` can fail with:
@@ -146,7 +157,7 @@ impl<L, Ctx, Lang> Any<L, Ctx, Lang> {
     With::new(Self::of(), PhantomSliced::PHANTOM)
   }
 
-  /// Creates a parser that yields any token without its source and span.
+  /// Creates a parser that yields any token with its source and span.
   #[must_use]
   #[inline(always)]
   pub const fn located() -> With<Self, PhantomLocated> {

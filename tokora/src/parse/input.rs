@@ -13,7 +13,7 @@ use crate::{
   punct::*,
   slice::Sliced,
   span::Spanned,
-  utils::{PhantomLocated, PhantomSliced, PhantomSpan},
+  utils::{PhantomLocated, PhantomSliced, PhantomSpan, Trimmed},
 };
 
 // Named only by the `separated_by_*_while` family the macro below mints.
@@ -519,6 +519,10 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   }
 
   /// Wraps the output of this parser in a `Spanned` with the span of the parsed input.
+  ///
+  /// The span is a **lookahead span**, from [`InputRef::cursor`] before this parser runs to
+  /// `cursor` after it; [`spanned_trimmed`](Self::spanned_trimmed) measures the **trimmed span**
+  /// instead, with the same output type. See [the two span rules](crate::span#the-two-span-rules).
   #[inline(always)]
   fn spanned(self) -> With<PhantomSpan, Self, Cmpl>
   where
@@ -529,6 +533,9 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   }
 
   /// Wraps the output of this parser in a `Sliced` with the source slice of the parsed input.
+  ///
+  /// The slice covers the **lookahead span**; [`sliced_trimmed`](Self::sliced_trimmed) slices the
+  /// **trimmed span** instead, with the same output type.
   #[inline(always)]
   fn sliced(self) -> With<PhantomSliced, Self, Cmpl>
   where
@@ -539,6 +546,9 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   }
 
   /// Wraps the output of this parser in a `Located` with the span and source slice of the parsed input.
+  ///
+  /// Both are the **lookahead span**'s; [`located_trimmed`](Self::located_trimmed) gives the
+  /// **trimmed span**'s instead, with the same output type.
   #[inline(always)]
   fn located(self) -> With<PhantomLocated, Self, Cmpl>
   where
@@ -546,6 +556,188 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
     L: Lexer<'inp>,
   {
     With::new(PhantomLocated::phantom(), self)
+  }
+
+  /// Wraps the output of this parser in a `Spanned` with the **trimmed span** of the parsed
+  /// input: from the start of the first token it consumes to the committed position after it.
+  ///
+  /// The trimmed counterpart of [`spanned`](Self::spanned), with the same output type, so a
+  /// grammar switches rule by changing the method name. `spanned` measures from lookahead position
+  /// to lookahead position. Under a lexer that skips bytes between tokens — whitespace, comments —
+  /// that span takes in the skipped bytes after a node whose parser peeked past its last token,
+  /// and the skipped bytes before a node entered with nothing cached. The trimmed span takes in
+  /// neither, and under a lexer that skips nothing the two agree.
+  /// [The two span rules](crate::span#the-two-span-rules) says when each fits, and lists the spans
+  /// that stay lookahead-measured: only the parser this builds measures the trimmed span.
+  ///
+  /// A parser that consumes nothing gets the empty span at the next token's start, or at the
+  /// committed position when no token follows.
+  ///
+  /// ```
+  /// # use core::convert::Infallible;
+  /// # use tokora::{
+  /// #   InputRef, Lexer, Parse as _, ParseInput as _, Parser, ParserContext, SimpleSpan, Token,
+  /// #   emitter::Fatal,
+  /// # };
+  /// # #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+  /// # struct WordKind;
+  /// # impl core::fmt::Display for WordKind {
+  /// #   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result { f.write_str("word") }
+  /// # }
+  /// # #[derive(Clone, Debug)]
+  /// # struct Word;
+  /// # impl Token<'_> for Word {
+  /// #   type Kind = WordKind;
+  /// #   type Error = Infallible;
+  /// #   const SCAN_LOOKAHEAD: tokora::ScanLookahead = tokora::ScanLookahead::Unbounded;
+  /// #   fn kind(&self) -> WordKind { WordKind }
+  /// #   fn is_trivia(&self) -> bool { false }
+  /// # }
+  /// # // `[a-z]+` words; the spaces between them are skipped and never reach the parser.
+  /// # struct WordLexer<'a> { src: &'a str, start: usize, end: usize, state: () }
+  /// # impl<'a> Lexer<'a> for WordLexer<'a> {
+  /// #   type State = (); type Source = str; type Token = Word;
+  /// #   type Span = SimpleSpan; type Offset = usize;
+  /// #   fn new(src: &'a str) -> Self { Self { src, start: 0, end: 0, state: () } }
+  /// #   fn with_state(src: &'a str, state: ()) -> Self { Self { src, start: 0, end: 0, state } }
+  /// #   fn check(&self) -> Result<(), Infallible> { Ok(()) }
+  /// #   fn state(&self) -> &() { &self.state }
+  /// #   fn state_mut(&mut self) -> &mut () { &mut self.state }
+  /// #   fn into_state(self) {}
+  /// #   fn source(&self) -> &'a str { self.src }
+  /// #   fn span(&self) -> SimpleSpan { SimpleSpan::new(self.start, self.end) }
+  /// #   fn slice(&self) -> &'a str { &self.src[self.start..self.end] }
+  /// #   fn lex(&mut self) -> Option<Result<Word, Infallible>> {
+  /// #     let b = self.src.as_bytes();
+  /// #     self.start = self.end;
+  /// #     while self.start < b.len() && b[self.start] == b' ' { self.start += 1; }
+  /// #     if self.start >= b.len() { self.end = self.start; return None; }
+  /// #     let mut e = self.start;
+  /// #     while e < b.len() && b[e] != b' ' { e += 1; }
+  /// #     self.end = e;
+  /// #     Some(Ok(Word))
+  /// #   }
+  /// #   fn read_frontier(&self) -> tokora::ReadFrontier<usize> { tokora::ReadFrontier::SpanEnd }
+  /// #   fn bump(&mut self, n: &usize) { self.end += *n; }
+  /// # }
+  /// # #[derive(Debug, PartialEq)]
+  /// # struct Error;
+  /// # impl From<Infallible> for Error { fn from(e: Infallible) -> Self { match e {} } }
+  /// # impl<'a, T, K: Clone, S, Lg: ?Sized> From<tokora::error::UnexpectedToken<'a, T, K, S, Lg>>
+  /// #   for Error { fn from(_: tokora::error::UnexpectedToken<'a, T, K, S, Lg>) -> Self { Error } }
+  /// type Ctx<'a> = ParserContext<'a, WordLexer<'a>, Fatal<Error>>;
+  ///
+  /// // A word, then a look at the next token for an optional tail that is not there.
+  /// fn word_then_look<'inp>(
+  ///   inp: &mut InputRef<'inp, '_, WordLexer<'inp>, Ctx<'inp>>,
+  /// ) -> Result<(), Error> {
+  ///   inp.next()?;
+  ///   inp.peek_one()?;
+  ///   Ok(())
+  /// }
+  ///
+  /// // Both consume the first word, so the measured node is entered with nothing cached.
+  /// fn lookahead<'inp>(
+  ///   inp: &mut InputRef<'inp, '_, WordLexer<'inp>, Ctx<'inp>>,
+  /// ) -> Result<SimpleSpan, Error> {
+  ///   inp.next()?;
+  ///   Ok(word_then_look.spanned().parse_input(inp)?.span)
+  /// }
+  /// fn trimmed<'inp>(
+  ///   inp: &mut InputRef<'inp, '_, WordLexer<'inp>, Ctx<'inp>>,
+  /// ) -> Result<SimpleSpan, Error> {
+  ///   inp.next()?;
+  ///   Ok(word_then_look.spanned_trimmed().parse_input(inp)?.span)
+  /// }
+  ///
+  /// let src = "one   two   three";
+  /// // The lookahead span opens at the end of `one` and closes at `three`, where the peek left
+  /// // the lookahead: the spaces on both sides of `two` are inside it.
+  /// let by_lookahead = Parser::with_context(ParserContext::new(Fatal::new()))
+  ///   .apply(lookahead)
+  ///   .parse_str(src);
+  /// assert_eq!(by_lookahead, Ok(SimpleSpan::new(3, 12)));
+  /// // The trimmed span is `two` and nothing else.
+  /// let by_trimmed = Parser::with_context(ParserContext::new(Fatal::new()))
+  ///   .apply(trimmed)
+  ///   .parse_str(src);
+  /// assert_eq!(by_trimmed, Ok(SimpleSpan::new(6, 9)));
+  /// ```
+  ///
+  /// # The end is the committed position
+  ///
+  /// The end is [`span().end()`](InputRef::span), the end of the last token this parser
+  /// committed, except where [`InputRef::span_since_trimmed`] names otherwise: a skip or a recovery
+  /// sync that reaches end of input commits the lexer's end, so `x.padded().spanned_trimmed()` over
+  /// `"x  "` ends at the end of the input.
+  ///
+  /// # The start is a peek
+  ///
+  /// The start is [`InputRef::cursor_trimmed`], which peeks the next token before this parser
+  /// runs. Under a cache that retains tokens that costs no second lex; under a zero-capacity cache
+  /// the parser lexes the token again — except a token a non-final input withholds, which is lexed
+  /// once under either cache. The next token is also lexed *early*, under the lexer state current
+  /// here, and that can change an outcome:
+  ///
+  /// - for a parser that would not have read that token, its lexer-error diagnostics, a fatal
+  ///   emitter's rejection of one (which becomes this parser's `Err`), a limit trip and the token
+  ///   budget charge all happen anyway;
+  /// - for a parser that would have read it, a fatal rejection leaves the committed position
+  ///   before the rejected lexeme rather than past it;
+  /// - a parser that switches the lexer state before its first token gets its start from a token
+  ///   lexed under the old state, so switch the state outside this wrapper;
+  /// - on a non-final partial input whose next token is withheld, the start is the committed
+  ///   position, and a parser that then consumes nothing is anchored there, where the sealed parse
+  ///   would anchor it at the next token's start.
+  ///
+  /// `cursor_trimmed` states each of these in full.
+  #[inline(always)]
+  fn spanned_trimmed(self) -> With<Trimmed<PhantomSpan>, Self, Cmpl>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+  {
+    With::new(Trimmed(PhantomSpan::phantom()), self)
+  }
+
+  /// Wraps the output of this parser in a `Sliced` with the source slice of its **trimmed span**:
+  /// the trimmed counterpart of [`sliced`](Self::sliced), with the same output type.
+  ///
+  /// The slice covers exactly the span [`spanned_trimmed`](Self::spanned_trimmed) reports, with no
+  /// skipped byte before the first token or after the committed position; a parser that consumes
+  /// nothing gets the empty slice where that span is empty. The start is the same peek, with the
+  /// same consequences: the next token is lexed early, under the lexer state current here, so its
+  /// lexer-error diagnostics, a fatal rejection of one, a limit trip and the token-budget charge
+  /// happen even for a parser that would not have read it, and a fatal rejection leaves the
+  /// committed position before the rejected lexeme. `spanned_trimmed` and
+  /// [`InputRef::cursor_trimmed`] spell these out.
+  #[inline(always)]
+  fn sliced_trimmed(self) -> With<Trimmed<PhantomSliced>, Self, Cmpl>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+  {
+    With::new(Trimmed(PhantomSliced::phantom()), self)
+  }
+
+  /// Wraps the output of this parser in a `Located` with the span and source slice of its
+  /// **trimmed span**: the trimmed counterpart of [`located`](Self::located), with the same output
+  /// type.
+  ///
+  /// The span is the one [`spanned_trimmed`](Self::spanned_trimmed) reports and the slice is the
+  /// one [`sliced_trimmed`](Self::sliced_trimmed) reports, so neither takes in a skipped byte on
+  /// either side. The start is the same peek, with the same consequences: the next token is lexed
+  /// early, under the lexer state current here, so its lexer-error diagnostics, a fatal rejection
+  /// of one, a limit trip and the token-budget charge happen even for a parser that would not have
+  /// read it, and a fatal rejection leaves the committed position before the rejected lexeme.
+  /// `spanned_trimmed` and [`InputRef::cursor_trimmed`] spell these out.
+  #[inline(always)]
+  fn located_trimmed(self) -> With<Trimmed<PhantomLocated>, Self, Cmpl>
+  where
+    Self: Sized,
+    L: Lexer<'inp>,
+  {
+    With::new(Trimmed(PhantomLocated::phantom()), self)
   }
 
   /// Ignores the output of this parser.
@@ -1466,6 +1658,92 @@ where
           .slice_since(&cursor)
           .expect("parser should guarantee slice"),
         inp.span_since(&cursor),
+        output,
+      )
+    })
+  }
+}
+
+impl<'inp, L, O, Ctx, P, Lang: ?Sized, Cmpl>
+  ParseInput<'inp, L, Spanned<O, L::Span>, Ctx, Lang, Cmpl> for With<Trimmed<PhantomSpan>, P, Cmpl>
+where
+  P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
+{
+  #[inline(always)]
+  fn parse_input(
+    &mut self,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
+  ) -> Result<Spanned<O, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    let start = inp.cursor_trimmed()?;
+    self
+      .secondary
+      .parse_input(inp)
+      .map(|output| Spanned::new(inp.span_since_trimmed(&start), output))
+  }
+}
+
+impl<'inp, L, O, Ctx, P, Lang: ?Sized, Cmpl>
+  ParseInput<'inp, L, Sliced<O, <L::Source as Source<L::Offset>>::Slice<'inp>>, Ctx, Lang, Cmpl>
+  for With<Trimmed<PhantomSliced>, P, Cmpl>
+where
+  P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
+{
+  #[inline(always)]
+  fn parse_input(
+    &mut self,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
+  ) -> Result<
+    Sliced<O, <L::Source as Source<L::Offset>>::Slice<'inp>>,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
+  > {
+    let start = inp.cursor_trimmed()?;
+    self.secondary.parse_input(inp).map(|output| {
+      Sliced::new(
+        inp
+          .slice_since_trimmed(&start)
+          .expect("parser should guarantee slice"),
+        output,
+      )
+    })
+  }
+}
+
+impl<'inp, L, O, Ctx, P, Lang: ?Sized, Cmpl>
+  ParseInput<
+    'inp,
+    L,
+    Located<O, L::Span, <L::Source as Source<L::Offset>>::Slice<'inp>>,
+    Ctx,
+    Lang,
+    Cmpl,
+  > for With<Trimmed<PhantomLocated>, P, Cmpl>
+where
+  P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
+{
+  #[inline(always)]
+  fn parse_input(
+    &mut self,
+    inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
+  ) -> Result<
+    Located<O, L::Span, <L::Source as Source<L::Offset>>::Slice<'inp>>,
+    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
+  > {
+    let start = inp.cursor_trimmed()?;
+    self.secondary.parse_input(inp).map(|output| {
+      Located::new(
+        inp
+          .slice_since_trimmed(&start)
+          .expect("parser should guarantee slice"),
+        inp.span_since_trimmed(&start),
         output,
       )
     })

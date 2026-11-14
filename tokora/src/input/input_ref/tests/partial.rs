@@ -1375,6 +1375,41 @@ fn the_seal_is_monotone() {
   );
 }
 
+/// A withheld verdict does not outlive the seal. One handle consumes `ab` and is answered
+/// `Incomplete` for `cd`, which touches the open buffer's end, so the input remembers that lexing
+/// from 2 reaches a withheld item. The driver seals, and the next handle reads from the same
+/// offset, under the same regime, over the same buffer: it must lex `cd` again and yield it.
+/// Refuses a withheld-head memo whose key leaves out finality, which would answer the sealed read
+/// with the open buffer's `Incomplete` and send the caller after a refill that cannot come.
+#[test]
+fn a_withheld_verdict_does_not_outlive_the_seal() {
+  let mut input = Input::<Lex<'_>, PartialCtx<'_>, (), Partial>::with_state_and_context(
+    "ab cd",
+    (),
+    crate::input::InputContext::new(
+      Verbose::<PErr>::new(),
+      DefaultCache::<'_, Lex<'_>>::default(),
+    ),
+  );
+  {
+    let mut inp = input.as_ref();
+    assert!(inp.next().expect("ab is clear of the frontier").is_some());
+    assert_eq!(
+      inp.next().map(|t| t.is_some()),
+      Err(PErr::Incomplete(5)),
+      "witness: `cd` touches the open buffer's end and is withheld"
+    );
+  }
+
+  input.seal();
+  let mut inp = input.as_ref();
+  let cd = inp
+    .next()
+    .expect("sealed, nothing is withheld")
+    .expect("and `cd` is there");
+  assert_eq!((*cd.span().start_ref(), *cd.span().end_ref()), (3, 5));
+}
+
 // ── Write once, run in both modes ───────────────────────────────────────────────────
 //
 // ONE parser fn, generic over the completeness typestate, drives green under BOTH the

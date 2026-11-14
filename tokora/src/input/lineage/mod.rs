@@ -5,7 +5,7 @@
 //! # Single-writer taxonomy
 //!
 //! Every cell an [`Input`](super::Input) or an [`InputRef`](super::InputRef) owns belongs to
-//! exactly one of six classes. The class *is* the restore semantics: it decides what a
+//! exactly one of seven classes. The class *is* the restore semantics: it decides what a
 //! [`restore`](super::InputRef::restore) does to the cell, and it names the cell's single writer.
 //! A cell whose behavior does not match its class is a bug, and this taxonomy exists so that
 //! adding a cell without deciding which class it is in is not a thing that can happen quietly.
@@ -57,6 +57,14 @@
 //!   above and distinct from it in the way that matters: the world fact is monotone and
 //!   unreachable while a handle lives, while this one moves constantly, under a single writer
 //!   whose lifetime *is* the frame it counts.
+//! - **Keyed memos** — a verdict kept under the whole key that decides it: the withheld-head
+//!   memo, which records that lexing from one offset under one regime reaches an item a non-final
+//!   partial input withholds. Its one writer is the input layer's `remember_withheld`, reached from
+//!   the two places such a verdict is reached, and **restore does NOT touch it**. What it records
+//!   is a fact about the deterministic lexer, not about the lineage, so a restore cannot make it
+//!   false: afterwards it either matches the lex being asked about, and is the answer a re-lex
+//!   would give, or it matches nothing. The one lineage fact it rests on — the dedup watermark its
+//!   run's lexer-error reports raised — is part of its key rather than a reason to restore it.
 //! - **Witness / instrumentation** — cells that do not affect scanning at all, and are therefore
 //!   never restored: the debug-only, process-unique cross-input identity a checkpoint is stamped
 //!   with (see [`Witness`](super::Witness); its atomic id source keeps it behind the debug +
@@ -130,6 +138,7 @@
 //! | `token_budget` (the item ceiling) | `Input` (borrowed through `InputRef`) | **monotone session fact** | **nothing** — and here the reason is not that the cell cannot be observed to change, as it is for the two rows around it, but that a budget a rollback refunds is not a budget. An attempt that lexed a thousand items and declined performed a thousand items of scanning; giving the count back would hand an adversary who forces speculation free work without limit. Tested by `InputRef::lex_within_boundary` **before** it invokes the lexer and charged there, one per item a step produced, so the enforcement sits in front of the work rather than behind a stop a rollback can refund; the refusal records that stop through `InputRef::publish_scanner_trip`, staged before the lexer call that decides one is owed. It carries a **second** durable bit, for the same reason: the gate answers "would an item be refused?" and a driver needs "is there an item?", so `InputRef::settle_met_ceiling` runs a one-shot probe wherever the two answers differ and latches it here — outside the rollback set exactly as the counter is, since a flag any of these doors cleared would buy a fresh probe every round. No lowering writer exists for either half, and there is no `token_budget_mut`. What it costs is that a re-lex is charged again, so the ceiling bounds produce-events rather than distinct document tokens |
 //! | `resource_trips` (how many budget trips) | `Input` (borrowed through `InputRef`) | **monotone session fact** | **nothing** — it only counts up, and there is no writer that lowers it. A rollback rewinds *input progress*; it cannot un-exceed a budget, so restoring this cell would erase a stop that has already been decided. Sites that need a *per-attempt* answer snapshot it and compare rather than reading it absolutely |
 //! | `scanner_trips` (how many scanner trips) | `Input` (borrowed through `InputRef`) | **monotone session fact** | **nothing** — the same class and the same argument as the cell above, for the other budget. It is the row that makes the `poison_boundary` row *safe*: a trip's **position** is a lineage memo and comes back with a restore, so no comparison of that memo can witness a trip across a rollback — at one level or at ten. The *fact* of the trip is recorded here instead, where nothing reaches it, which is why the recovery gate judges a scanner stop on this and reads the boundary only as the narrower standing-stop reading |
+//! | `withheld` (the withheld-head memo) | `Input` (borrowed through `InputRef`) | **keyed memo** | **nothing** — it records what lexing from one offset under one regime does to this source, and its key carries all of that: the offset, the regime id, the source length and, when the run crossed lexer errors, the dedup watermark their reports raised. A restore cannot make it false, so afterwards it either matches a lex and gives the answer re-lexing would, or matches nothing. Written by `InputRef::remember_withheld`, read by `InputRef::lex_within_boundary` |
 //! | `witness` (input identity) | `Input` | witness | nothing (identity is fixed for the input's life) |
 //! | `depth` (trace nesting) | `Input` | instrumentation | nothing (trace events are out of band) |
 
@@ -250,6 +259,14 @@ pub(crate) fn census<'inp, L, Ctx, Lang, Cmpl>(
     //   `Checkpoint`, and not in `ThroughEntry` either — the sync family's own positional rewind
     //   restores the boundary and deliberately leaves this alone.
     scanner_trips: _,
+    // — KEYED MEMO: restore does NOT touch it, and need not. It records what the deterministic
+    //   lexer does from one offset under one regime on this source — an item a non-final input
+    //   withholds — and its key holds all of that: the offset, the regime id, the source length,
+    //   and the dedup watermark its run's lexer-error reports raised. After a restore it either
+    //   still matches a lex, and gives the answer a re-lex would, or matches nothing. Written by
+    //   `remember_withheld` from the peek fill and the scanner, read by `lex_within_boundary`. Not
+    //   in `Checkpoint`.
+    withheld: _,
     // — GROUND TRUTH, and the aggregate's anchor: the emission log itself, bound at construction
     //   and owned for the input's whole life. Restore truncates it to the saved mark — the same
     //   action as when it was borrowed per handle. What changed is that the two watermarks above
@@ -315,6 +332,9 @@ pub(crate) fn census<'inp, L, Ctx, Lang, Cmpl>(
     // — MONOTONE SESSION FACT (borrowed): counted up by `publish_scanner_trip`, never lowered
     //   and never restored. Same class as the `Input` field above it.
     scanner_trips: _,
+    // — KEYED MEMO (borrowed): written by `remember_withheld`, read by `lex_within_boundary`, never
+    //   restored. Same class as the `Input` field above it.
+    withheld: _,
     // — WORLD FACT, as a read-only `Copy` snapshot: no mutator, and the handle's borrow of the
     //   input locks out the seal, so it is CONSTANT for this handle's life.
     finality: _,

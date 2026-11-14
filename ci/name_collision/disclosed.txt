@@ -229,3 +229,29 @@ pop/discarded
 # harness cannot generate — while firing on legitimate discards.
 max_diagnostics/discarded
 refused_errors/discarded
+
+# ── `ParseInput`'s trimmed twins — a BOUNDED receiver, the `labelled` shape ──────────────
+#
+# `spanned_trimmed`, `sliced_trimmed` and `located_trimmed` are the trimmed counterparts of
+# `spanned`, `sliced` and `located`: defaulted `ParseInput` methods that take `self` BY VALUE,
+# take nothing else, and return a `With` adapter. That is `labelled`'s shape exactly, and these
+# rows are measured the way its were: a consumer's `&self` method of the same name sits one pick
+# later than tokora's by-value one, and loses it.
+#
+# The rows, base 017f093 against this branch:
+#
+#     loud    spanned_trimmed/same_pick               base=witness=1  head=no-compile
+#     loud    spanned_trimmed/later_pick_used         base=witness=1  head=no-compile
+#     SILENT  spanned_trimmed/later_pick_discarded    base=witness=1  head=witness=0
+#
+# and the same three for `sliced_trimmed` and for `located_trimmed`. `same_pick` is E0034: a
+# consumer's by-value method meets tokora's at the same pick, which is the shape of a downstream
+# extension trait over every parser. `used` is E0308 against the consumer's `-> u8`. So a
+# discarded return is the whole of the difference, and `With` carries no `#[must_use]`: the same
+# discriminator as `labelled`, `traced` and `peek_then_head` above — the lint, not an attribute.
+#
+# A bounded receiver, as those three are: only a type implementing `ParseInput` can take the
+# call, so a consumer's method on a type that parses nothing keeps it.
+spanned_trimmed/later_pick_discarded
+sliced_trimmed/later_pick_discarded
+located_trimmed/later_pick_discarded

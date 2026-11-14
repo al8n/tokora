@@ -366,6 +366,10 @@ where
   /// [`publish_scanner_trip`](Self::publish_scanner_trip), the infallible half of recording a
   /// terminal scanner stop, and no handle method exposes a mutable route to the cell.
   pub(super) scanner_trips: &'closure mut u64,
+  /// The **withheld-head memo**, borrowed from the owning [`Input`](super::Input) — see that field
+  /// for why a rollback leaves it alone. Written only by `remember_withheld`, read only by
+  /// [`lex_within_boundary`](Self::lex_within_boundary).
+  pub(super) withheld: &'closure mut Option<super::WithheldHead<L::Offset>>,
   /// The **session cell**: the input's lineage memos (the live-checkpoint stack, the pin set, and
   /// the cache-push/checkpoint-id/savepoint counters), the handle's **emitter borrow** (the
   /// ground-truth emission log, reached through [`emitter`](Self::emitter)), and the live
@@ -1428,6 +1432,17 @@ where
   /// An **unlimited** budget — the default, and every parse that does not opt in — makes the gate
   /// one comparison against `usize::MAX` on a `usize` already in the handle's cache line, which is
   /// never true, and the charge one saturating increment on the same cell.
+  ///
+  /// # A withheld head is lexed once
+  ///
+  /// On a non-final [`Partial`](crate::input::Partial) input, an item the frontier rules withheld
+  /// is answered here from the [withheld-head memo](super::WithheldHead) when lexing starts where
+  /// it started before, and the lexer does not run again. The check sits below the boundary probe,
+  /// since a terminal stop outranks an incomplete one, and above the budget preflight, so a lex
+  /// the memo answers is neither charged nor refused. Without it, a peek that met a withheld head
+  /// spent the budget on it, and the consume that followed lexed it a second time, or met the
+  /// spent budget and reported a terminal stop. On a [`Complete`](crate::input::Complete) input the
+  /// check compiles to nothing.
   #[inline(always)]
   fn lex_within_boundary<Fr>(
     &mut self,
@@ -1440,6 +1455,11 @@ where
   {
     if self.reached_boundary(lex_at) {
       return LexStep::Stop;
+    }
+    // The withheld-head memo: below the boundary probe, above the budget preflight. See the
+    // section above.
+    if Cmpl::PARTIAL && self.withheld_here(lex_at) {
+      return LexStep::Withheld;
     }
     // PREFLIGHT. Before `Lexer::lex`, not after: see the section above for why the other order
     // bounds nothing. Everything a met ceiling then has to decide is out of line — see
@@ -1676,6 +1696,57 @@ where
       Lexed::<L::Token>::from(produced),
     ));
     MetCeiling::Exhausted
+  }
+
+  /// Whether the withheld-head memo answers a lex that would start at `lex_at`: the frontier rules
+  /// withheld the item that lexing from here reached, and every other part of the verdict's key
+  /// still holds. See [`WithheldHead`](super::WithheldHead) for the key.
+  #[inline(always)]
+  fn withheld_here(&self, lex_at: &L::Offset) -> bool {
+    match self.withheld.as_ref() {
+      Some(memo) => memo.from == *lex_at && self.withheld_stands(memo),
+      None => false,
+    }
+  }
+
+  /// The rest of [`withheld_here`](Self::withheld_here)'s key, out of line: it is reached only where
+  /// a withheld verdict began at this very offset.
+  #[cold]
+  #[inline(never)]
+  fn withheld_stands(&self, memo: &super::WithheldHead<L::Offset>) -> bool {
+    super::same_regime(memo.regime, *self.regime)
+      && !self.is_final()
+      && memo.at == self.input.len()
+      && memo
+        .diagnosed
+        .as_ref()
+        .is_none_or(|end| *self.emitted_error_end >= *end)
+  }
+
+  /// Records that lexing from `from` reached an item the frontier rules withheld, reporting `at`.
+  ///
+  /// Called from the two places a withheld verdict is reached — the peek fill and
+  /// [`scan_with`](Self::scan_with) — and nowhere else. The verdict replaces whatever the memo held:
+  /// only one head can be withheld at a time, since nothing past it can be lexed until more input
+  /// arrives.
+  #[cold]
+  #[inline(never)]
+  fn remember_withheld(&mut self, from: L::Offset, at: L::Offset) {
+    // Every lexer error the run crossed ends past `from` and is on record once the run passes it,
+    // reported now or deduplicated against an earlier report. Nothing past the withheld item can
+    // have been lexed under this regime, so the dedup watermark stands past `from` exactly when
+    // the run crossed one.
+    let diagnosed = if *self.emitted_error_end > from {
+      Some(self.emitted_error_end.clone())
+    } else {
+      None
+    };
+    *self.withheld = Some(super::WithheldHead {
+      from,
+      regime: *self.regime,
+      at,
+      diagnosed,
+    });
   }
 
   /// **The per-driver gate**: has this input *already* refused an item, so that this entry is owed
@@ -2567,13 +2638,18 @@ where
   /// Closure-scoped span capture — the imperative twin of
   /// [`spanned`](crate::ParseInput::spanned), for hand-sequenced productions.
   ///
-  /// Returns the span covering exactly what `f` consumed, alongside `f`'s value. The
+  /// Returns the span of what `f` consumed, alongside `f`'s value. The
   /// bracket is `spanned`'s own — [`cursor`](Self::cursor) before, `f`, then
   /// [`span_since`](Self::span_since) — so the two spellings cannot disagree about where
   /// a construct starts or ends.
   ///
   /// `f`'s error propagates unchanged and no span is produced: a failed production has no
   /// extent to report.
+  ///
+  /// The span is a **lookahead span**, so under a lexer that skips trivia it can take in skipped
+  /// bytes on either side of what `f` consumed; [`spanning_trimmed`](Self::spanning_trimmed)
+  /// measures the **trimmed span** instead. See
+  /// [the two span rules](crate::span#the-two-span-rules).
   pub fn spanning<F, T, E>(&mut self, f: F) -> Result<(L::Span, T), E>
   where
     F: FnOnce(&mut Self) -> Result<T, E>,
@@ -2581,6 +2657,37 @@ where
     let cursor = self.cursor().clone();
     let value = f(self)?;
     Ok((self.span_since(&cursor), value))
+  }
+
+  /// Closure-scoped **trimmed-span** capture — the trimmed counterpart of
+  /// [`spanning`](Self::spanning), and the imperative twin of
+  /// [`spanned_trimmed`](crate::ParseInput::spanned_trimmed).
+  ///
+  /// Returns the trimmed span of what `f` consumed, alongside `f`'s value: from the start of the
+  /// first token `f` consumes to the committed position after it. The bracket is
+  /// `spanned_trimmed`'s own — [`cursor_trimmed`](Self::cursor_trimmed) before, `f`, then
+  /// [`span_since_trimmed`](Self::span_since_trimmed) — so the two spellings cannot disagree. An
+  /// `f` that consumes nothing gets the empty span at the next token's start.
+  ///
+  /// The start is a peek taken before `f` runs, so the next token is lexed early, under the lexer
+  /// state current here. For an `f` that would not have read that token, its lexer-error
+  /// diagnostics, a fatal emitter's rejection of one, a limit trip and the token-budget charge all
+  /// happen anyway; for one that would have, a fatal rejection leaves the committed position
+  /// before the rejected lexeme instead of past it. An `f` that switches the lexer state before its
+  /// first token must switch it before this call. `cursor_trimmed` states each of these.
+  ///
+  /// # Errors
+  ///
+  /// The start's error, converted into `E`, when the peek's lexer-error or limit diagnostic is
+  /// rejected by the emitter; then `f`'s error, unchanged. Either way no span is produced.
+  pub fn spanning_trimmed<F, T, E>(&mut self, f: F) -> Result<(L::Span, T), E>
+  where
+    F: FnOnce(&mut Self) -> Result<T, E>,
+    E: From<<Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+  {
+    let start = self.cursor_trimmed()?;
+    let value = f(self)?;
+    Ok((self.span_since_trimmed(&start), value))
   }
 
   /// Starts a transaction: a scoped, compile-time-safe form of [`save`](Self::save)
@@ -3228,6 +3335,9 @@ where
   }
 
   /// Returns a slice of the input source from the given cursor to the current position.
+  ///
+  /// The current position is the lookahead position, [`cursor`](Self::cursor);
+  /// [`slice_since_trimmed`](Self::slice_since_trimmed) ends at the committed position instead.
   #[inline(always)]
   pub fn slice_since(
     &self,
@@ -3237,6 +3347,23 @@ where
     self
       .input
       .slice(cursor.as_inner().clone()..end.as_inner().clone())
+  }
+
+  /// Returns the source slice of the **trimmed span** from `cursor` to the committed position —
+  /// the trimmed counterpart of [`slice_since`](Self::slice_since), for a start taken by
+  /// [`cursor_trimmed`](Self::cursor_trimmed).
+  ///
+  /// It covers exactly the bytes [`span_since_trimmed`](Self::span_since_trimmed) spans, clamp
+  /// included: a parser that consumed nothing since `cursor` gets the empty slice at `cursor`.
+  /// `None` when the source refuses the range, as for `slice_since`.
+  #[inline(always)]
+  pub fn slice_since_trimmed(
+    &self,
+    cursor: &Cursor<'inp, 'closure, L>,
+  ) -> Option<<L::Source as Source<L::Offset>>::Slice<'inp>> {
+    let start = cursor.as_inner();
+    let end = core::cmp::max(start, self.span.end_ref());
+    self.input.slice(start.clone()..end.clone())
   }
 
   /// Returns a slice of the input source from the given cursor to the end of the input.
@@ -3272,9 +3399,41 @@ where
   }
 
   /// Returns a span from the given cursor to the current position.
+  ///
+  /// The current position is the lookahead position, [`cursor`](Self::cursor), so this is a
+  /// **lookahead span**; [`span_since_trimmed`](Self::span_since_trimmed) ends at the committed
+  /// position instead.
   #[inline(always)]
   pub fn span_since(&self, cursor: &Cursor<'inp, 'closure, L>) -> L::Span {
     Span::new(cursor.as_inner().clone(), self.cursor().as_inner().clone())
+  }
+
+  /// Returns the **trimmed span** from `cursor` to the committed position — the trimmed
+  /// counterpart of [`span_since`](Self::span_since), for a start taken by
+  /// [`cursor_trimmed`](Self::cursor_trimmed).
+  ///
+  /// The span ends at `span().end()`, the committed position, where `span_since` ends at the
+  /// lookahead position [`cursor`](Self::cursor); a peek past the last committed token therefore
+  /// adds nothing to it. A parser that consumed nothing since `cursor` leaves `span().end()` before
+  /// `cursor`, and the answer is then the **empty span at `cursor`**, never an inverted one.
+  ///
+  /// # Where the end is not a token's end
+  ///
+  /// The committed position is the end of the last committed token everywhere but three places,
+  /// and the trimmed span ends where the committed position does in each:
+  ///
+  /// - a [`skip_while`](Self::skip_while) that reaches end of input commits the lexer's end, past
+  ///   the trailing bytes the lexer skipped — and so does the
+  ///   [`padded`](crate::ParseInput::padded) or [`padded_right`](crate::ParseInput::padded_right)
+  ///   that skips with it;
+  /// - a [`sync_to`](Self::sync_to) that reaches end of input commits the lexer's end the same way;
+  /// - a consume whose lexer error a fatal emitter rejects commits that lexeme's span, which is
+  ///   reachable only on the `Err` path, where no trimmed span is built.
+  #[inline(always)]
+  pub fn span_since_trimmed(&self, cursor: &Cursor<'inp, 'closure, L>) -> L::Span {
+    let start = cursor.as_inner();
+    let end = core::cmp::max(start, self.span.end_ref());
+    Span::new(start.clone(), end.clone())
   }
 
   /// Returns a span from the given cursor to the end of the input.
@@ -3426,6 +3585,9 @@ where
   /// This is the lookahead (cache-front) position: a peek or a scan decline moves it across skipped
   /// bytes without committing anything. It is **not** a progress metric — for committed progress
   /// compare [`span().end()`](Self::span).
+  ///
+  /// Nor is it where a trimmed span opens: [`cursor_trimmed`](Self::cursor_trimmed) is, the start
+  /// of the next token wherever the lookahead stands.
   #[inline(always)]
   pub fn cursor(&self) -> &Cursor<'inp, 'closure, L> {
     // Stream order is `parked?` then the cache, so a parked token — when there is one — is where
@@ -3443,6 +3605,91 @@ where
         .map(|span| span.start_ref())
         .unwrap_or_else(|| self.span.end_ref()),
     )
+  }
+
+  /// Returns the start of the next token, where a **trimmed span** opens — the trimmed
+  /// counterpart of [`cursor`](Self::cursor).
+  ///
+  /// `cursor` is the lookahead position, which a cold cache leaves at the end of the previous
+  /// token; this is the start of the token the next consume takes, with no skipped byte in front
+  /// of it. Close the span with [`span_since_trimmed`](Self::span_since_trimmed) or
+  /// [`slice_since_trimmed`](Self::slice_since_trimmed);
+  /// [`spanning_trimmed`](Self::spanning_trimmed) and
+  /// [`spanned_trimmed`](crate::ParseInput::spanned_trimmed) package the pair.
+  /// [The two span rules](crate::span#the-two-span-rules) says when each measurement fits.
+  ///
+  /// # It peeks
+  ///
+  /// A token's start is known only once the token is lexed, so this peeks one token and, unlike
+  /// `cursor`, takes `&mut self`. The peek is the raw one, [`peek_one`](Self::peek_one): it puts no
+  /// bound on the error type and decides nothing. When it yields no token — at end of input, at a
+  /// terminal scanner stop with nothing resident, or where a non-final
+  /// [`Partial`](crate::input::Partial) input withholds the next token — the answer is the
+  /// committed position, `span().end()`, and the parser that runs next meets whatever stopped the
+  /// peek. No peek asks for more input, so this never raises an
+  /// [`Incomplete`](crate::error::Incomplete); a parser that then consumes nothing on a non-final
+  /// input is anchored at the committed position, where the sealed parse would anchor it at the
+  /// next token's start.
+  ///
+  /// The answer is read off the peeked token itself. Under a cache that retains tokens, the next
+  /// consume takes that token from the cache and nothing is lexed twice. Under a zero-capacity
+  /// cache (`()`) the token is retained nowhere: [`cursor`](Self::cursor) still answers the end of
+  /// the previous token after the peek, the next consume lexes the token again, and the
+  /// [token budget](Self::token_budget) is charged for both lexes.
+  ///
+  /// A token a non-final input withholds is lexed **once**, under either cache. The input
+  /// remembers the withheld verdict, and the consume that follows at the same place returns the
+  /// same [`Incomplete`](crate::error::Incomplete) without lexing the token again or charging the
+  /// budget for it again — so a budget the peek spent cannot turn that `Incomplete` into a
+  /// terminal stop.
+  ///
+  /// # The early lex can change the outcome
+  ///
+  /// The next token is lexed here, before the parser that follows runs, under the lexer state
+  /// current here:
+  ///
+  /// - **For a parser that would not have read that token** — one that consumes nothing, or the
+  ///   last production of a parse with no end-of-input check — the lex happens anyway. The
+  ///   diagnostics of lexer-error lexemes in front of the token are emitted, a fatal emitter's
+  ///   rejection of one becomes this method's `Err`, a resource-limit trip latches its boundary
+  ///   and is diagnosed, and the token budget is charged.
+  /// - **For a parser that would have read it**, the error value is the same, but a fatal
+  ///   rejection raised here leaves the committed position *before* the rejected lexeme, while the
+  ///   same rejection raised by a consume commits past it. A caller that catches the error and
+  ///   carries on resumes at a different position.
+  ///
+  /// # Change the lexer state first
+  ///
+  /// A production that switches the lexer state ([`set_state`](Self::set_state),
+  /// [`state_mut`](Self::state_mut)) before its first token must take its start after the switch.
+  /// Taken before it, the start comes from a token lexed under the old state: that lex's
+  /// diagnostics stay in the log, its budget charge stands, and when the old state's next token
+  /// starts after the token the new state lets the production consume, the span's end falls before
+  /// its start — and the clamp in [`span_since_trimmed`](Self::span_since_trimmed) turns a node
+  /// that consumed tokens into an empty span. Switch the state outside the wrapper, or call this
+  /// after the switch.
+  ///
+  /// # Errors
+  ///
+  /// The emitter's error, when the peek lexes a lexer-error lexeme or trips a resource limit and
+  /// the emitter rejects that diagnostic — under [`Fatal`](crate::emitter::Fatal), every time. A
+  /// non-fatal emitter's diagnostic is emitted once, and the peek carries on to the token behind
+  /// the lexeme, whose start is then the answer.
+  #[inline]
+  pub fn cursor_trimmed(
+    &mut self,
+  ) -> Result<Cursor<'inp, 'closure, L>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    use crate::cache::PeekedTokenExt as _;
+
+    // Read off the window and owned before the peek's borrow ends: under a zero-capacity cache
+    // the peeked token is in the window and nowhere else, so `cursor()` read after the peek would
+    // answer the previous token's end.
+    let head = self
+      .peek_one()?
+      .map(|token| Cursor::<'inp, 'closure, L>::from_ref(token.span().start_ref()).clone());
+    // An empty window means nothing is parked and nothing is cached, so there `cursor()` is
+    // `span().end()`.
+    Ok(head.unwrap_or_else(|| self.cursor().clone()))
   }
 
   /// Returns the current offset of the tokenizer.
@@ -4472,8 +4719,15 @@ where
               }
               Err(e) => break 'scan Err(self.settle_fatal(lexer, e)),
             },
-            // The holdback, reached only by a non-terminal item (see `classify`).
-            Verdict::Withheld(at) => break 'scan Err(Cmpl::surface_incomplete(at)),
+            // The holdback, reached only by a non-terminal item (see `classify`). A scan stops at
+            // its first token, so only lexer errors came before this item, and the run that
+            // reached it began where the scan did: `at_slot` still holds that start, since it is
+            // written back only below. Remembered there, so the next lex from the same place is
+            // answered without lexing the item again.
+            Verdict::Withheld(at) => {
+              self.remember_withheld(at_slot.clone(), at.clone());
+              break 'scan Err(Cmpl::surface_incomplete(at));
+            }
           },
           // Boundary already reached, or the lexer is exhausted: fall through to the
           // end-of-input handling below, which decides which of the two it was.
@@ -4483,6 +4737,9 @@ where
           // so this takes the identical exit a `Trip` whose diagnostic the emitter accepted takes
           // — there is simply no diagnostic to offer first, and no item it could describe.
           LexStep::Exhausted => break 'scan Ok(Scan::Tripped),
+          // The withheld-head memo answered: the exit the `Withheld` arm above takes, at the
+          // offset it reported — the source length, which the memo's key has just matched.
+          LexStep::Withheld => break 'scan Err(Cmpl::surface_incomplete(self.input.len())),
         }
       }
 
@@ -4659,6 +4916,12 @@ where
   /// [`Verdict::Trip`] takes **after** its emit succeeded — and must not adopt the `Resume`'s lexer
   /// state on it, which is what keeps the probe's mutation off the committed `L::State`.
   Exhausted,
+  /// **Not terminal: lexing would start where an item was withheld before**, and the
+  /// [withheld-head memo](super::WithheldHead) still answers for it. The lexer did not run and
+  /// nothing was charged. Drivers take the exit a [`Verdict::Withheld`] takes, at the same offset:
+  /// the source length, which is what the frontier rules report. Built only on a non-final
+  /// [`Partial`](crate::input::Partial) input.
+  Withheld,
 }
 
 /// Where a scan latches the poison boundary on a limit trip: the **durable frontier**, the offset

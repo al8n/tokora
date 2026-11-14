@@ -453,11 +453,25 @@ where
             // extend with more input, so it must never enter the cache — a later `next()` serves
             // cached tokens without re-lexing, which would bypass the scan-path holdback — nor be
             // emitted. Stop filling and withhold it; the peek returns a short window, and the
-            // Incomplete surfaces when a consume path re-lexes the frontier via `scan_with`. This
+            // Incomplete surfaces when a consume path reaches the frontier via `scan_with`. This
             // preserves the invariant that the cache never holds a frontier token in this mode.
             // Const-gated: `Complete::PARTIAL` is `false`, so `classify` never builds this verdict
             // on the complete path and the arm is eliminated at monomorphization.
-            Verdict::Withheld(_) => break,
+            //
+            // The verdict is remembered at the start of the run that reached it, so that consume
+            // — and any later fill — is answered without lexing the item again or charging for it
+            // again. That start is the end of the newest token this fill produced: a staged token
+            // is newer than every cached one, and with nothing staged `offset()` is the newest
+            // retained token's end, which is also where the fill began lexing if it produced none.
+            Verdict::Withheld(at) => {
+              use crate::cache::PeekedTokenExt as _;
+              let from = match buf.back() {
+                Some(newest) if staged > 0 => newest.span().end_ref().clone(),
+                _ => self.offset().clone(),
+              };
+              self.remember_withheld(from, at);
+              break;
+            }
             Verdict::Trip(err) => {
               // A limit trip is sticky, and `classify` has already latched the durable frontier —
               // so this (possibly fatal) emit cannot lose it: the failing return below carries the
@@ -505,6 +519,9 @@ where
         }
         // Boundary already reached, or the lexer is exhausted: the fill simply stops short.
         LexStep::Stop => break,
+        // The withheld-head memo answered for lexing from here: the fill stops short exactly as
+        // at the `Withheld` arm above, without lexing the item or charging for it.
+        LexStep::Withheld => break,
         // The token budget refused to authorize the step, so no lexer ran.
         // `lex_within_boundary` has already latched the boundary and counted the trip, so this is
         // the `Trip` arm minus the emit — there is no diagnostic, and the truncation below is the
