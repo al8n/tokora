@@ -167,8 +167,9 @@ exist on both sides, the rows leave every future plan, and the harness can never
 
   The start comes from a **peek**, and that has three consequences, all documented on
   `token_cursor` and on each `token_` method. Under a zero-capacity cache the peeked token is
-  retained nowhere, so the consume lexes it again and the token budget is charged twice. The early
-  lex can change an outcome: a parser that would not have read the next token still meets its
+  retained nowhere, so the consume lexes it again and the token budget is charged twice — except a
+  token a non-final partial input withholds, which is lexed once under either cache (see
+  [Fixed](#unreleased-fixed)). The early lex can change an outcome: a parser that would not have read the next token still meets its
   lexer-error diagnostics, a fatal emitter's rejection of one (the parse's `Err`), a limit trip and
   the budget charge, and for a parser that would have, a fatal rejection leaves the committed
   position before the rejected lexeme rather than past it. And a production that switches the
@@ -184,6 +185,22 @@ exist on both sides, the rows leave every future plan, and the harness can never
   repetition handlers' spans — measure exactly what they measured before. The new names collide
   with a consumer's own: see the [silent](#unreleased-source-breaking-additions-that-can-change-behaviour-with-no-diagnostic-at-the-call-site)
   and [loud](#unreleased-source-breaking-additions-that-fail-loudly) disclosures above.
+
+<a id="unreleased-fixed"></a>
+
+### Fixed
+
+- **A token a non-final partial input withholds is lexed, and charged to the token budget, once.**
+  A peek that met such a head lexed it and was charged for it, and the consume that followed at
+  the same place lexed it a second time and was charged again. Where the peek had spent the
+  budget, the second lex was refused instead, and the consume reported a *terminal* end of input
+  over a buffer that only needed more bytes, which a `PartialSession` latches on for good. The
+  input now keeps the withheld verdict under everything that decides it — the offset the lex began
+  at, the lexer state, the buffer's length and finality, and the lexer-error reports the lex
+  crossed — and a lex that would begin there returns the same `Incomplete` without running the
+  lexer. A state switch, a refill, a seal, or a rollback that takes those reports back makes the
+  next one lex again. Every production that peeks before it consumes is affected, not only the
+  token extents added above.
 
 ## 0.13.1 (2026-11-13)
 
