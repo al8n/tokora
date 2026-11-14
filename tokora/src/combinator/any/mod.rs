@@ -85,9 +85,9 @@ use super::*;
 /// [two span rules](crate::span#the-two-span-rules) agree. The **method** spelling is another
 /// parser: `Any::of().spanned()` cannot reach the associated function, which takes no receiver,
 /// so it resolves to [`ParseInput::spanned`], which measures a lookahead span — on a cold cache it
-/// opens at the end of the previous token, skipped bytes included. Its token-extent twin,
-/// `Any::of().token_spanned()`, measures exactly what `Any::spanned()` does, and likewise for
-/// `token_sliced` and `token_located`.
+/// opens at the end of the previous token, skipped bytes included. Its trimmed twin,
+/// `Any::of().spanned_trimmed()`, measures exactly what `Any::spanned()` does, and likewise for
+/// `sliced_trimmed` and `located_trimmed`.
 ///
 /// # Error Handling
 ///

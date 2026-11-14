@@ -23,10 +23,11 @@ three shapes recur in every grammar — *A then B*, *zero or more A*, *A separat
 [`spanned`](crate::ParseInput::spanned) / [`sliced`](crate::ParseInput::sliced) /
 [`located`](crate::ParseInput::located) attach where it came from. Those three measure from
 lookahead position to lookahead position, so under a lexer that skips whitespace a span can take
-in the whitespace around what was parsed; their token-extent twins
-[`token_spanned`](crate::ParseInput::token_spanned) / [`token_sliced`](crate::ParseInput::token_sliced) /
-[`token_located`](crate::ParseInput::token_located) measure from the first token consumed to the
-last one committed, and nothing else. A **delimited** shape is
+in the whitespace around what was parsed; their trimmed twins
+[`spanned_trimmed`](crate::ParseInput::spanned_trimmed) /
+[`sliced_trimmed`](crate::ParseInput::sliced_trimmed) /
+[`located_trimmed`](crate::ParseInput::located_trimmed) measure the **trimmed span**, from the
+first token consumed to the last one committed, and nothing else. A **delimited** shape is
 just sequencing with the brackets ignored — `open.ignore_then(body).then_ignore(close)` —
 which is how the argument-list example below wraps its comma list in parentheses. That
 hand-roll is the lesson here; the combinator reference packages it ready-made as the

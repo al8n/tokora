@@ -393,21 +393,21 @@ consumed. `spanned`/`sliced`/`located` are taught in [chapter 3](super::ch03_com
 | [`spanned`](crate::ParseInput::spanned) | `Spanned<O, Span>` — output + its source span |
 | [`sliced`](crate::ParseInput::sliced) | `Sliced<O, Slice>` — output + its source text |
 | [`located`](crate::ParseInput::located) | `Located<O, Span, Slice>` — output + span **and** text |
-| [`token_spanned`](crate::ParseInput::token_spanned) | `Spanned<O, Span>` — as `spanned`, measured as a token extent |
-| [`token_sliced`](crate::ParseInput::token_sliced) | `Sliced<O, Slice>` — as `sliced`, measured as a token extent |
-| [`token_located`](crate::ParseInput::token_located) | `Located<O, Span, Slice>` — as `located`, measured as a token extent |
+| [`spanned_trimmed`](crate::ParseInput::spanned_trimmed) | `Spanned<O, Span>` — as `spanned`, measured as a trimmed span |
+| [`sliced_trimmed`](crate::ParseInput::sliced_trimmed) | `Sliced<O, Slice>` — as `sliced`, measured as a trimmed span |
+| [`located_trimmed`](crate::ParseInput::located_trimmed) | `Located<O, Span, Slice>` — as `located`, measured as a trimmed span |
 | [`ignored`](crate::ParseInput::ignored) | `()` — discard the output, keep the consumption |
 | [`by_ref`](crate::ParseInput::by_ref) | `&mut ByRef<Self>` — reuse a parser without moving it |
 
 `spanned`, `sliced` and `located` measure a **lookahead span**, from the lookahead position before
 the parser to the lookahead position after it. Under a lexer that skips whitespace or comments
 that span can take in the skipped bytes on either side of what was consumed: after a parser that
-peeked past its last token, and before one entered with nothing cached. The `token_` twins measure
-the **token extent** instead — from the start of the first token consumed to the committed
+peeked past its last token, and before one entered with nothing cached. The `_trimmed` twins
+measure the **trimmed span** instead — from the start of the first token consumed to the committed
 position after it, the end of the last token committed — with the same output types, so switching
 is a change of method name. Under a lexer that skips nothing the two agree.
-[`token_spanned`](crate::ParseInput::token_spanned)'s documentation states what its start costs:
-it peeks the next token.
+[`spanned_trimmed`](crate::ParseInput::spanned_trimmed)'s documentation states what its start
+costs: it peeks the next token.
 
 ```rust
 # use core::{convert::Infallible, fmt};

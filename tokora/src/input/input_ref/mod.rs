@@ -2647,8 +2647,9 @@ where
   /// extent to report.
   ///
   /// The span is a **lookahead span**, so under a lexer that skips trivia it can take in skipped
-  /// bytes on either side of what `f` consumed; [`token_spanning`](Self::token_spanning) measures
-  /// the **token extent** instead. See [the two span rules](crate::span#the-two-span-rules).
+  /// bytes on either side of what `f` consumed; [`spanning_trimmed`](Self::spanning_trimmed)
+  /// measures the **trimmed span** instead. See
+  /// [the two span rules](crate::span#the-two-span-rules).
   pub fn spanning<F, T, E>(&mut self, f: F) -> Result<(L::Span, T), E>
   where
     F: FnOnce(&mut Self) -> Result<T, E>,
@@ -2658,35 +2659,35 @@ where
     Ok((self.span_since(&cursor), value))
   }
 
-  /// Closure-scoped **token-extent** capture — the token-extent counterpart of
+  /// Closure-scoped **trimmed-span** capture — the trimmed counterpart of
   /// [`spanning`](Self::spanning), and the imperative twin of
-  /// [`token_spanned`](crate::ParseInput::token_spanned).
+  /// [`spanned_trimmed`](crate::ParseInput::spanned_trimmed).
   ///
-  /// Returns the token extent of what `f` consumed, alongside `f`'s value: from the start of the
-  /// first token `f` consumes to the committed position after it. The bracket is `token_spanned`'s
-  /// own — [`token_cursor`](Self::token_cursor) before, `f`, then
-  /// [`token_span_since`](Self::token_span_since) — so the two spellings cannot disagree. An `f`
-  /// that consumes nothing gets the empty span at the next token's start.
+  /// Returns the trimmed span of what `f` consumed, alongside `f`'s value: from the start of the
+  /// first token `f` consumes to the committed position after it. The bracket is
+  /// `spanned_trimmed`'s own — [`cursor_trimmed`](Self::cursor_trimmed) before, `f`, then
+  /// [`span_since_trimmed`](Self::span_since_trimmed) — so the two spellings cannot disagree. An
+  /// `f` that consumes nothing gets the empty span at the next token's start.
   ///
   /// The start is a peek taken before `f` runs, so the next token is lexed early, under the lexer
   /// state current here. For an `f` that would not have read that token, its lexer-error
   /// diagnostics, a fatal emitter's rejection of one, a limit trip and the token-budget charge all
   /// happen anyway; for one that would have, a fatal rejection leaves the committed position
   /// before the rejected lexeme instead of past it. An `f` that switches the lexer state before its
-  /// first token must switch it before this call. `token_cursor` states each of these.
+  /// first token must switch it before this call. `cursor_trimmed` states each of these.
   ///
   /// # Errors
   ///
   /// The start's error, converted into `E`, when the peek's lexer-error or limit diagnostic is
   /// rejected by the emitter; then `f`'s error, unchanged. Either way no span is produced.
-  pub fn token_spanning<F, T, E>(&mut self, f: F) -> Result<(L::Span, T), E>
+  pub fn spanning_trimmed<F, T, E>(&mut self, f: F) -> Result<(L::Span, T), E>
   where
     F: FnOnce(&mut Self) -> Result<T, E>,
     E: From<<Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
   {
-    let start = self.token_cursor()?;
+    let start = self.cursor_trimmed()?;
     let value = f(self)?;
-    Ok((self.token_span_since(&start), value))
+    Ok((self.span_since_trimmed(&start), value))
   }
 
   /// Starts a transaction: a scoped, compile-time-safe form of [`save`](Self::save)
@@ -3336,7 +3337,7 @@ where
   /// Returns a slice of the input source from the given cursor to the current position.
   ///
   /// The current position is the lookahead position, [`cursor`](Self::cursor);
-  /// [`token_slice_since`](Self::token_slice_since) ends at the committed position instead.
+  /// [`slice_since_trimmed`](Self::slice_since_trimmed) ends at the committed position instead.
   #[inline(always)]
   pub fn slice_since(
     &self,
@@ -3348,15 +3349,15 @@ where
       .slice(cursor.as_inner().clone()..end.as_inner().clone())
   }
 
-  /// Returns the source slice of the **token extent** from `cursor` to the committed position —
-  /// the token-extent counterpart of [`slice_since`](Self::slice_since), for a start taken by
-  /// [`token_cursor`](Self::token_cursor).
+  /// Returns the source slice of the **trimmed span** from `cursor` to the committed position —
+  /// the trimmed counterpart of [`slice_since`](Self::slice_since), for a start taken by
+  /// [`cursor_trimmed`](Self::cursor_trimmed).
   ///
-  /// It covers exactly the bytes [`token_span_since`](Self::token_span_since) spans, clamp
+  /// It covers exactly the bytes [`span_since_trimmed`](Self::span_since_trimmed) spans, clamp
   /// included: a parser that consumed nothing since `cursor` gets the empty slice at `cursor`.
   /// `None` when the source refuses the range, as for `slice_since`.
   #[inline(always)]
-  pub fn token_slice_since(
+  pub fn slice_since_trimmed(
     &self,
     cursor: &Cursor<'inp, 'closure, L>,
   ) -> Option<<L::Source as Source<L::Offset>>::Slice<'inp>> {
@@ -3400,16 +3401,16 @@ where
   /// Returns a span from the given cursor to the current position.
   ///
   /// The current position is the lookahead position, [`cursor`](Self::cursor), so this is a
-  /// **lookahead span**; [`token_span_since`](Self::token_span_since) ends at the committed
+  /// **lookahead span**; [`span_since_trimmed`](Self::span_since_trimmed) ends at the committed
   /// position instead.
   #[inline(always)]
   pub fn span_since(&self, cursor: &Cursor<'inp, 'closure, L>) -> L::Span {
     Span::new(cursor.as_inner().clone(), self.cursor().as_inner().clone())
   }
 
-  /// Returns the **token extent** from `cursor` to the committed position — the token-extent
+  /// Returns the **trimmed span** from `cursor` to the committed position — the trimmed
   /// counterpart of [`span_since`](Self::span_since), for a start taken by
-  /// [`token_cursor`](Self::token_cursor).
+  /// [`cursor_trimmed`](Self::cursor_trimmed).
   ///
   /// The span ends at `span().end()`, the committed position, where `span_since` ends at the
   /// lookahead position [`cursor`](Self::cursor); a peek past the last committed token therefore
@@ -3419,7 +3420,7 @@ where
   /// # Where the end is not a token's end
   ///
   /// The committed position is the end of the last committed token everywhere but three places,
-  /// and the extent ends where the committed position does in each:
+  /// and the trimmed span ends where the committed position does in each:
   ///
   /// - a [`skip_while`](Self::skip_while) that reaches end of input commits the lexer's end, past
   ///   the trailing bytes the lexer skipped — and so does the
@@ -3427,9 +3428,9 @@ where
   ///   that skips with it;
   /// - a [`sync_to`](Self::sync_to) that reaches end of input commits the lexer's end the same way;
   /// - a consume whose lexer error a fatal emitter rejects commits that lexeme's span, which is
-  ///   reachable only on the `Err` path, where no extent is built.
+  ///   reachable only on the `Err` path, where no trimmed span is built.
   #[inline(always)]
-  pub fn token_span_since(&self, cursor: &Cursor<'inp, 'closure, L>) -> L::Span {
+  pub fn span_since_trimmed(&self, cursor: &Cursor<'inp, 'closure, L>) -> L::Span {
     let start = cursor.as_inner();
     let end = core::cmp::max(start, self.span.end_ref());
     Span::new(start.clone(), end.clone())
@@ -3585,8 +3586,8 @@ where
   /// bytes without committing anything. It is **not** a progress metric — for committed progress
   /// compare [`span().end()`](Self::span).
   ///
-  /// Nor is it where a token extent opens: [`token_cursor`](Self::token_cursor) is, the start of
-  /// the next token wherever the lookahead stands.
+  /// Nor is it where a trimmed span opens: [`cursor_trimmed`](Self::cursor_trimmed) is, the start
+  /// of the next token wherever the lookahead stands.
   #[inline(always)]
   pub fn cursor(&self) -> &Cursor<'inp, 'closure, L> {
     // Stream order is `parked?` then the cache, so a parked token — when there is one — is where
@@ -3606,14 +3607,15 @@ where
     )
   }
 
-  /// Returns the start of the next token, where a **token extent** opens — the token-extent
+  /// Returns the start of the next token, where a **trimmed span** opens — the trimmed
   /// counterpart of [`cursor`](Self::cursor).
   ///
   /// `cursor` is the lookahead position, which a cold cache leaves at the end of the previous
   /// token; this is the start of the token the next consume takes, with no skipped byte in front
-  /// of it. Close the extent with [`token_span_since`](Self::token_span_since) or
-  /// [`token_slice_since`](Self::token_slice_since); [`token_spanning`](Self::token_spanning) and
-  /// [`token_spanned`](crate::ParseInput::token_spanned) package the pair.
+  /// of it. Close the span with [`span_since_trimmed`](Self::span_since_trimmed) or
+  /// [`slice_since_trimmed`](Self::slice_since_trimmed);
+  /// [`spanning_trimmed`](Self::spanning_trimmed) and
+  /// [`spanned_trimmed`](crate::ParseInput::spanned_trimmed) package the pair.
   /// [The two span rules](crate::span#the-two-span-rules) says when each measurement fits.
   ///
   /// # It peeks
@@ -3662,8 +3664,8 @@ where
   /// [`state_mut`](Self::state_mut)) before its first token must take its start after the switch.
   /// Taken before it, the start comes from a token lexed under the old state: that lex's
   /// diagnostics stay in the log, its budget charge stands, and when the old state's next token
-  /// starts after the token the new state lets the production consume, the extent's end falls
-  /// before its start — and the clamp in [`token_span_since`](Self::token_span_since) turns a node
+  /// starts after the token the new state lets the production consume, the span's end falls before
+  /// its start — and the clamp in [`span_since_trimmed`](Self::span_since_trimmed) turns a node
   /// that consumed tokens into an empty span. Switch the state outside the wrapper, or call this
   /// after the switch.
   ///
@@ -3674,7 +3676,7 @@ where
   /// non-fatal emitter's diagnostic is emitted once, and the peek carries on to the token behind
   /// the lexeme, whose start is then the answer.
   #[inline]
-  pub fn token_cursor(
+  pub fn cursor_trimmed(
     &mut self,
   ) -> Result<Cursor<'inp, 'closure, L>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     use crate::cache::PeekedTokenExt as _;

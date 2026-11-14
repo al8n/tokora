@@ -77,26 +77,26 @@ This release adds seven public methods and one public type, and the two-sided na
 measures three of the methods **silent** in one of their spellings. Disclosed here because a
 consumer cannot discover it from a compiler diagnostic.
 
-#### `ParseInput::token_spanned`, `token_sliced` and `token_located` — SILENT on a discarded return
+#### `ParseInput::spanned_trimmed`, `sliced_trimmed` and `located_trimmed` — SILENT on a discarded return
 
-**You are exposed if you wrote a `token_spanned`, `token_sliced` or `token_located` method of your
-own on a parser type** — in practice on an extension trait over every parser, which was the only
-way to get a token-extent span before this release. tokora's methods take `self` by value, so they
-sit at the first pick of the receiver walk: a method of yours that takes `&self` sits one pick
-later and loses the call.
+**You are exposed if you wrote a `spanned_trimmed`, `sliced_trimmed` or `located_trimmed` method
+of your own on a parser type** — on an extension trait over every parser, say, which was the only
+way to get a trimmed span before this release. tokora's methods take `self` by value, so they sit
+at the first pick of the receiver walk: a method of yours that takes `&self` sits one pick later
+and loses the call.
 
 The rows of `ci/name_collision/`, two-sided, base `017f093` against this branch:
 
 ```text
-loud    token_spanned/same_pick               base=witness=1  head=no-compile
-loud    token_spanned/later_pick_used         base=witness=1  head=no-compile
-SILENT  token_spanned/later_pick_discarded    base=witness=1  head=witness=0
-loud    token_sliced/same_pick                base=witness=1  head=no-compile
-loud    token_sliced/later_pick_used          base=witness=1  head=no-compile
-SILENT  token_sliced/later_pick_discarded     base=witness=1  head=witness=0
-loud    token_located/same_pick               base=witness=1  head=no-compile
-loud    token_located/later_pick_used         base=witness=1  head=no-compile
-SILENT  token_located/later_pick_discarded    base=witness=1  head=witness=0
+loud    spanned_trimmed/same_pick               base=witness=1  head=no-compile
+loud    spanned_trimmed/later_pick_used         base=witness=1  head=no-compile
+SILENT  spanned_trimmed/later_pick_discarded    base=witness=1  head=witness=0
+loud    sliced_trimmed/same_pick                base=witness=1  head=no-compile
+loud    sliced_trimmed/later_pick_used          base=witness=1  head=no-compile
+SILENT  sliced_trimmed/later_pick_discarded     base=witness=1  head=witness=0
+loud    located_trimmed/same_pick               base=witness=1  head=no-compile
+loud    located_trimmed/later_pick_used         base=witness=1  head=no-compile
+SILENT  located_trimmed/later_pick_discarded    base=witness=1  head=witness=0
 ```
 
 On the three discarded rows both sides compile, **neither emits any diagnostic**, and the two run
@@ -105,24 +105,28 @@ consumer's `-> u8`), so a **discarded return** is the whole of the difference: e
 a `With` adapter, which carries no `#[must_use]`, the same discriminator as `labelled`, `traced`
 and `peek_then_head` in 0.8.0. A used return is not a safe harbour either: a method of yours whose
 return type is close enough to tokora's — another parser producing the same `Spanned` — is taken
-silently too, and runs tokora's measurement. **The remedy is UFCS**: `MyExt::token_spanned(parser)`
-pins your method by name and is immune to this. The `same_pick` rows are the loud case, below.
+silently too, and runs tokora's measurement. **The remedy is UFCS**:
+`MyExt::spanned_trimmed(parser)` pins your method by name and is immune to this. The `same_pick`
+rows are the loud case, below.
 
-#### `InputRef::token_span_since` and `token_slice_since` — a `&self` helper loses the call
+#### `InputRef::span_since_trimmed` and `slice_since_trimmed` — a `&self` helper loses the call
 
-**You are exposed if you wrote a `token_span_since` or `token_slice_since` method of your own on
-`InputRef` that takes `&self`.** tokora's two take `&self` too, so the two compete at the same pick
-and tokora's inherent method wins it, with no diagnostic when the signatures are compatible — and a
-span-returning helper that takes a start is exactly the helper a grammar that wanted these would
-have written. The probe's consumer takes `&mut self`, which is found one pick earlier and keeps
-its call, so these rows agree on both sides and are justified by pick order in
-`ci/name_collision/no_collision.txt`: read them as "the `&mut self` helper keeps its call", never as
-"the names cannot be stolen". The remedy is UFCS.
+**You are exposed if you wrote a `span_since_trimmed` or `slice_since_trimmed` method of your own
+on `InputRef` that takes `&self`.** tokora's two take `&self` too, so the two compete at the same
+pick and tokora's inherent method wins it, with no diagnostic when the signatures are compatible —
+and a span-returning helper that takes a start is exactly the helper a grammar that wanted these
+would have written. The probe's consumer takes `&mut self`, which is found one pick earlier and
+keeps its call, so these rows agree on both sides and are justified by pick order in
+`ci/name_collision/no_collision.txt`: read them as "the `&mut self` helper keeps its call", never
+as "the names cannot be stolen". The remedy is UFCS.
 
-`InputRef::token_cursor` returns a `Result`, so a discarded call is reported by `unused_must_use`;
-a used one whose signature is compatible with tokora's is taken silently, as for every name here.
-`InputRef::token_spanning` takes an argument the probe's consumer does not, so its rows are `loud`
-by the probe's own arity: read that as unprobed, not as safe.
+`InputRef::cursor_trimmed` returns a `Result`, so a discarded call is reported by
+`unused_must_use`; a used one whose signature is compatible with tokora's is taken silently, as for
+every name here. `InputRef::spanning_trimmed` takes an argument the probe's consumer does not, so
+its rows are `loud` by the probe's own arity: read that as unprobed, not as safe. Both are inherent
+`&mut self` methods, so on the `&mut InputRef` a production is handed, a method of yours of the
+same name on an `InputRef` extension trait loses the pick to tokora's instead of meeting it in an
+`E0034` ambiguity.
 
 Recorded in `ci/name_collision/disclosed.txt` and `ci/name_collision/no_collision.txt`. Disclosed on
 **this** branch because the probe's inventory is a two-sided delta: once this merges the names
@@ -132,52 +136,49 @@ exist on both sides, the rows leave every future plan, and the harness can never
 
 ### Source-breaking additions that fail *loudly*
 
-- **`E0034`, "multiple applicable items in scope", for a crate with its own `token_spanned`,
-  `token_sliced`, `token_located` or `token_spanning` extension method** — an extension trait whose
-  method takes `self` by value and is implemented for every parser, with that trait and
+- **`E0034`, "multiple applicable items in scope", for a crate with its own `spanned_trimmed`,
+  `sliced_trimmed` or `located_trimmed` extension method on every parser** — an extension trait
+  whose method takes `self` by value and is implemented for every parser, with that trait and
   `ParseInput` both in scope. Its method and tokora's meet at the same pick, and every such call
-  site stops compiling. The same holds for a `token_spanning` taking `&mut self` on an extension
-  trait over `InputRef`. smear's `TokenSpannedExt::token_spanned` is this shape. The fix is to
-  delete the extension trait and call tokora's method, which measures the same token extent; or,
-  to keep yours, UFCS.
-- **`E0659`, "`TokenExtent` is ambiguous"**, for a crate that glob-imports `tokora::utils` beside
-  another glob that brings in a `TokenExtent` of its own, at every use of the name. Import one of
+  site stops compiling. Call yours with UFCS, or rename it.
+- **`E0659`, "`Trimmed` is ambiguous"**, for a crate that glob-imports `tokora::utils` beside
+  another glob that brings in a `Trimmed` of its own, at every use of the name. Import one of
   the two by name.
 
 ### Added
 
-- **Token-extent spans beside the lookahead spans: `ParseInput::token_spanned`, `token_sliced`
-  and `token_located`, and `InputRef::token_cursor`, `token_span_since`, `token_slice_since` and
-  `token_spanning`.** `spanned`, `sliced`, `located`, `spanning`, `span_since` and `slice_since`
-  measure what a parser consumed from lookahead position to lookahead position — from
-  `InputRef::cursor` before it to `cursor` after it. Under a lexer that skips bytes between tokens
-  (whitespace, comments), that span takes in the skipped bytes after a node whose parser peeked
-  past its last token, and the skipped bytes before a node entered with nothing cached. The new
-  items measure the **token extent** instead: from the start of the first token consumed to the
-  committed position after it, `span().end()`, so no skipped byte on either side is in a node's
-  span. On compact input, and under a lexer that skips nothing, the two agree. The `span` module
-  documents both rules and when each fits.
+- **Trimmed spans beside the lookahead spans: `ParseInput::spanned_trimmed`, `sliced_trimmed`
+  and `located_trimmed`, and `InputRef::cursor_trimmed`, `span_since_trimmed`,
+  `slice_since_trimmed` and `spanning_trimmed`.** `spanned`, `sliced`, `located`, `spanning`,
+  `span_since` and `slice_since` measure what a parser consumed from lookahead position to
+  lookahead position — from `InputRef::cursor` before it to `cursor` after it. Under a lexer that
+  skips bytes between tokens (whitespace, comments), that span takes in the skipped bytes after a
+  node whose parser peeked past its last token, and the skipped bytes before a node entered with
+  nothing cached. The new items measure the **trimmed span** instead: from the start of the first
+  token consumed to the committed position after it, `span().end()`, so no skipped byte on either
+  side is in a node's span. On compact input, and under a lexer that skips nothing, the two agree.
+  The `span` module documents both rules and when each fits.
 
-  Each combinator has the same output type as its lookahead twin, so a grammar switches by
-  changing the method name; the parser they build is `With<TokenExtent<M>, P>`, over the new marker
-  `utils::TokenExtent`. `token_cursor` opens an extent with a `Cursor` at the next token's start,
-  and `token_span_since` and `token_slice_since` close it at the committed position. A parser that
-  consumes nothing gets the empty span at the next token's start, or at the committed position at
-  end of input.
+  Each combinator has the same output type as its lookahead twin, so a grammar switches by adding
+  `_trimmed` to the method name; the parser they build is `With<Trimmed<M>, P>`, over the new
+  marker `utils::Trimmed`. `cursor_trimmed` opens a trimmed span with a `Cursor` at the next
+  token's start, and `span_since_trimmed` and `slice_since_trimmed` close it at the committed
+  position. A parser that consumes nothing gets the empty span at the next token's start, or at
+  the committed position at end of input.
 
   The start comes from a **peek**, and that has three consequences, all documented on
-  `token_cursor` and on each `token_` method. Under a zero-capacity cache the peeked token is
+  `cursor_trimmed` and on each `_trimmed` method. Under a zero-capacity cache the peeked token is
   retained nowhere, so the consume lexes it again and the token budget is charged twice — except a
   token a non-final partial input withholds, which is lexed once under either cache (see
-  [Fixed](#unreleased-fixed)). The early lex can change an outcome: a parser that would not have read the next token still meets its
-  lexer-error diagnostics, a fatal emitter's rejection of one (the parse's `Err`), a limit trip and
-  the budget charge, and for a parser that would have, a fatal rejection leaves the committed
-  position before the rejected lexeme rather than past it. And a production that switches the
-  lexer state before its first token must switch it before the start is taken. No peek asks for
-  more input, so on a non-final partial input whose next token is withheld the start is the
-  committed position. The end is the committed position, which is a token's end except after a
-  skip or a recovery sync that reaches end of input: `x.padded().token_spanned()` over `"x  "` ends
-  at the end of the input.
+  [Fixed](#unreleased-fixed)). The early lex can change an outcome: a parser that would not have
+  read the next token still meets its lexer-error diagnostics, a fatal emitter's rejection of one
+  (the parse's `Err`), a limit trip and the budget charge, and for a parser that would have, a
+  fatal rejection leaves the committed position before the rejected lexeme rather than past it.
+  And a production that switches the lexer state before its first token must switch it before the
+  start is taken. No peek asks for more input, so on a non-final partial input whose next token is
+  withheld the start is the committed position. The end is the committed position, which is a
+  token's end except after a skip or a recovery sync that reaches end of input:
+  `x.padded().spanned_trimmed()` over `"x  "` ends at the end of the input.
 
   Nothing existing changes: `cursor`, `span_since`, `slice_since`, `spanning`, `spanned`,
   `sliced`, `located`, the CST layer, and every span that reads the lookahead position —
@@ -200,7 +201,7 @@ exist on both sides, the rows leave every future plan, and the harness can never
   crossed — and a lex that would begin there returns the same `Incomplete` without running the
   lexer. A state switch, a refill, a seal, or a rollback that takes those reports back makes the
   next one lex again. Every production that peeks before it consumes is affected, not only the
-  token extents added above.
+  trimmed spans added above.
 
 ## 0.13.1 (2026-11-13)
 

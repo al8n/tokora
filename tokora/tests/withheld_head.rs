@@ -288,20 +288,23 @@ fn own_span(inp: &mut In<'_, '_>) -> Result<SimpleSpan, Fail> {
   Ok(Any::spanned().parse_input(inp)?.span)
 }
 
-/// `Any` under one `token_spanned`, whose start peeks the head first.
+/// `Any` under one `spanned_trimmed`, whose start peeks the head first.
 fn spanned(inp: &mut In<'_, '_>) -> Result<SimpleSpan, Fail> {
-  Ok(Any::of().token_spanned().parse_input(inp)?.span)
+  Ok(Any::of().spanned_trimmed().parse_input(inp)?.span)
 }
 
-/// `Any` under two `token_spanned`s: the outer start's peek meets the head, then the inner one's.
+/// `Any` under two `spanned_trimmed`s: the outer start's peek meets the head, then the inner one's.
 fn nested(inp: &mut In<'_, '_>) -> Result<(SimpleSpan, SimpleSpan), Fail> {
-  let outer = Any::of().token_spanned().token_spanned().parse_input(inp)?;
+  let outer = Any::of()
+    .spanned_trimmed()
+    .spanned_trimmed()
+    .parse_input(inp)?;
   Ok((outer.span, outer.data.span))
 }
 
-/// `Any` under `InputRef::token_spanning`, the imperative spelling of the same bracket.
+/// `Any` under `InputRef::spanning_trimmed`, the imperative spelling of the same bracket.
 fn spanning(inp: &mut In<'_, '_>) -> Result<SimpleSpan, Fail> {
-  let (span, _) = inp.token_spanning(bare)?;
+  let (span, _) = inp.spanning_trimmed(bare)?;
   Ok(span)
 }
 
@@ -329,22 +332,22 @@ fn each_shape_stays_incomplete_when_the_peek_spent_the_budget_on_the_head() {
   assert_eq!(
     run("x", Mode::Words, 1, false, spanned),
     Err(Fail::Incomplete),
-    "token_spanned"
+    "spanned_trimmed"
   );
   assert_eq!(
     run("x", Mode::Words, 1, false, nested),
     Err(Fail::Incomplete),
-    "nested token_spanned"
+    "nested spanned_trimmed"
   );
   assert_eq!(
     run("x", Mode::Words, 1, false, spanning),
     Err(Fail::Incomplete),
-    "token_spanning"
+    "spanning_trimmed"
   );
 }
 
 /// The refill: the same buffer sealed, under the same ceiling of one item. Each shape takes `x`
-/// with `x`'s extent: the start's peek lexes `x` once, and the retaining cache serves it to the
+/// with `x`'s span: the start's peek lexes `x` once, and the retaining cache serves it to the
 /// consume. Refuses a fix that holds `x` back on a sealed input, or lexes it a second time there,
 /// which the ceiling refuses.
 #[test]
@@ -388,22 +391,22 @@ fn the_head_is_lexed_and_charged_once_for_the_peek_and_the_consume() {
   assert_eq!(
     cost(spanned),
     (Err(Fail::Incomplete), 1, 1),
-    "token_spanned"
+    "spanned_trimmed"
   );
   assert_eq!(
     cost(nested),
     (Err(Fail::Incomplete), 1, 1),
-    "nested token_spanned"
+    "nested spanned_trimmed"
   );
   assert_eq!(
     cost(spanning),
     (Err(Fail::Incomplete), 1, 1),
-    "token_spanning"
+    "spanning_trimmed"
   );
 }
 
-/// The latent case: no token extent anywhere, only a peek and then a consume, under the same input
-/// and ceiling. Refuses a fix confined to the extent wrappers, which leaves every other
+/// The latent case: no trimmed span anywhere, only a peek and then a consume, under the same input
+/// and ceiling. Refuses a fix confined to the trimmed wrappers, which leaves every other
 /// peek-then-consume production reporting a terminal end of input.
 #[test]
 fn a_plain_peek_then_consume_stays_incomplete() {

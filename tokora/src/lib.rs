@@ -204,45 +204,46 @@ pub mod source;
 ///   when nothing is cached. [`spanned`](ParseInput::spanned), [`sliced`](ParseInput::sliced),
 ///   [`located`](ParseInput::located), [`InputRef::spanning`], [`InputRef::span_since`] and
 ///   [`InputRef::slice_since`] measure it.
-/// - **The token extent** runs from the start of the first token the parser consumes to the
+/// - **The trimmed span** runs from the start of the first token the parser consumes to the
 ///   committed position after it, [`span().end()`](InputRef::span).
-///   [`token_spanned`](ParseInput::token_spanned), [`token_sliced`](ParseInput::token_sliced),
-///   [`token_located`](ParseInput::token_located), [`InputRef::token_spanning`],
-///   [`InputRef::token_span_since`] and [`InputRef::token_slice_since`] measure it, from a start
-///   taken by [`InputRef::token_cursor`].
+///   [`spanned_trimmed`](ParseInput::spanned_trimmed),
+///   [`sliced_trimmed`](ParseInput::sliced_trimmed),
+///   [`located_trimmed`](ParseInput::located_trimmed), [`InputRef::spanning_trimmed`],
+///   [`InputRef::span_since_trimmed`] and [`InputRef::slice_since_trimmed`] measure it, from a
+///   start taken by [`InputRef::cursor_trimmed`].
 ///
 /// They differ only under a lexer that **skips** bytes between tokens — whitespace or comments it
 /// never hands to the parser. A peek moves `cursor` onto the next token, across the skipped bytes,
 /// and a cold cache leaves it at the previous token's end, in front of them. So a lookahead span
 /// takes in the skipped bytes after a node whose parser peeked past its last token (to rule out an
-/// optional tail, say), and the skipped bytes before a node entered with nothing cached. The token
-/// extent takes in neither. Under a lexer that skips nothing — every byte is in some token, as
-/// under one that hands its trivia to the parser as tokens
+/// optional tail, say), and the skipped bytes before a node entered with nothing cached. The
+/// trimmed span takes in neither. Under a lexer that skips nothing — every byte is in some token,
+/// as under one that hands its trivia to the parser as tokens
 /// ([`Token::SURFACES_TRIVIA`]) — the two rules agree, and trivia a
 /// parser consumes (with [`padded`](ParseInput::padded), say) is inside both. On compact input
 /// they agree as well, which is why a corpus of tightly written source cannot tell them apart.
 ///
-/// The token extent is the one to use for a node's span — an AST node's or a diagnostic's — under
+/// The trimmed span is the one to use for a node's span — an AST node's or a diagnostic's — under
 /// a lexer that skips trivia. The lookahead span is the original measurement, unchanged, and exact
 /// under a lexer that skips nothing.
 ///
-/// ## What the token extent costs
+/// ## What the trimmed span costs
 ///
 /// Its start needs the next token's start, and only a peek can provide it, so
-/// [`InputRef::token_cursor`] peeks one token before the measured parser runs. Under a cache that
+/// [`InputRef::cursor_trimmed`] peeks one token before the measured parser runs. Under a cache that
 /// retains tokens that costs no second lex; under a zero-capacity cache it does, except for a token
 /// a non-final input withholds, which is lexed once under either cache. The early lex can
 /// also change an outcome — a lexer-error diagnostic or a fatal rejection that a parser consuming
 /// nothing would never have met — and a production that switches the lexer state must switch it
-/// before the start is taken. `token_cursor` states all of it.
+/// before the start is taken. `cursor_trimmed` states all of it.
 ///
 /// Its end is the committed position, which is a token's end except after a skip or a recovery
 /// sync that reaches end of input: those commit the lexer's end, trailing skipped bytes included.
-/// [`InputRef::token_span_since`] names the cases.
+/// [`InputRef::span_since_trimmed`] names the cases.
 ///
 /// ## What stays lookahead-measured
 ///
-/// Only the items above measure the token extent. Every other span tokora reports is measured from
+/// Only the items above measure the trimmed span. Every other span tokora reports is measured from
 /// the lookahead position, as it always was:
 ///
 /// - [`ParseState::span`](crate::parse::ParseState::span) and
@@ -253,8 +254,8 @@ pub mod source;
 ///   handlers;
 /// - the span of a [`delimited`](crate::combinator::delimited) shape.
 ///
-/// To measure one of those constructs as a token extent, wrap the construct:
-/// `.token_spanned()` over a collection gives the collection's token extent.
+/// To measure one of those constructs as a trimmed span, wrap the construct:
+/// `.spanned_trimmed()` over a collection gives the collection's trimmed span.
 pub mod span;
 
 /// Slice abstractions for different string types.

@@ -80,22 +80,22 @@ impl PhantomLocated {
   }
 }
 
-/// The **token-extent** form of a span-shaped marker, used as a type marker.
+/// The **trimmed-span** form of a span-shaped marker, used as a type marker.
 ///
 /// `With<M, P>` over [`PhantomSpan`], [`PhantomSliced`] or [`PhantomLocated`] is the parser
 /// [`spanned`](crate::ParseInput::spanned), [`sliced`](crate::ParseInput::sliced) or
 /// [`located`](crate::ParseInput::located) builds, and it measures what `P` consumed as a
-/// **lookahead span**. `With<TokenExtent<M>, P>` over the same three markers is the parser
-/// [`token_spanned`](crate::ParseInput::token_spanned),
-/// [`token_sliced`](crate::ParseInput::token_sliced) or
-/// [`token_located`](crate::ParseInput::token_located) builds: the same output type, measured as a
-/// **token extent**. [The two span rules](crate::span#the-two-span-rules) defines both.
+/// **lookahead span**. `With<Trimmed<M>, P>` over the same three markers is the parser
+/// [`spanned_trimmed`](crate::ParseInput::spanned_trimmed),
+/// [`sliced_trimmed`](crate::ParseInput::sliced_trimmed) or
+/// [`located_trimmed`](crate::ParseInput::located_trimmed) builds: the same output type, measured
+/// as a **trimmed span**. [The two span rules](crate::span#the-two-span-rules) defines both.
 ///
 /// A generic wrapper rather than three new markers, because the measurement is the only thing it
 /// adds: the marker it wraps still names the output shape. It adds no data to that zero-sized
-/// marker, and only the `token_` methods build one.
+/// marker, and only the `_trimmed` methods build one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TokenExtent<M>(pub(crate) M);
+pub struct Trimmed<M>(pub(crate) M);
 
 /// A phantom delimited value with no meaningful delimiters, span, or data, used as a type marker.
 pub type PhantomDelimited = super::Delimited<(), (), (), ()>;

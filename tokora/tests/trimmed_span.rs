@@ -1,12 +1,12 @@
 #![cfg(all(feature = "std", feature = "logos_0_16"))]
 #![allow(clippy::type_complexity)]
 
-//! Token extents against the lookahead spans they sit beside.
+//! Trimmed spans against the lookahead spans they sit beside.
 //!
-//! `common::TestLexer` skips whitespace, so a lookahead span and a token extent differ wherever a
+//! `common::TestLexer` skips whitespace, so a lookahead span and a trimmed span differ wherever a
 //! production peeks past its last token or is entered with nothing cached. Each scenario runs both
 //! measurements over the same production: the lookahead assertion is the witness that the
-//! scenario is built as claimed, and the token-extent assertion is the one under test. Each test
+//! scenario is built as claimed, and the trimmed-span assertion is the one under test. Each test
 //! names the wrong implementation it refuses.
 //!
 //! The productions are hand-written, so this suite needs no combinator family.
@@ -225,7 +225,7 @@ where
   word_opt_semi(inp)
 }
 
-/// Two identifiers, each measured as a token extent of its own.
+/// Two identifiers, each measured as a trimmed span of its own.
 fn pair<'inp, Ctx>(
   inp: &mut InputRef<'inp, '_, TestLexer<'inp>, Ctx>,
 ) -> Result<(SimpleSpan, SimpleSpan), Fail>
@@ -233,8 +233,8 @@ where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = Fail>,
 {
-  let first = word.token_spanned().parse_input(inp)?.span;
-  let second = word_opt_semi.token_spanned().parse_input(inp)?.span;
+  let first = word.spanned_trimmed().parse_input(inp)?.span;
+  let second = word_opt_semi.spanned_trimmed().parse_input(inp)?.span;
   Ok((first, second))
 }
 
@@ -244,7 +244,7 @@ where
 
 /// Refuses the lookahead rule at the end: a span closed at the lookahead position ends at `b`.
 #[test]
-fn a_peek_past_the_last_token_is_outside_the_token_span() {
+fn a_peek_past_the_last_token_is_outside_the_trimmed_span() {
   let lookahead = run::<Retaining<'_>, _>("a   b", |inp| {
     Ok(word_opt_semi.spanned().parse_input(inp)?.span)
   });
@@ -254,15 +254,15 @@ fn a_peek_past_the_last_token_is_outside_the_token_span() {
     "witness: the peek left the lookahead at `b`"
   );
 
-  let extent = run::<Retaining<'_>, _>("a   b", |inp| {
-    Ok(word_opt_semi.token_spanned().parse_input(inp)?.span)
+  let trimmed = run::<Retaining<'_>, _>("a   b", |inp| {
+    Ok(word_opt_semi.spanned_trimmed().parse_input(inp)?.span)
   });
-  assert_eq!(extent, Ok(SimpleSpan::new(0, 1)));
+  assert_eq!(trimmed, Ok(SimpleSpan::new(0, 1)));
 }
 
-/// The same scenario through `token_sliced`: refuses a slice closed at the lookahead position.
+/// The same scenario through `sliced_trimmed`: refuses a slice closed at the lookahead position.
 #[test]
-fn a_peek_past_the_last_token_is_outside_the_token_slice() {
+fn a_peek_past_the_last_token_is_outside_the_trimmed_slice() {
   let lookahead = run::<Retaining<'_>, _>("a   b", |inp| {
     Ok(word_opt_semi.sliced().parse_input(inp)?.slice())
   });
@@ -272,27 +272,27 @@ fn a_peek_past_the_last_token_is_outside_the_token_slice() {
     "witness: the lookahead slice runs on to `b`"
   );
 
-  let extent = run::<Retaining<'_>, _>("a   b", |inp| {
-    Ok(word_opt_semi.token_sliced().parse_input(inp)?.slice())
+  let trimmed = run::<Retaining<'_>, _>("a   b", |inp| {
+    Ok(word_opt_semi.sliced_trimmed().parse_input(inp)?.slice())
   });
-  assert_eq!(extent, Ok("a"));
+  assert_eq!(trimmed, Ok("a"));
 }
 
-/// The same scenario through `token_located`: refuses either half closed at the lookahead
+/// The same scenario through `located_trimmed`: refuses either half closed at the lookahead
 /// position.
 #[test]
-fn a_peek_past_the_last_token_is_outside_the_token_location() {
+fn a_peek_past_the_last_token_is_outside_the_trimmed_location() {
   let lookahead = run::<Retaining<'_>, _>("a   b", |inp| {
     let located = word_opt_semi.located().parse_input(inp)?;
     Ok((located.span(), located.slice()))
   });
   assert_eq!(lookahead, Ok((SimpleSpan::new(0, 4), "a   ")), "witness");
 
-  let extent = run::<Retaining<'_>, _>("a   b", |inp| {
-    let located = word_opt_semi.token_located().parse_input(inp)?;
+  let trimmed = run::<Retaining<'_>, _>("a   b", |inp| {
+    let located = word_opt_semi.located_trimmed().parse_input(inp)?;
     Ok((located.span(), located.slice()))
   });
-  assert_eq!(extent, Ok((SimpleSpan::new(0, 1), "a")));
+  assert_eq!(trimmed, Ok((SimpleSpan::new(0, 1), "a")));
 }
 
 // ── a production entered with a cold cache ──────────────────────────────────
@@ -303,7 +303,7 @@ fn a_peek_past_the_last_token_is_outside_the_token_location() {
 /// Refuses the lookahead rule at the start: a span opened at the lookahead position opens at the
 /// end of `a`.
 #[test]
-fn skipped_bytes_in_front_of_a_cold_entry_are_outside_the_token_span() {
+fn skipped_bytes_in_front_of_a_cold_entry_are_outside_the_trimmed_span() {
   let lookahead = run::<Retaining<'_>, _>("a   b", |inp| {
     inp.next()?;
     Ok(word.spanned().parse_input(inp)?.span)
@@ -314,33 +314,33 @@ fn skipped_bytes_in_front_of_a_cold_entry_are_outside_the_token_span() {
     "witness: the cache was cold, so the lookahead opened at the end of `a`"
   );
 
-  let extent = run::<Retaining<'_>, _>("a   b", |inp| {
+  let trimmed = run::<Retaining<'_>, _>("a   b", |inp| {
     inp.next()?;
-    Ok(word.token_spanned().parse_input(inp)?.span)
+    Ok(word.spanned_trimmed().parse_input(inp)?.span)
   });
-  assert_eq!(extent, Ok(SimpleSpan::new(4, 5)));
+  assert_eq!(trimmed, Ok(SimpleSpan::new(4, 5)));
 }
 
-/// The same scenario through `token_sliced`: refuses a slice opened at the lookahead position.
+/// The same scenario through `sliced_trimmed`: refuses a slice opened at the lookahead position.
 #[test]
-fn skipped_bytes_in_front_of_a_cold_entry_are_outside_the_token_slice() {
+fn skipped_bytes_in_front_of_a_cold_entry_are_outside_the_trimmed_slice() {
   let lookahead = run::<Retaining<'_>, _>("a   b", |inp| {
     inp.next()?;
     Ok(word.sliced().parse_input(inp)?.slice())
   });
   assert_eq!(lookahead, Ok("   b"), "witness");
 
-  let extent = run::<Retaining<'_>, _>("a   b", |inp| {
+  let trimmed = run::<Retaining<'_>, _>("a   b", |inp| {
     inp.next()?;
-    Ok(word.token_sliced().parse_input(inp)?.slice())
+    Ok(word.sliced_trimmed().parse_input(inp)?.slice())
   });
-  assert_eq!(extent, Ok("b"));
+  assert_eq!(trimmed, Ok("b"));
 }
 
-/// The same scenario through `token_located`: refuses either half opened at the lookahead
+/// The same scenario through `located_trimmed`: refuses either half opened at the lookahead
 /// position.
 #[test]
-fn skipped_bytes_in_front_of_a_cold_entry_are_outside_the_token_location() {
+fn skipped_bytes_in_front_of_a_cold_entry_are_outside_the_trimmed_location() {
   let lookahead = run::<Retaining<'_>, _>("a   b", |inp| {
     inp.next()?;
     let located = word.located().parse_input(inp)?;
@@ -348,18 +348,18 @@ fn skipped_bytes_in_front_of_a_cold_entry_are_outside_the_token_location() {
   });
   assert_eq!(lookahead, Ok((SimpleSpan::new(1, 5), "   b")), "witness");
 
-  let extent = run::<Retaining<'_>, _>("a   b", |inp| {
+  let trimmed = run::<Retaining<'_>, _>("a   b", |inp| {
     inp.next()?;
-    let located = word.token_located().parse_input(inp)?;
+    let located = word.located_trimmed().parse_input(inp)?;
     Ok((located.span(), located.slice()))
   });
-  assert_eq!(extent, Ok((SimpleSpan::new(4, 5), "b")));
+  assert_eq!(trimmed, Ok((SimpleSpan::new(4, 5), "b")));
 }
 
 // ── compact input ───────────────────────────────────────────────────────────
 
 /// `+a+`, with the first `+` consumed: a cold entry and a peek past the last token, as above, but
-/// with no skipped byte for the two rules to disagree about. Refuses a token extent that differs
+/// with no skipped byte for the two rules to disagree about. Refuses a trimmed span that differs
 /// from the lookahead span where no byte is skipped.
 #[test]
 fn compact_input_measures_the_same_under_both_rules() {
@@ -367,36 +367,36 @@ fn compact_input_measures_the_same_under_both_rules() {
     inp.next()?;
     Ok(word_opt_semi.spanned().parse_input(inp)?.span)
   });
-  let token_spans = run::<Retaining<'_>, _>("+a+", |inp| {
+  let trimmed_spans = run::<Retaining<'_>, _>("+a+", |inp| {
     inp.next()?;
-    Ok(word_opt_semi.token_spanned().parse_input(inp)?.span)
+    Ok(word_opt_semi.spanned_trimmed().parse_input(inp)?.span)
   });
   assert_eq!(spans, Ok(SimpleSpan::new(1, 2)));
-  assert_eq!(token_spans, spans);
+  assert_eq!(trimmed_spans, spans);
 
   let slices = run::<Retaining<'_>, _>("+a+", |inp| {
     inp.next()?;
     Ok(word_opt_semi.sliced().parse_input(inp)?.slice())
   });
-  let token_slices = run::<Retaining<'_>, _>("+a+", |inp| {
+  let trimmed_slices = run::<Retaining<'_>, _>("+a+", |inp| {
     inp.next()?;
-    Ok(word_opt_semi.token_sliced().parse_input(inp)?.slice())
+    Ok(word_opt_semi.sliced_trimmed().parse_input(inp)?.slice())
   });
   assert_eq!(slices, Ok("a"));
-  assert_eq!(token_slices, slices);
+  assert_eq!(trimmed_slices, slices);
 
   let locations = run::<Retaining<'_>, _>("+a+", |inp| {
     inp.next()?;
     let located = word_opt_semi.located().parse_input(inp)?;
     Ok((located.span(), located.slice()))
   });
-  let token_locations = run::<Retaining<'_>, _>("+a+", |inp| {
+  let trimmed_locations = run::<Retaining<'_>, _>("+a+", |inp| {
     inp.next()?;
-    let located = word_opt_semi.token_located().parse_input(inp)?;
+    let located = word_opt_semi.located_trimmed().parse_input(inp)?;
     Ok((located.span(), located.slice()))
   });
   assert_eq!(locations, Ok((SimpleSpan::new(1, 2), "a")));
-  assert_eq!(token_locations, locations);
+  assert_eq!(trimmed_locations, locations);
 }
 
 // ── a parser that consumes nothing ──────────────────────────────────────────
@@ -405,7 +405,7 @@ fn compact_input_measures_the_same_under_both_rules() {
 /// missing clamp (the committed end, 1, falls before the start, 4, and `SimpleSpan::new` panics on
 /// the inverted span) and a start taken from the committed position.
 #[test]
-fn consuming_nothing_is_the_empty_extent_at_the_next_token() {
+fn consuming_nothing_is_the_empty_trimmed_span_at_the_next_token() {
   let lookahead = run::<Retaining<'_>, _>("a   b", |inp| {
     inp.next()?;
     Ok(nothing.spanned().parse_input(inp)?.span)
@@ -418,19 +418,19 @@ fn consuming_nothing_is_the_empty_extent_at_the_next_token() {
 
   let span = run::<Retaining<'_>, _>("a   b", |inp| {
     inp.next()?;
-    Ok(nothing.token_spanned().parse_input(inp)?.span)
+    Ok(nothing.spanned_trimmed().parse_input(inp)?.span)
   });
   assert_eq!(span, Ok(SimpleSpan::new(4, 4)));
 
   let slice = run::<Retaining<'_>, _>("a   b", |inp| {
     inp.next()?;
-    Ok(nothing.token_sliced().parse_input(inp)?.slice())
+    Ok(nothing.sliced_trimmed().parse_input(inp)?.slice())
   });
   assert_eq!(slice, Ok(""));
 
   let location = run::<Retaining<'_>, _>("a   b", |inp| {
     inp.next()?;
-    let located = nothing.token_located().parse_input(inp)?;
+    let located = nothing.located_trimmed().parse_input(inp)?;
     Ok((located.span(), located.slice()))
   });
   assert_eq!(location, Ok((SimpleSpan::new(4, 4), "")));
@@ -443,26 +443,26 @@ fn consuming_nothing_is_the_empty_extent_at_the_next_token() {
 fn consuming_nothing_at_end_of_input_is_empty_at_the_committed_position() {
   let span = run::<Retaining<'_>, _>("a   ", |inp| {
     inp.next()?;
-    Ok(nothing.token_spanned().parse_input(inp)?.span)
+    Ok(nothing.spanned_trimmed().parse_input(inp)?.span)
   });
   assert_eq!(span, Ok(SimpleSpan::new(1, 1)));
 
   let slice = run::<Retaining<'_>, _>("a   ", |inp| {
     inp.next()?;
-    Ok(nothing.token_sliced().parse_input(inp)?.slice())
+    Ok(nothing.sliced_trimmed().parse_input(inp)?.slice())
   });
   assert_eq!(slice, Ok(""));
 }
 
 // ── nesting and backtracking ────────────────────────────────────────────────
 
-/// ` a  b  c`: an outer token extent around two inner ones. The inner `word`'s start is a peek
+/// ` a  b  c`: an outer trimmed span around two inner ones. The inner `word`'s start is a peek
 /// that hits the token the outer start cached, and `word_opt_semi` peeks `c`. Refuses a start
 /// kept on the input rather than in each wrapper: an inner start would overwrite the outer one.
 #[test]
-fn nested_token_extents_are_each_their_own() {
+fn nested_trimmed_spans_are_each_their_own() {
   let out = run::<Retaining<'_>, _>(" a  b  c", |inp| {
-    let outer = pair.token_spanned().parse_input(inp)?;
+    let outer = pair.spanned_trimmed().parse_input(inp)?;
     Ok((outer.span, outer.data))
   });
   assert_eq!(
@@ -479,7 +479,7 @@ fn nested_token_extents_are_each_their_own() {
 /// position (5) or `offset()`, the end of the newest lexed token (3) — as well as the lookahead
 /// position (2).
 #[test]
-fn a_rolled_back_reach_is_outside_the_token_span() {
+fn a_rolled_back_reach_is_outside_the_trimmed_span() {
   let lookahead = run::<Retaining<'_>, _>("a b c d", |inp| {
     Ok(reach_then_settle.spanned().parse_input(inp)?.span)
   });
@@ -489,10 +489,10 @@ fn a_rolled_back_reach_is_outside_the_token_span() {
     "witness: the accepted branch peeked `b`"
   );
 
-  let extent = run::<Retaining<'_>, _>("a b c d", |inp| {
-    Ok(reach_then_settle.token_spanned().parse_input(inp)?.span)
+  let trimmed = run::<Retaining<'_>, _>("a b c d", |inp| {
+    Ok(reach_then_settle.spanned_trimmed().parse_input(inp)?.span)
   });
-  assert_eq!(extent, Ok(SimpleSpan::new(0, 1)));
+  assert_eq!(trimmed, Ok(SimpleSpan::new(0, 1)));
 }
 
 // ── caches that retain nothing ──────────────────────────────────────────────
@@ -512,14 +512,14 @@ fn a_zero_capacity_cache_takes_the_start_from_the_peeked_token() {
     "witness: a cold entry"
   );
 
-  let extent = run::<(), _>("a   b", |inp| {
+  let trimmed = run::<(), _>("a   b", |inp| {
     inp.next()?;
-    Ok(word.token_spanned().parse_input(inp)?.span)
+    Ok(word.spanned_trimmed().parse_input(inp)?.span)
   });
-  assert_eq!(extent, Ok(SimpleSpan::new(4, 5)));
+  assert_eq!(trimmed, Ok(SimpleSpan::new(4, 5)));
 
-  // A peek past the last token parks `b` here rather than caching it, and the extent still ends
-  // at the committed position.
+  // A peek past the last token parks `b` here rather than caching it, and the trimmed span still
+  // ends at the committed position.
   let lookahead = run::<(), _>("a   b", |inp| {
     Ok(word_opt_semi.spanned().parse_input(inp)?.span)
   });
@@ -529,23 +529,23 @@ fn a_zero_capacity_cache_takes_the_start_from_the_peeked_token() {
     "witness: `b` is parked"
   );
 
-  let extent = run::<(), _>("a   b", |inp| {
-    Ok(word_opt_semi.token_spanned().parse_input(inp)?.span)
+  let trimmed = run::<(), _>("a   b", |inp| {
+    Ok(word_opt_semi.spanned_trimmed().parse_input(inp)?.span)
   });
-  assert_eq!(extent, Ok(SimpleSpan::new(0, 1)));
+  assert_eq!(trimmed, Ok(SimpleSpan::new(0, 1)));
 }
 
 /// Under the `()` cache a declined `try_expect` parks the token it lexed. The start must be the
 /// parked token's: refuses a start that reads the cache and misses the parked slot.
 #[test]
 fn a_parked_head_is_the_start() {
-  let extent = run::<(), _>("a   b", |inp| {
+  let trimmed = run::<(), _>("a   b", |inp| {
     inp.next()?;
     let declined = inp.try_expect(|t| matches!(t.data, Token::Semi))?;
     assert!(declined.is_none(), "`b` is not a `;`, so it is parked");
-    Ok(word.token_spanned().parse_input(inp)?.span)
+    Ok(word.spanned_trimmed().parse_input(inp)?.span)
   });
-  assert_eq!(extent, Ok(SimpleSpan::new(4, 5)));
+  assert_eq!(trimmed, Ok(SimpleSpan::new(4, 5)));
 }
 
 // ── a lexer error on the first token ────────────────────────────────────────
@@ -559,8 +559,9 @@ fn a_parked_head_is_the_start() {
 #[test]
 fn a_fatal_lexer_error_at_the_start_is_the_wrapped_parsers_error() {
   let bare = run::<Retaining<'_>, _>("@ a", word);
-  let wrapped =
-    run::<Retaining<'_>, _>("@ a", |inp| Ok(word.token_spanned().parse_input(inp)?.span));
+  let wrapped = run::<Retaining<'_>, _>("@ a", |inp| {
+    Ok(word.spanned_trimmed().parse_input(inp)?.span)
+  });
   assert!(matches!(bare, Err(Fail::Lex(_))), "a lexer error: {bare:?}");
   assert_eq!(wrapped.err(), bare.err());
 }
@@ -578,7 +579,7 @@ fn a_fatal_lexer_error_at_the_start_fails_a_parser_that_reads_nothing() {
   );
 
   let wrapped = run::<Retaining<'_>, _>("@ a", |inp| {
-    Ok(nothing.token_spanned().parse_input(inp)?.span)
+    Ok(nothing.spanned_trimmed().parse_input(inp)?.span)
   });
   let reading = run::<Retaining<'_>, _>("@ a", word);
   assert!(
@@ -592,19 +593,21 @@ fn a_fatal_lexer_error_at_the_start_fails_a_parser_that_reads_nothing() {
   );
 }
 
-/// The non-fatal twin: the diagnostic is emitted once, and the extent starts at the first good
-/// token after the error lexeme. Under the `()` cache the consume lexes `@` a second time, so this
-/// also refuses a second diagnostic for the same lexeme.
+/// The non-fatal twin: the diagnostic is emitted once, and the trimmed span starts at the first
+/// good token after the error lexeme. Under the `()` cache the consume lexes `@` a second time, so
+/// this also refuses a second diagnostic for the same lexeme.
 #[test]
-fn a_lenient_lexer_error_is_emitted_once_and_the_extent_starts_after_it() {
-  let (extent, emitted) =
-    run_lenient::<Retaining<'_>, _>("@ a", |inp| Ok(word.token_spanned().parse_input(inp)?.span));
-  assert_eq!(extent, Ok(SimpleSpan::new(2, 3)));
+fn a_lenient_lexer_error_is_emitted_once_and_the_trimmed_span_starts_after_it() {
+  let (trimmed, emitted) = run_lenient::<Retaining<'_>, _>("@ a", |inp| {
+    Ok(word.spanned_trimmed().parse_input(inp)?.span)
+  });
+  assert_eq!(trimmed, Ok(SimpleSpan::new(2, 3)));
   assert_eq!(emitted.len(), 1, "one diagnostic: {emitted:?}");
 
-  let (extent, emitted) =
-    run_lenient::<(), _>("@ a", |inp| Ok(word.token_spanned().parse_input(inp)?.span));
-  assert_eq!(extent, Ok(SimpleSpan::new(2, 3)));
+  let (trimmed, emitted) = run_lenient::<(), _>("@ a", |inp| {
+    Ok(word.spanned_trimmed().parse_input(inp)?.span)
+  });
+  assert_eq!(trimmed, Ok(SimpleSpan::new(2, 3)));
   assert_eq!(
     emitted.len(),
     1,
@@ -623,10 +626,10 @@ fn a_lenient_lexer_error_is_emitted_for_a_parser_that_reads_nothing() {
     "witness: on its own nothing is lexed: {emitted:?}"
   );
 
-  let (extent, emitted) = run_lenient::<Retaining<'_>, _>("@ a", |inp| {
-    Ok(nothing.token_spanned().parse_input(inp)?.span)
+  let (trimmed, emitted) = run_lenient::<Retaining<'_>, _>("@ a", |inp| {
+    Ok(nothing.spanned_trimmed().parse_input(inp)?.span)
   });
-  assert_eq!(extent, Ok(SimpleSpan::new(2, 2)));
+  assert_eq!(trimmed, Ok(SimpleSpan::new(2, 2)));
   assert_eq!(emitted.len(), 1, "{emitted:?}");
 }
 
@@ -639,12 +642,12 @@ fn a_lenient_lexer_error_is_emitted_for_a_parser_that_reads_nothing() {
 #[test]
 fn a_withheld_head_starts_at_the_committed_position() {
   let open = run_partial("  a", false, |inp| {
-    Ok(nothing.token_spanned().parse_input(inp)?.span)
+    Ok(nothing.spanned_trimmed().parse_input(inp)?.span)
   });
   assert_eq!(open, Ok(SimpleSpan::new(0, 0)));
 
   let sealed = run_partial("  a", true, |inp| {
-    Ok(nothing.token_spanned().parse_input(inp)?.span)
+    Ok(nothing.spanned_trimmed().parse_input(inp)?.span)
   });
   assert_eq!(sealed, Ok(SimpleSpan::new(2, 2)));
 
@@ -652,7 +655,7 @@ fn a_withheld_head_starts_at_the_committed_position() {
   let bare = run_partial("  a", false, word);
   assert_eq!(bare, Err(Fail::Incomplete), "witness: `a` is withheld");
   let wrapped = run_partial("  a", false, |inp| {
-    Ok(word.token_spanned().parse_input(inp)?.span)
+    Ok(word.spanned_trimmed().parse_input(inp)?.span)
   });
   assert_eq!(wrapped.err(), bare.err());
 }
@@ -660,16 +663,17 @@ fn a_withheld_head_starts_at_the_committed_position() {
 // ── where the end is not a token's end ──────────────────────────────────────
 
 /// `a  `: `padded` skips at both ends, and a skip that reaches end of input commits the lexer's
-/// end, so the extent runs to the end of the input. Pins the documented exception; the control
-/// without `padded` ends at `a`.
+/// end, so the trimmed span runs to the end of the input. Pins the documented exception; the
+/// control without `padded` ends at `a`.
 #[test]
-fn a_skip_to_end_of_input_ends_the_extent_at_the_input_end() {
-  let control =
-    run::<Retaining<'_>, _>("a  ", |inp| Ok(word.token_spanned().parse_input(inp)?.span));
+fn a_skip_to_end_of_input_ends_the_trimmed_span_at_the_input_end() {
+  let control = run::<Retaining<'_>, _>("a  ", |inp| {
+    Ok(word.spanned_trimmed().parse_input(inp)?.span)
+  });
   assert_eq!(control, Ok(SimpleSpan::new(0, 1)));
 
   let padded = run::<Retaining<'_>, _>("a  ", |inp| {
-    Ok(word.padded().token_spanned().parse_input(inp)?.span)
+    Ok(word.padded().spanned_trimmed().parse_input(inp)?.span)
   });
   assert_eq!(padded, Ok(SimpleSpan::new(0, 3)));
 }
@@ -677,18 +681,24 @@ fn a_skip_to_end_of_input_ends_the_extent_at_the_input_end() {
 // ── the imperative pieces ───────────────────────────────────────────────────
 
 /// `a   b   c`, by hand: the start taken before anything is consumed gives the clamped empty
-/// extent, then `b` is consumed and `c` peeked. Refuses a missing clamp in `token_span_since` and
-/// `token_slice_since`, and an end at the lookahead position, which `span_since` shows.
+/// span, then `b` is consumed and `c` peeked. Refuses a missing clamp in `span_since_trimmed` and
+/// `slice_since_trimmed`, and an end at the lookahead position, which `span_since` shows.
 #[test]
 fn the_imperative_pieces_measure_what_the_combinator_measures() {
   let out = run::<Retaining<'_>, _>("a   b   c", |inp| {
     inp.next()?;
-    let start = inp.token_cursor()?;
-    let empty = (inp.token_span_since(&start), inp.token_slice_since(&start));
+    let start = inp.cursor_trimmed()?;
+    let empty = (
+      inp.span_since_trimmed(&start),
+      inp.slice_since_trimmed(&start),
+    );
     word_opt_semi(inp)?;
-    let extent = (inp.token_span_since(&start), inp.token_slice_since(&start));
+    let trimmed = (
+      inp.span_since_trimmed(&start),
+      inp.slice_since_trimmed(&start),
+    );
     let lookahead = inp.span_since(&start);
-    Ok((start.into_inner(), empty, extent, lookahead))
+    Ok((start.into_inner(), empty, trimmed, lookahead))
   });
   assert_eq!(
     out,
@@ -702,12 +712,12 @@ fn the_imperative_pieces_measure_what_the_combinator_measures() {
 
   let spanning = run::<Retaining<'_>, _>("a   b   c", |inp| {
     inp.next()?;
-    let (span, ()) = inp.token_spanning(word_opt_semi)?;
+    let (span, ()) = inp.spanning_trimmed(word_opt_semi)?;
     Ok(span)
   });
   let combinator = run::<Retaining<'_>, _>("a   b   c", |inp| {
     inp.next()?;
-    Ok(word_opt_semi.token_spanned().parse_input(inp)?.span)
+    Ok(word_opt_semi.spanned_trimmed().parse_input(inp)?.span)
   });
   assert_eq!(spanning, Ok(SimpleSpan::new(4, 5)));
   assert_eq!(combinator, spanning);

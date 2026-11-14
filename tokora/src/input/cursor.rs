@@ -12,10 +12,10 @@ use super::Lexer;
 /// - [`InputRef::cursor`](crate::InputRef::cursor) is the **lookahead position**, the one
 ///   [`Checkpoint`](crate::input::Checkpoint) records: the start of the first cached (or parked)
 ///   token, or, with nothing cached, the position the next token will be lexed from.
-/// - [`InputRef::token_cursor`](crate::InputRef::token_cursor) is the **start of the next token**,
-///   where a token extent opens. It is that token's start even when the token is retained nowhere:
-///   under a zero-capacity cache it is neither the start of a cached token nor the position
-///   lexing resumes from.
+/// - [`InputRef::cursor_trimmed`](crate::InputRef::cursor_trimmed) is the **start of the next
+///   token**, where a trimmed span opens. It is that token's start even when the token is retained
+///   nowhere: under a zero-capacity cache it is neither the start of a cached token nor the
+///   position lexing resumes from.
 #[repr(transparent)]
 pub struct Cursor<'inp, 'closure, L: Lexer<'inp>> {
   pub(crate) offset: L::Offset,

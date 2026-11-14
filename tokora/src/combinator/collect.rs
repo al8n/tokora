@@ -65,8 +65,8 @@ use crate::input::Complete;
 /// `a_construct_rests_at_the_lookahead_front` holds it over all forty-eight of them. A caller that
 /// needs an end past no trivia wants [`InputRef::span`](crate::InputRef::span)'s end instead — the
 /// committed watermark, which is the end of the last token the parse actually took. For the whole
-/// construct, [`token_spanned`](crate::ParseInput::token_spanned) over the collection measures its
-/// token extent: no skipped byte at either end.
+/// construct, [`spanned_trimmed`](crate::ParseInput::spanned_trimmed) over the collection measures
+/// its trimmed span: no skipped byte at either end.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Collect<P, Container, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   pub(crate) parser: P,

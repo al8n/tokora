@@ -13,7 +13,7 @@ use crate::{
   punct::*,
   slice::Sliced,
   span::Spanned,
-  utils::{PhantomLocated, PhantomSliced, PhantomSpan, TokenExtent},
+  utils::{PhantomLocated, PhantomSliced, PhantomSpan, Trimmed},
 };
 
 // Named only by the `separated_by_*_while` family the macro below mints.
@@ -521,7 +521,7 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   /// Wraps the output of this parser in a `Spanned` with the span of the parsed input.
   ///
   /// The span is a **lookahead span**, from [`InputRef::cursor`] before this parser runs to
-  /// `cursor` after it; [`token_spanned`](Self::token_spanned) measures the **token extent**
+  /// `cursor` after it; [`spanned_trimmed`](Self::spanned_trimmed) measures the **trimmed span**
   /// instead, with the same output type. See [the two span rules](crate::span#the-two-span-rules).
   #[inline(always)]
   fn spanned(self) -> With<PhantomSpan, Self, Cmpl>
@@ -534,8 +534,8 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
 
   /// Wraps the output of this parser in a `Sliced` with the source slice of the parsed input.
   ///
-  /// The slice covers the **lookahead span**; [`token_sliced`](Self::token_sliced) slices the
-  /// **token extent** instead, with the same output type.
+  /// The slice covers the **lookahead span**; [`sliced_trimmed`](Self::sliced_trimmed) slices the
+  /// **trimmed span** instead, with the same output type.
   #[inline(always)]
   fn sliced(self) -> With<PhantomSliced, Self, Cmpl>
   where
@@ -547,8 +547,8 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
 
   /// Wraps the output of this parser in a `Located` with the span and source slice of the parsed input.
   ///
-  /// Both are the **lookahead span**'s; [`token_located`](Self::token_located) gives the **token
-  /// extent**'s instead, with the same output type.
+  /// Both are the **lookahead span**'s; [`located_trimmed`](Self::located_trimmed) gives the
+  /// **trimmed span**'s instead, with the same output type.
   #[inline(always)]
   fn located(self) -> With<PhantomLocated, Self, Cmpl>
   where
@@ -558,17 +558,17 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
     With::new(PhantomLocated::phantom(), self)
   }
 
-  /// Wraps the output of this parser in a `Spanned` with the **token extent** of the parsed
+  /// Wraps the output of this parser in a `Spanned` with the **trimmed span** of the parsed
   /// input: from the start of the first token it consumes to the committed position after it.
   ///
-  /// The token-extent counterpart of [`spanned`](Self::spanned), with the same output type, so a
+  /// The trimmed counterpart of [`spanned`](Self::spanned), with the same output type, so a
   /// grammar switches rule by changing the method name. `spanned` measures from lookahead position
   /// to lookahead position. Under a lexer that skips bytes between tokens — whitespace, comments —
   /// that span takes in the skipped bytes after a node whose parser peeked past its last token,
-  /// and the skipped bytes before a node entered with nothing cached. The token extent takes in
+  /// and the skipped bytes before a node entered with nothing cached. The trimmed span takes in
   /// neither, and under a lexer that skips nothing the two agree.
   /// [The two span rules](crate::span#the-two-span-rules) says when each fits, and lists the spans
-  /// that stay lookahead-measured: only the parser this builds measures the token extent.
+  /// that stay lookahead-measured: only the parser this builds measures the trimmed span.
   ///
   /// A parser that consumes nothing gets the empty span at the next token's start, or at the
   /// committed position when no token follows.
@@ -643,11 +643,11 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   ///   inp.next()?;
   ///   Ok(word_then_look.spanned().parse_input(inp)?.span)
   /// }
-  /// fn extent<'inp>(
+  /// fn trimmed<'inp>(
   ///   inp: &mut InputRef<'inp, '_, WordLexer<'inp>, Ctx<'inp>>,
   /// ) -> Result<SimpleSpan, Error> {
   ///   inp.next()?;
-  ///   Ok(word_then_look.token_spanned().parse_input(inp)?.span)
+  ///   Ok(word_then_look.spanned_trimmed().parse_input(inp)?.span)
   /// }
   ///
   /// let src = "one   two   three";
@@ -657,23 +657,23 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   ///   .apply(lookahead)
   ///   .parse_str(src);
   /// assert_eq!(by_lookahead, Ok(SimpleSpan::new(3, 12)));
-  /// // The token extent is `two` and nothing else.
-  /// let by_extent = Parser::with_context(ParserContext::new(Fatal::new()))
-  ///   .apply(extent)
+  /// // The trimmed span is `two` and nothing else.
+  /// let by_trimmed = Parser::with_context(ParserContext::new(Fatal::new()))
+  ///   .apply(trimmed)
   ///   .parse_str(src);
-  /// assert_eq!(by_extent, Ok(SimpleSpan::new(6, 9)));
+  /// assert_eq!(by_trimmed, Ok(SimpleSpan::new(6, 9)));
   /// ```
   ///
   /// # The end is the committed position
   ///
   /// The end is [`span().end()`](InputRef::span), the end of the last token this parser
-  /// committed, except where [`InputRef::token_span_since`] names otherwise: a skip or a recovery
-  /// sync that reaches end of input commits the lexer's end, so `x.padded().token_spanned()` over
+  /// committed, except where [`InputRef::span_since_trimmed`] names otherwise: a skip or a recovery
+  /// sync that reaches end of input commits the lexer's end, so `x.padded().spanned_trimmed()` over
   /// `"x  "` ends at the end of the input.
   ///
   /// # The start is a peek
   ///
-  /// The start is [`InputRef::token_cursor`], which peeks the next token before this parser
+  /// The start is [`InputRef::cursor_trimmed`], which peeks the next token before this parser
   /// runs. Under a cache that retains tokens that costs no second lex; under a zero-capacity cache
   /// the parser lexes the token again — except a token a non-final input withholds, which is lexed
   /// once under either cache. The next token is also lexed *early*, under the lexer state current
@@ -690,54 +690,54 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   ///   position, and a parser that then consumes nothing is anchored there, where the sealed parse
   ///   would anchor it at the next token's start.
   ///
-  /// `token_cursor` states each of these in full.
+  /// `cursor_trimmed` states each of these in full.
   #[inline(always)]
-  fn token_spanned(self) -> With<TokenExtent<PhantomSpan>, Self, Cmpl>
+  fn spanned_trimmed(self) -> With<Trimmed<PhantomSpan>, Self, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
   {
-    With::new(TokenExtent(PhantomSpan::phantom()), self)
+    With::new(Trimmed(PhantomSpan::phantom()), self)
   }
 
-  /// Wraps the output of this parser in a `Sliced` with the source slice of its **token extent**:
-  /// the token-extent counterpart of [`sliced`](Self::sliced), with the same output type.
+  /// Wraps the output of this parser in a `Sliced` with the source slice of its **trimmed span**:
+  /// the trimmed counterpart of [`sliced`](Self::sliced), with the same output type.
   ///
-  /// The slice covers exactly the span [`token_spanned`](Self::token_spanned) reports, with no
+  /// The slice covers exactly the span [`spanned_trimmed`](Self::spanned_trimmed) reports, with no
   /// skipped byte before the first token or after the committed position; a parser that consumes
   /// nothing gets the empty slice where that span is empty. The start is the same peek, with the
   /// same consequences: the next token is lexed early, under the lexer state current here, so its
   /// lexer-error diagnostics, a fatal rejection of one, a limit trip and the token-budget charge
   /// happen even for a parser that would not have read it, and a fatal rejection leaves the
-  /// committed position before the rejected lexeme. `token_spanned` and
-  /// [`InputRef::token_cursor`] spell these out.
+  /// committed position before the rejected lexeme. `spanned_trimmed` and
+  /// [`InputRef::cursor_trimmed`] spell these out.
   #[inline(always)]
-  fn token_sliced(self) -> With<TokenExtent<PhantomSliced>, Self, Cmpl>
+  fn sliced_trimmed(self) -> With<Trimmed<PhantomSliced>, Self, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
   {
-    With::new(TokenExtent(PhantomSliced::phantom()), self)
+    With::new(Trimmed(PhantomSliced::phantom()), self)
   }
 
-  /// Wraps the output of this parser in a `Located` with the span and source slice of its **token
-  /// extent**: the token-extent counterpart of [`located`](Self::located), with the same output
+  /// Wraps the output of this parser in a `Located` with the span and source slice of its
+  /// **trimmed span**: the trimmed counterpart of [`located`](Self::located), with the same output
   /// type.
   ///
-  /// The span is the one [`token_spanned`](Self::token_spanned) reports and the slice is the one
-  /// [`token_sliced`](Self::token_sliced) reports, so neither takes in a skipped byte on either
-  /// side. The start is the same peek, with the same consequences: the next token is lexed early,
-  /// under the lexer state current here, so its lexer-error diagnostics, a fatal rejection of one,
-  /// a limit trip and the token-budget charge happen even for a parser that would not have read
-  /// it, and a fatal rejection leaves the committed position before the rejected lexeme.
-  /// `token_spanned` and [`InputRef::token_cursor`] spell these out.
+  /// The span is the one [`spanned_trimmed`](Self::spanned_trimmed) reports and the slice is the
+  /// one [`sliced_trimmed`](Self::sliced_trimmed) reports, so neither takes in a skipped byte on
+  /// either side. The start is the same peek, with the same consequences: the next token is lexed
+  /// early, under the lexer state current here, so its lexer-error diagnostics, a fatal rejection
+  /// of one, a limit trip and the token-budget charge happen even for a parser that would not have
+  /// read it, and a fatal rejection leaves the committed position before the rejected lexeme.
+  /// `spanned_trimmed` and [`InputRef::cursor_trimmed`] spell these out.
   #[inline(always)]
-  fn token_located(self) -> With<TokenExtent<PhantomLocated>, Self, Cmpl>
+  fn located_trimmed(self) -> With<Trimmed<PhantomLocated>, Self, Cmpl>
   where
     Self: Sized,
     L: Lexer<'inp>,
   {
-    With::new(TokenExtent(PhantomLocated::phantom()), self)
+    With::new(Trimmed(PhantomLocated::phantom()), self)
   }
 
   /// Ignores the output of this parser.
@@ -1665,8 +1665,7 @@ where
 }
 
 impl<'inp, L, O, Ctx, P, Lang: ?Sized, Cmpl>
-  ParseInput<'inp, L, Spanned<O, L::Span>, Ctx, Lang, Cmpl>
-  for With<TokenExtent<PhantomSpan>, P, Cmpl>
+  ParseInput<'inp, L, Spanned<O, L::Span>, Ctx, Lang, Cmpl> for With<Trimmed<PhantomSpan>, P, Cmpl>
 where
   P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   L: Lexer<'inp>,
@@ -1678,17 +1677,17 @@ where
     &mut self,
     inp: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
   ) -> Result<Spanned<O, L::Span>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    let start = inp.token_cursor()?;
+    let start = inp.cursor_trimmed()?;
     self
       .secondary
       .parse_input(inp)
-      .map(|output| Spanned::new(inp.token_span_since(&start), output))
+      .map(|output| Spanned::new(inp.span_since_trimmed(&start), output))
   }
 }
 
 impl<'inp, L, O, Ctx, P, Lang: ?Sized, Cmpl>
   ParseInput<'inp, L, Sliced<O, <L::Source as Source<L::Offset>>::Slice<'inp>>, Ctx, Lang, Cmpl>
-  for With<TokenExtent<PhantomSliced>, P, Cmpl>
+  for With<Trimmed<PhantomSliced>, P, Cmpl>
 where
   P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   L: Lexer<'inp>,
@@ -1703,11 +1702,11 @@ where
     Sliced<O, <L::Source as Source<L::Offset>>::Slice<'inp>>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   > {
-    let start = inp.token_cursor()?;
+    let start = inp.cursor_trimmed()?;
     self.secondary.parse_input(inp).map(|output| {
       Sliced::new(
         inp
-          .token_slice_since(&start)
+          .slice_since_trimmed(&start)
           .expect("parser should guarantee slice"),
         output,
       )
@@ -1723,7 +1722,7 @@ impl<'inp, L, O, Ctx, P, Lang: ?Sized, Cmpl>
     Ctx,
     Lang,
     Cmpl,
-  > for With<TokenExtent<PhantomLocated>, P, Cmpl>
+  > for With<Trimmed<PhantomLocated>, P, Cmpl>
 where
   P: ParseInput<'inp, L, O, Ctx, Lang, Cmpl>,
   L: Lexer<'inp>,
@@ -1738,13 +1737,13 @@ where
     Located<O, L::Span, <L::Source as Source<L::Offset>>::Slice<'inp>>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   > {
-    let start = inp.token_cursor()?;
+    let start = inp.cursor_trimmed()?;
     self.secondary.parse_input(inp).map(|output| {
       Located::new(
         inp
-          .token_slice_since(&start)
+          .slice_since_trimmed(&start)
           .expect("parser should guarantee slice"),
-        inp.token_span_since(&start),
+        inp.span_since_trimmed(&start),
         output,
       )
     })

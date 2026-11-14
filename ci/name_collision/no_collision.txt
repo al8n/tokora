@@ -141,17 +141,17 @@ scanner_attempt/discarded
 scanner_outcome/used
 scanner_outcome/discarded
 
-# ── `InputRef::token_span_since` / `token_slice_since` — the same shape, ninth and tenth ──
+# ── `InputRef::span_since_trimmed` / `slice_since_trimmed` — the same shape, ninth and tenth ──
 #
-# `pub fn token_span_since(&self, cursor: &Cursor<..>) -> L::Span` and
-# `pub fn token_slice_since(&self, cursor: &Cursor<..>) -> Option<Slice>`, both `&self` on
-# `InputRef`: the token-extent counterparts of `span_since` and `slice_since`. The `recursion`
+# `pub fn span_since_trimmed(&self, cursor: &Cursor<..>) -> L::Span` and
+# `pub fn slice_since_trimmed(&self, cursor: &Cursor<..>) -> Option<Slice>`, both `&self` on
+# `InputRef`: the trimmed counterparts of `span_since` and `slice_since`. The `recursion`
 # analysis transfers unamended: the `inherent_method` template's consumer is
 # `fn NAME(&mut self) -> u8`, the probe's receiver expression already has type `&mut InputRef<..>`,
 # the consumer's item is found at the FIRST step of the receiver walk and tokora's `&self` item one
 # autoref step later, so the earlier pick wins on both sides and tokora's item is never a
 # candidate. Same controls as the rows above, and a closer counter-control than `descend`: their
-# sibling `token_cursor` is `&mut self`, competes at the same first step, and scores `loud` on
+# sibling `cursor_trimmed` is `&mut self`, competes at the same first step, and scores `loud` on
 # `used` (E0308 against tokora's `Result`) and `warned` on `discarded` (`Result` is
 # `#[must_use]`).
 #
@@ -162,10 +162,10 @@ scanner_outcome/discarded
 # grammar that wanted these would have written. Disclosed, with the UFCS spelling that restores
 # the consumer's item, in the CHANGELOG's "Source-breaking additions that can change behaviour
 # with no diagnostic at the call site" section.
-token_span_since/used
-token_span_since/discarded
-token_slice_since/used
-token_slice_since/discarded
+span_since_trimmed/used
+span_since_trimmed/discarded
+slice_since_trimmed/used
+slice_since_trimmed/discarded
 
 # ── `Emitter::commit_lexer_error` — the SAME rule, in the mirror ──────────────────────────
 #
