@@ -1732,8 +1732,10 @@ where
   #[cold]
   #[inline(never)]
   fn remember_withheld(&mut self, from: L::Offset, at: L::Offset) {
-    // Every lexer error the run crossed ends past `from`, and nothing past the withheld item can
-    // have been lexed, so the dedup watermark stands past `from` exactly when the run reported one.
+    // Every lexer error the run crossed ends past `from` and is on record once the run passes it,
+    // reported now or deduplicated against an earlier report. Nothing past the withheld item can
+    // have been lexed under this regime, so the dedup watermark stands past `from` exactly when
+    // the run crossed one.
     let diagnosed = if *self.emitted_error_end > from {
       Some(self.emitted_error_end.clone())
     } else {
