@@ -176,7 +176,7 @@ fn word<'inp, Ctx, Cmpl>(
 where
   Ctx: ParseContext<'inp, TestLexer<'inp>>,
   Ctx::Emitter: Emitter<'inp, TestLexer<'inp>, Error = Fail>,
-  Cmpl: SurfaceIncomplete<'inp, TestLexer<'inp>, Ctx>,
+  Cmpl: SurfaceIncomplete<'inp, TestLexer<'inp>, Ctx, ()>,
 {
   match inp.next()? {
     Some(tok) if tok.data == Token::Ident => Ok(()),
