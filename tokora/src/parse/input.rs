@@ -519,6 +519,10 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   }
 
   /// Wraps the output of this parser in a `Spanned` with the span of the parsed input.
+  ///
+  /// The span is a **lookahead span**, from [`InputRef::cursor`] before this parser runs to
+  /// `cursor` after it; [`token_spanned`](Self::token_spanned) measures the **token extent**
+  /// instead, with the same output type. See [the two span rules](crate::span#the-two-span-rules).
   #[inline(always)]
   fn spanned(self) -> With<PhantomSpan, Self, Cmpl>
   where
@@ -529,6 +533,9 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   }
 
   /// Wraps the output of this parser in a `Sliced` with the source slice of the parsed input.
+  ///
+  /// The slice covers the **lookahead span**; [`token_sliced`](Self::token_sliced) slices the
+  /// **token extent** instead, with the same output type.
   #[inline(always)]
   fn sliced(self) -> With<PhantomSliced, Self, Cmpl>
   where
@@ -539,6 +546,9 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   }
 
   /// Wraps the output of this parser in a `Located` with the span and source slice of the parsed input.
+  ///
+  /// Both are the **lookahead span**'s; [`token_located`](Self::token_located) gives the **token
+  /// extent**'s instead, with the same output type.
   #[inline(always)]
   fn located(self) -> With<PhantomLocated, Self, Cmpl>
   where

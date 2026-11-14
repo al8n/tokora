@@ -4,14 +4,18 @@ use super::Lexer;
 
 /// A cursor representing a position in the input source.
 ///
-/// `Cursor` is a lightweight type that wraps a byte offset into the lexer's
-/// input source. It's used by [`Checkpoint`](crate::input::Checkpoint) to track positions and represents
-/// the current position in the input stream.
+/// `Cursor` is a lightweight type that wraps a byte offset into the lexer's input source, branded
+/// with the [`InputRef`](crate::InputRef) that produced it: the methods that measure from a cursor
+/// (`span_since`, `slice_range` and their kin) accept only one from the same input. Two methods
+/// produce one, and they answer different questions:
 ///
-/// The cursor position represents:
-/// - The byte offset in the input where the tokenizer will continue lexing
-/// - If there are cached tokens, it points to the start of the first cached token
-/// - Otherwise, it points to the position where the next token will be lexed from
+/// - [`InputRef::cursor`](crate::InputRef::cursor) is the **lookahead position**, the one
+///   [`Checkpoint`](crate::input::Checkpoint) records: the start of the first cached (or parked)
+///   token, or, with nothing cached, the position the next token will be lexed from.
+/// - [`InputRef::token_cursor`](crate::InputRef::token_cursor) is the **start of the next token**,
+///   where a token extent opens. It is that token's start even when the token is retained nowhere:
+///   under a zero-capacity cache it is neither the start of a cached token nor the position
+///   lexing resumes from.
 #[repr(transparent)]
 pub struct Cursor<'inp, 'closure, L: Lexer<'inp>> {
   pub(crate) offset: L::Offset,

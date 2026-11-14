@@ -2567,13 +2567,17 @@ where
   /// Closure-scoped span capture — the imperative twin of
   /// [`spanned`](crate::ParseInput::spanned), for hand-sequenced productions.
   ///
-  /// Returns the span covering exactly what `f` consumed, alongside `f`'s value. The
+  /// Returns the span of what `f` consumed, alongside `f`'s value. The
   /// bracket is `spanned`'s own — [`cursor`](Self::cursor) before, `f`, then
   /// [`span_since`](Self::span_since) — so the two spellings cannot disagree about where
   /// a construct starts or ends.
   ///
   /// `f`'s error propagates unchanged and no span is produced: a failed production has no
   /// extent to report.
+  ///
+  /// The span is a **lookahead span**, so under a lexer that skips trivia it can take in skipped
+  /// bytes on either side of what `f` consumed; [`token_spanning`](Self::token_spanning) measures
+  /// the **token extent** instead. See [the two span rules](crate::span#the-two-span-rules).
   pub fn spanning<F, T, E>(&mut self, f: F) -> Result<(L::Span, T), E>
   where
     F: FnOnce(&mut Self) -> Result<T, E>,
@@ -3259,6 +3263,9 @@ where
   }
 
   /// Returns a slice of the input source from the given cursor to the current position.
+  ///
+  /// The current position is the lookahead position, [`cursor`](Self::cursor);
+  /// [`token_slice_since`](Self::token_slice_since) ends at the committed position instead.
   #[inline(always)]
   pub fn slice_since(
     &self,
@@ -3320,6 +3327,10 @@ where
   }
 
   /// Returns a span from the given cursor to the current position.
+  ///
+  /// The current position is the lookahead position, [`cursor`](Self::cursor), so this is a
+  /// **lookahead span**; [`token_span_since`](Self::token_span_since) ends at the committed
+  /// position instead.
   #[inline(always)]
   pub fn span_since(&self, cursor: &Cursor<'inp, 'closure, L>) -> L::Span {
     Span::new(cursor.as_inner().clone(), self.cursor().as_inner().clone())
@@ -3502,6 +3513,9 @@ where
   /// This is the lookahead (cache-front) position: a peek or a scan decline moves it across skipped
   /// bytes without committing anything. It is **not** a progress metric — for committed progress
   /// compare [`span().end()`](Self::span).
+  ///
+  /// Nor is it where a token extent opens: [`token_cursor`](Self::token_cursor) is, the start of
+  /// the next token wherever the lookahead stands.
   #[inline(always)]
   pub fn cursor(&self) -> &Cursor<'inp, 'closure, L> {
     // Stream order is `parked?` then the cache, so a parked token — when there is one — is where
