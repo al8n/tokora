@@ -1900,6 +1900,14 @@ def trait_method(name, owner, spelling):
         "is_valid": "",
         "is_error": "",
         "is_missing": "",
+        # `ParseInput`'s token-extent twins of `spanned`/`sliced`/`located`. Each takes `self` by
+        # value and nothing else — read `parse/input.rs` — so this is the empty-argument shape
+        # above, on the `ParseInput` receiver `parse_num`, and not the multi-argument support
+        # #225 declines. A by-value method is the shape these spellings are named for:
+        # `same_pick` really is the same pick and `&self` really is a later one.
+        "token_spanned": "",
+        "token_sliced": "",
+        "token_located": "",
     }.get(name)
     if args is None:
         # The pointer matters more than the refusal. An author who lands here reads "add a

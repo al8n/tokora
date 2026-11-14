@@ -2583,6 +2583,37 @@ where
     Ok((self.span_since(&cursor), value))
   }
 
+  /// Closure-scoped **token-extent** capture — the token-extent counterpart of
+  /// [`spanning`](Self::spanning), and the imperative twin of
+  /// [`token_spanned`](crate::ParseInput::token_spanned).
+  ///
+  /// Returns the token extent of what `f` consumed, alongside `f`'s value: from the start of the
+  /// first token `f` consumes to the committed position after it. The bracket is `token_spanned`'s
+  /// own — [`token_cursor`](Self::token_cursor) before, `f`, then
+  /// [`token_span_since`](Self::token_span_since) — so the two spellings cannot disagree. An `f`
+  /// that consumes nothing gets the empty span at the next token's start.
+  ///
+  /// The start is a peek taken before `f` runs, so the next token is lexed early, under the lexer
+  /// state current here. For an `f` that would not have read that token, its lexer-error
+  /// diagnostics, a fatal emitter's rejection of one, a limit trip and the token-budget charge all
+  /// happen anyway; for one that would have, a fatal rejection leaves the committed position
+  /// before the rejected lexeme instead of past it. An `f` that switches the lexer state before its
+  /// first token must switch it before this call. `token_cursor` states each of these.
+  ///
+  /// # Errors
+  ///
+  /// The start's error, converted into `E`, when the peek's lexer-error or limit diagnostic is
+  /// rejected by the emitter; then `f`'s error, unchanged. Either way no span is produced.
+  pub fn token_spanning<F, T, E>(&mut self, f: F) -> Result<(L::Span, T), E>
+  where
+    F: FnOnce(&mut Self) -> Result<T, E>,
+    E: From<<Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
+  {
+    let start = self.token_cursor()?;
+    let value = f(self)?;
+    Ok((self.token_span_since(&start), value))
+  }
+
   /// Starts a transaction: a scoped, compile-time-safe form of [`save`](Self::save)
   /// and [`restore`](Self::restore).
   ///
@@ -3239,6 +3270,23 @@ where
       .slice(cursor.as_inner().clone()..end.as_inner().clone())
   }
 
+  /// Returns the source slice of the **token extent** from `cursor` to the committed position —
+  /// the token-extent counterpart of [`slice_since`](Self::slice_since), for a start taken by
+  /// [`token_cursor`](Self::token_cursor).
+  ///
+  /// It covers exactly the bytes [`token_span_since`](Self::token_span_since) spans, clamp
+  /// included: a parser that consumed nothing since `cursor` gets the empty slice at `cursor`.
+  /// `None` when the source refuses the range, as for `slice_since`.
+  #[inline(always)]
+  pub fn token_slice_since(
+    &self,
+    cursor: &Cursor<'inp, 'closure, L>,
+  ) -> Option<<L::Source as Source<L::Offset>>::Slice<'inp>> {
+    let start = cursor.as_inner();
+    let end = core::cmp::max(start, self.span.end_ref());
+    self.input.slice(start.clone()..end.clone())
+  }
+
   /// Returns a slice of the input source from the given cursor to the end of the input.
   #[inline(always)]
   pub fn slice_from(
@@ -3275,6 +3323,34 @@ where
   #[inline(always)]
   pub fn span_since(&self, cursor: &Cursor<'inp, 'closure, L>) -> L::Span {
     Span::new(cursor.as_inner().clone(), self.cursor().as_inner().clone())
+  }
+
+  /// Returns the **token extent** from `cursor` to the committed position — the token-extent
+  /// counterpart of [`span_since`](Self::span_since), for a start taken by
+  /// [`token_cursor`](Self::token_cursor).
+  ///
+  /// The span ends at `span().end()`, the committed position, where `span_since` ends at the
+  /// lookahead position [`cursor`](Self::cursor); a peek past the last committed token therefore
+  /// adds nothing to it. A parser that consumed nothing since `cursor` leaves `span().end()` before
+  /// `cursor`, and the answer is then the **empty span at `cursor`**, never an inverted one.
+  ///
+  /// # Where the end is not a token's end
+  ///
+  /// The committed position is the end of the last committed token everywhere but three places,
+  /// and the extent ends where the committed position does in each:
+  ///
+  /// - a [`skip_while`](Self::skip_while) that reaches end of input commits the lexer's end, past
+  ///   the trailing bytes the lexer skipped — and so does the
+  ///   [`padded`](crate::ParseInput::padded) or [`padded_right`](crate::ParseInput::padded_right)
+  ///   that skips with it;
+  /// - a [`sync_to`](Self::sync_to) that reaches end of input commits the lexer's end the same way;
+  /// - a consume whose lexer error a fatal emitter rejects commits that lexeme's span, which is
+  ///   reachable only on the `Err` path, where no extent is built.
+  #[inline(always)]
+  pub fn token_span_since(&self, cursor: &Cursor<'inp, 'closure, L>) -> L::Span {
+    let start = cursor.as_inner();
+    let end = core::cmp::max(start, self.span.end_ref());
+    Span::new(start.clone(), end.clone())
   }
 
   /// Returns a span from the given cursor to the end of the input.
@@ -3443,6 +3519,84 @@ where
         .map(|span| span.start_ref())
         .unwrap_or_else(|| self.span.end_ref()),
     )
+  }
+
+  /// Returns the start of the next token, where a **token extent** opens — the token-extent
+  /// counterpart of [`cursor`](Self::cursor).
+  ///
+  /// `cursor` is the lookahead position, which a cold cache leaves at the end of the previous
+  /// token; this is the start of the token the next consume takes, with no skipped byte in front
+  /// of it. Close the extent with [`token_span_since`](Self::token_span_since) or
+  /// [`token_slice_since`](Self::token_slice_since); [`token_spanning`](Self::token_spanning) and
+  /// [`token_spanned`](crate::ParseInput::token_spanned) package the pair.
+  /// [The two span rules](crate::span#the-two-span-rules) says when each measurement fits.
+  ///
+  /// # It peeks
+  ///
+  /// A token's start is known only once the token is lexed, so this peeks one token and, unlike
+  /// `cursor`, takes `&mut self`. The peek is the raw one, [`peek_one`](Self::peek_one): it puts no
+  /// bound on the error type and decides nothing. When it yields no token — at end of input, at a
+  /// terminal scanner stop with nothing resident, or where a non-final
+  /// [`Partial`](crate::input::Partial) input withholds the next token — the answer is the
+  /// committed position, `span().end()`, and the parser that runs next meets whatever stopped the
+  /// peek. No peek asks for more input, so this never raises an
+  /// [`Incomplete`](crate::error::Incomplete); a parser that then consumes nothing on a non-final
+  /// input is anchored at the committed position, where the sealed parse would anchor it at the
+  /// next token's start.
+  ///
+  /// The answer is read off the peeked token itself. Under a cache that retains tokens, the next
+  /// consume takes that token from the cache and nothing is lexed twice. Under a zero-capacity
+  /// cache (`()`) the token is retained nowhere: [`cursor`](Self::cursor) still answers the end of
+  /// the previous token after the peek, the next consume lexes the token again, and the
+  /// [token budget](Self::token_budget) is charged for both lexes.
+  ///
+  /// # The early lex can change the outcome
+  ///
+  /// The next token is lexed here, before the parser that follows runs, under the lexer state
+  /// current here:
+  ///
+  /// - **For a parser that would not have read that token** — one that consumes nothing, or the
+  ///   last production of a parse with no end-of-input check — the lex happens anyway. The
+  ///   diagnostics of lexer-error lexemes in front of the token are emitted, a fatal emitter's
+  ///   rejection of one becomes this method's `Err`, a resource-limit trip latches its boundary
+  ///   and is diagnosed, and the token budget is charged.
+  /// - **For a parser that would have read it**, the error value is the same, but a fatal
+  ///   rejection raised here leaves the committed position *before* the rejected lexeme, while the
+  ///   same rejection raised by a consume commits past it. A caller that catches the error and
+  ///   carries on resumes at a different position.
+  ///
+  /// # Change the lexer state first
+  ///
+  /// A production that switches the lexer state ([`set_state`](Self::set_state),
+  /// [`state_mut`](Self::state_mut)) before its first token must take its start after the switch.
+  /// Taken before it, the start comes from a token lexed under the old state: that lex's
+  /// diagnostics stay in the log, its budget charge stands, and when the old state's next token
+  /// starts after the token the new state lets the production consume, the extent's end falls
+  /// before its start — and the clamp in [`token_span_since`](Self::token_span_since) turns a node
+  /// that consumed tokens into an empty span. Switch the state outside the wrapper, or call this
+  /// after the switch.
+  ///
+  /// # Errors
+  ///
+  /// The emitter's error, when the peek lexes a lexer-error lexeme or trips a resource limit and
+  /// the emitter rejects that diagnostic — under [`Fatal`](crate::emitter::Fatal), every time. A
+  /// non-fatal emitter's diagnostic is emitted once, and the peek carries on to the token behind
+  /// the lexeme, whose start is then the answer.
+  #[inline]
+  pub fn token_cursor(
+    &mut self,
+  ) -> Result<Cursor<'inp, 'closure, L>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    use crate::cache::PeekedTokenExt as _;
+
+    // Read off the window and owned before the peek's borrow ends: under a zero-capacity cache
+    // the peeked token is in the window and nowhere else, so `cursor()` read after the peek would
+    // answer the previous token's end.
+    let head = self
+      .peek_one()?
+      .map(|token| Cursor::<'inp, 'closure, L>::from_ref(token.span().start_ref()).clone());
+    // An empty window means nothing is parked and nothing is cached, so there `cursor()` is
+    // `span().end()`.
+    Ok(head.unwrap_or_else(|| self.cursor().clone()))
   }
 
   /// Returns the current offset of the tokenizer.
