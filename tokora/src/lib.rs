@@ -218,7 +218,7 @@ pub mod source;
 /// optional tail, say), and the skipped bytes before a node entered with nothing cached. The token
 /// extent takes in neither. Under a lexer that skips nothing — every byte is in some token, as
 /// under one that hands its trivia to the parser as tokens
-/// ([`Token::SURFACES_TRIVIA`](crate::Token::SURFACES_TRIVIA)) — the two rules agree, and trivia a
+/// ([`Token::SURFACES_TRIVIA`]) — the two rules agree, and trivia a
 /// parser consumes (with [`padded`](ParseInput::padded), say) is inside both. On compact input
 /// they agree as well, which is why a corpus of tightly written source cannot tell them apart.
 ///
