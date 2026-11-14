@@ -366,6 +366,10 @@ where
   /// [`publish_scanner_trip`](Self::publish_scanner_trip), the infallible half of recording a
   /// terminal scanner stop, and no handle method exposes a mutable route to the cell.
   pub(super) scanner_trips: &'closure mut u64,
+  /// The **withheld-head memo**, borrowed from the owning [`Input`](super::Input) — see that field
+  /// for why a rollback leaves it alone. Written only by `remember_withheld`, read only by
+  /// [`lex_within_boundary`](Self::lex_within_boundary).
+  pub(super) withheld: &'closure mut Option<super::WithheldHead<L::Offset>>,
   /// The **session cell**: the input's lineage memos (the live-checkpoint stack, the pin set, and
   /// the cache-push/checkpoint-id/savepoint counters), the handle's **emitter borrow** (the
   /// ground-truth emission log, reached through [`emitter`](Self::emitter)), and the live
@@ -1428,6 +1432,17 @@ where
   /// An **unlimited** budget — the default, and every parse that does not opt in — makes the gate
   /// one comparison against `usize::MAX` on a `usize` already in the handle's cache line, which is
   /// never true, and the charge one saturating increment on the same cell.
+  ///
+  /// # A withheld head is lexed once
+  ///
+  /// On a non-final [`Partial`](crate::input::Partial) input, an item the frontier rules withheld
+  /// is answered here from the [withheld-head memo](super::WithheldHead) when lexing starts where
+  /// it started before, and the lexer does not run again. The check sits below the boundary probe,
+  /// since a terminal stop outranks an incomplete one, and above the budget preflight, so a lex
+  /// the memo answers is neither charged nor refused. Without it, a peek that met a withheld head
+  /// spent the budget on it, and the consume that followed lexed it a second time, or met the
+  /// spent budget and reported a terminal stop. On a [`Complete`](crate::input::Complete) input the
+  /// check compiles to nothing.
   #[inline(always)]
   fn lex_within_boundary<Fr>(
     &mut self,
@@ -1440,6 +1455,11 @@ where
   {
     if self.reached_boundary(lex_at) {
       return LexStep::Stop;
+    }
+    // The withheld-head memo: below the boundary probe, above the budget preflight. See the
+    // section above.
+    if Cmpl::PARTIAL && self.withheld_here(lex_at) {
+      return LexStep::Withheld;
     }
     // PREFLIGHT. Before `Lexer::lex`, not after: see the section above for why the other order
     // bounds nothing. Everything a met ceiling then has to decide is out of line — see
@@ -1676,6 +1696,55 @@ where
       Lexed::<L::Token>::from(produced),
     ));
     MetCeiling::Exhausted
+  }
+
+  /// Whether the withheld-head memo answers a lex that would start at `lex_at`: the frontier rules
+  /// withheld the item that lexing from here reached, and every other part of the verdict's key
+  /// still holds. See [`WithheldHead`](super::WithheldHead) for the key.
+  #[inline(always)]
+  fn withheld_here(&self, lex_at: &L::Offset) -> bool {
+    match self.withheld.as_ref() {
+      Some(memo) => memo.from == *lex_at && self.withheld_stands(memo),
+      None => false,
+    }
+  }
+
+  /// The rest of [`withheld_here`](Self::withheld_here)'s key, out of line: it is reached only where
+  /// a withheld verdict began at this very offset.
+  #[cold]
+  #[inline(never)]
+  fn withheld_stands(&self, memo: &super::WithheldHead<L::Offset>) -> bool {
+    super::same_regime(memo.regime, *self.regime)
+      && !self.is_final()
+      && memo.at == self.input.len()
+      && memo
+        .diagnosed
+        .as_ref()
+        .is_none_or(|end| *self.emitted_error_end >= *end)
+  }
+
+  /// Records that lexing from `from` reached an item the frontier rules withheld, reporting `at`.
+  ///
+  /// Called from the two places a withheld verdict is reached — the peek fill and
+  /// [`scan_with`](Self::scan_with) — and nowhere else. The verdict replaces whatever the memo held:
+  /// only one head can be withheld at a time, since nothing past it can be lexed until more input
+  /// arrives.
+  #[cold]
+  #[inline(never)]
+  fn remember_withheld(&mut self, from: L::Offset, at: L::Offset) {
+    // Every lexer error the run crossed ends past `from`, and nothing past the withheld item can
+    // have been lexed, so the dedup watermark stands past `from` exactly when the run reported one.
+    let diagnosed = if *self.emitted_error_end > from {
+      Some(self.emitted_error_end.clone())
+    } else {
+      None
+    };
+    *self.withheld = Some(super::WithheldHead {
+      from,
+      regime: *self.regime,
+      at,
+      diagnosed,
+    });
   }
 
   /// **The per-driver gate**: has this input *already* refused an item, so that this entry is owed
@@ -3564,6 +3633,12 @@ where
   /// the previous token after the peek, the next consume lexes the token again, and the
   /// [token budget](Self::token_budget) is charged for both lexes.
   ///
+  /// A token a non-final input withholds is lexed **once**, under either cache. The input
+  /// remembers the withheld verdict, and the consume that follows at the same place returns the
+  /// same [`Incomplete`](crate::error::Incomplete) without lexing the token again or charging the
+  /// budget for it again — so a budget the peek spent cannot turn that `Incomplete` into a
+  /// terminal stop.
+  ///
   /// # The early lex can change the outcome
   ///
   /// The next token is lexed here, before the parser that follows runs, under the lexer state
@@ -4640,8 +4715,15 @@ where
               }
               Err(e) => break 'scan Err(self.settle_fatal(lexer, e)),
             },
-            // The holdback, reached only by a non-terminal item (see `classify`).
-            Verdict::Withheld(at) => break 'scan Err(Cmpl::surface_incomplete(at)),
+            // The holdback, reached only by a non-terminal item (see `classify`). A scan stops at
+            // its first token, so only lexer errors came before this item, and the run that
+            // reached it began where the scan did: `at_slot` still holds that start, since it is
+            // written back only below. Remembered there, so the next lex from the same place is
+            // answered without lexing the item again.
+            Verdict::Withheld(at) => {
+              self.remember_withheld(at_slot.clone(), at.clone());
+              break 'scan Err(Cmpl::surface_incomplete(at));
+            }
           },
           // Boundary already reached, or the lexer is exhausted: fall through to the
           // end-of-input handling below, which decides which of the two it was.
@@ -4651,6 +4733,9 @@ where
           // so this takes the identical exit a `Trip` whose diagnostic the emitter accepted takes
           // — there is simply no diagnostic to offer first, and no item it could describe.
           LexStep::Exhausted => break 'scan Ok(Scan::Tripped),
+          // The withheld-head memo answered: the exit the `Withheld` arm above takes, at the
+          // offset it reported — the source length, which the memo's key has just matched.
+          LexStep::Withheld => break 'scan Err(Cmpl::surface_incomplete(self.input.len())),
         }
       }
 
@@ -4827,6 +4912,12 @@ where
   /// [`Verdict::Trip`] takes **after** its emit succeeded — and must not adopt the `Resume`'s lexer
   /// state on it, which is what keeps the probe's mutation off the committed `L::State`.
   Exhausted,
+  /// **Not terminal: lexing would start where an item was withheld before**, and the
+  /// [withheld-head memo](super::WithheldHead) still answers for it. The lexer did not run and
+  /// nothing was charged. Drivers take the exit a [`Verdict::Withheld`] takes, at the same offset:
+  /// the source length, which is what the frontier rules report. Built only on a non-final
+  /// [`Partial`](crate::input::Partial) input.
+  Withheld,
 }
 
 /// Where a scan latches the poison boundary on a limit trip: the **durable frontier**, the offset

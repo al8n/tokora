@@ -230,7 +230,8 @@ pub mod source;
 ///
 /// Its start needs the next token's start, and only a peek can provide it, so
 /// [`InputRef::token_cursor`] peeks one token before the measured parser runs. Under a cache that
-/// retains tokens that costs no second lex; under a zero-capacity cache it does. The early lex can
+/// retains tokens that costs no second lex; under a zero-capacity cache it does, except for a token
+/// a non-final input withholds, which is lexed once under either cache. The early lex can
 /// also change an outcome — a lexer-error diagnostic or a fatal rejection that a parser consuming
 /// nothing would never have met — and a production that switches the lexer state must switch it
 /// before the start is taken. `token_cursor` states all of it.

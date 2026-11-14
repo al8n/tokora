@@ -327,6 +327,37 @@ pub(crate) const REGIME_EXHAUSTED: u64 = u64::MAX;
 pub(crate) const fn same_regime(a: u64, b: u64) -> bool {
   a == b && a != REGIME_EXHAUSTED
 }
+
+/// A **withheld frontier verdict**, kept under everything that decides it.
+///
+/// On a non-final [`Partial`] input the frontier rules withhold an item the lexer decided by
+/// reading as far as the buffer end: the lex runs and is charged to the token budget, and no
+/// token comes out of it. The lexer is deterministic in source, offset and state, so every later
+/// scan that begins lexing where that one began is owed the same answer. This keeps it, and the
+/// lexing site gives it back without lexing the item again or charging for it again.
+///
+/// Without it a peek that met a withheld head and the consume after it each lexed and charged the
+/// item. A consume that found the budget spent by the peek then reported a **terminal** stop over
+/// input that only needed more bytes, and a partial session latched shut instead of asking for
+/// them.
+///
+/// The verdict holds only while all of its key still matches:
+///
+/// - `from`, the offset the run that reached the item began lexing at;
+/// - `regime`, the lexer regime that lexed it. With `from` it names the lexer state, as the regime
+///   generation and an offset do everywhere in this crate;
+/// - `at`, the offset the frontier rules reported: the length of the source the verdict was
+///   decided against, so a longer source decides afresh;
+/// - `diagnosed`, when the run crossed lexer errors on its way: the dedup watermark their reports
+///   raised. A rollback that takes those reports back takes the verdict's standing with them;
+/// - and the input must still be non-final, since a sealed input withholds nothing.
+pub(crate) struct WithheldHead<O> {
+  from: O,
+  regime: u64,
+  at: O,
+  diagnosed: Option<O>,
+}
+
 pub(crate) use input_ref::Session;
 pub use input_ref::{
   Balance, Commit, DelimClass, Descent, DropPolicy, Hole, InputRef, ResourceTripBaseline, Rollback,
@@ -1058,6 +1089,22 @@ where
   /// cell, and harvests terminality by its own route (which reads the error value only — see
   /// [`MaybeTerminal`](crate::error::MaybeTerminal)).
   scanner_trips: u64,
+  /// The **withheld-head memo**: the last frontier verdict this input's lexer withheld, under the
+  /// key that decides it (see [`WithheldHead`]). `None` until a non-final [`Partial`] scan first
+  /// withholds an item; a [`Complete`] input never writes or reads it.
+  ///
+  /// # Outside the rollback set, because its key is its whole meaning
+  ///
+  /// A [`Checkpoint`] does **not** carry it and a [`restore`](InputRef::restore) does not touch it.
+  /// What it records is a fact about the deterministic lexer — what lexing from one offset under
+  /// one regime does to this source — and not about the parse's lineage, so a rollback cannot make
+  /// it false. After a restore it either still matches the scan being asked about, and is the
+  /// same answer a re-lex would give, or it matches nothing and is not used. The one lineage fact
+  /// it depends on, the dedup watermark its run's lexer-error reports raised, is part of its key.
+  ///
+  /// Its writers are the two places a withheld verdict is reached: the peek fill and the scanner,
+  /// each through `InputRef::remember_withheld`. Its one reader is the lexing site.
+  withheld: Option<WithheldHead<L::Offset>>,
   /// The **bound emitter** — the one emission log this input's parse writes, owned here for the
   /// input's whole life and paired with it at
   /// [`with_state_and_context`](Self::with_state_and_context).
@@ -1244,6 +1291,8 @@ where
       // Untripped, and for the same reason: a scanner trip is a fact about THIS session's lexing,
       // and no constructor carries one in.
       scanner_trips: 0,
+      // Nothing withheld yet: only a scan of this input can withhold an item.
+      withheld: None,
       emitter,
       lineage: Lineage::new(),
       #[cfg(feature = "trace")]
@@ -1406,6 +1455,9 @@ where
       // The scanner-trip counter, borrowed for the identical reason: a trip the scanner takes
       // through this handle is a fact about the session, so it has to outlive the handle.
       scanner_trips: &mut self.scanner_trips,
+      // The withheld-head memo, borrowed so a verdict one handle's peek reached is the one the next
+      // handle's consume is answered from.
+      withheld: &mut self.withheld,
       // The lineage memos, the emitter borrow, and the session-point stack, in one cell (see
       // `input_ref::session`): the stack starts empty and stays unallocated until the first
       // `InputRef::begin_point`, so a reference that never opens a session pays a few zeroed

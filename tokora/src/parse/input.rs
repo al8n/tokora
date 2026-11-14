@@ -675,8 +675,9 @@ pub trait ParseInput<'inp, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
   ///
   /// The start is [`InputRef::token_cursor`], which peeks the next token before this parser
   /// runs. Under a cache that retains tokens that costs no second lex; under a zero-capacity cache
-  /// the parser lexes the token again. The next token is also lexed *early*, under the lexer state
-  /// current here, and that can change an outcome:
+  /// the parser lexes the token again — except a token a non-final input withholds, which is lexed
+  /// once under either cache. The next token is also lexed *early*, under the lexer state current
+  /// here, and that can change an outcome:
   ///
   /// - for a parser that would not have read that token, its lexer-error diagnostics, a fatal
   ///   emitter's rejection of one (which becomes this parser's `Err`), a limit trip and the token
