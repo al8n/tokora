@@ -38,6 +38,9 @@ use crate::emitter::Emitter;
 
 use super::{Checkpoint, Lexer, Lineage};
 
+#[cfg(any(feature = "std", feature = "alloc"))]
+use std::vec::Vec;
+
 #[cfg(all(test, feature = "logos_0_16", feature = "std"))]
 mod tests;
 
@@ -158,7 +161,7 @@ where
   /// [`begin_point`](super::InputRef::begin_point). Gated to the allocator builds, exactly like the
   /// guards' savepoint stack.
   #[cfg(any(feature = "std", feature = "alloc"))]
-  pub(super) points: std::vec::Vec<Checkpoint<'inp, 'closure, L>>,
+  pub(super) points: Vec<Checkpoint<'inp, 'closure, L>>,
   /// Allocator-less builds keep no point stack (there is no session-point surface without an
   /// allocator), but the cell still names `'inp` and `L` through the checkpoint type it would hold.
   #[cfg(not(any(feature = "std", feature = "alloc")))]
@@ -185,7 +188,7 @@ where
       lineage,
       emitter,
       #[cfg(any(feature = "std", feature = "alloc"))]
-      points: std::vec::Vec::new(),
+      points: Vec::new(),
       #[cfg(not(any(feature = "std", feature = "alloc")))]
       _points: PhantomData,
       _m: PhantomData,

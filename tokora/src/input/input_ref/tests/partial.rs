@@ -26,7 +26,10 @@ use crate::{
   cache::DefaultCache,
   emitter::{Fatal, Verbose},
   error::{Incomplete, MaybeIncomplete, UnexpectedToken},
-  input::{ClosePayload, CloseStatus, Complete, Input, Partial, SurfaceIncomplete},
+  input::{
+    ClosePayload, CloseStatus, Complete, Input, Partial, SurfaceIncomplete,
+    session::BudgetExhausted,
+  },
   lexer::LogosLexer,
   parse::{parse_partial, try_parse::input::ParseAttempt},
   state::State,
@@ -3641,19 +3644,15 @@ fn an_unbounded_vocabulary_is_seal_only_and_a_calibrated_budget_refuses_the_seal
 
   assert_eq!(
     session.parse(mctx(), "ab", true, take_one_m),
-    Err(MErr::Refused(SessionRefusal::BudgetExhausted {
-      spent: 4,
-      budget: 2
-    })),
+    Err(MErr::Refused(SessionRefusal::BudgetExhausted(
+      BudgetExhausted::new(4, 2)
+    ))),
     "the seal projects 4 lexable bytes against a cap of 2 and is refused BEFORE any work: \
      finality is never applied, so the item is terminally unreachable"
   );
   assert!(
     <MErr as crate::error::MaybeTerminal>::is_terminal(&MErr::Refused(
-      SessionRefusal::BudgetExhausted {
-        spent: 4,
-        budget: 2
-      }
+      SessionRefusal::BudgetExhausted(BudgetExhausted::new(4, 2))
     )),
     "and the refusal is TERMINAL — not 'reduced precision', not 'buffer until final'"
   );

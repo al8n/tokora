@@ -2,6 +2,7 @@ use crate::{
   Lexer,
   error::{FullContainer, TooFew, TooMany, UnexpectedEot, UnexpectedTokenOf},
   input::Cursor,
+  source::SourceIdentity,
   span::Spanned,
 };
 
@@ -754,7 +755,7 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   /// they disagree ([`Source::REFERENT_IS_BYTES`](crate::Source::REFERENT_IS_BYTES)).
   ///
   /// Two relations, because there are two failures and they are not symmetric — see
-  /// [`SourceIdentity::covers`](crate::source::SourceIdentity::covers). Same origin is an
+  /// [`SourceIdentity::covers`]. Same origin is an
   /// equality. Extent is an ordering: a sink bound to a **longer** slice than the parse reads
   /// is the fixed-arena streaming shape and is fine, while one bound to a **shorter** slice
   /// lets peeked bytes past its end shape a tree that will not contain them.
@@ -779,7 +780,7 @@ pub trait Emitter<'a, L, Lang: ?Sized = ()> {
   /// line and exists for exactly that. A source-binding emitter that inherits the default
   /// compiles, runs, and quietly gives up the guarantee.
   #[inline(always)]
-  fn bound_source(&self) -> Option<crate::source::SourceIdentity> {
+  fn bound_source(&self) -> Option<SourceIdentity> {
     None
   }
 }
@@ -793,7 +794,7 @@ where
   /// Forwarded, and load-bearing: a wrapper that answered `None` here would silently disable
   /// the source-identity check for the emitter it wraps.
   #[inline(always)]
-  fn bound_source(&self) -> Option<crate::source::SourceIdentity> {
+  fn bound_source(&self) -> Option<SourceIdentity> {
     (**self).bound_source()
   }
 

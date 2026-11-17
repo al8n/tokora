@@ -3,8 +3,8 @@ use core::{
   ops::{Deref, DerefMut},
 };
 
-use super::super::SavepointStack;
 use super::{
+  super::SavepointStack,
   Checkpoint, Complete, Completeness, InputRef, Lexer, ParseContext,
   drop_policy::{DropPolicy, Rollback},
 };

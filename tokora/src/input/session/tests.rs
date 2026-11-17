@@ -11,7 +11,9 @@ use crate::{
   cache::DefaultCache,
   emitter::{Fatal, Verbose},
   error::{Incomplete, MaybeIncomplete, MaybeTerminal, UnexpectedToken},
-  input::{Budget, Partial, PartialSession, RedriveFromBase, SessionRefusal},
+  input::{
+    Budget, Partial, PartialSession, RedriveFromBase, SessionRefusal, session::BudgetExhausted,
+  },
   lexer::Lexer,
   parse::parse_partial,
   state::State,
@@ -296,10 +298,9 @@ fn session_budget_bounds_cumulative_work() {
   let refused = session.parse(fatal_ctx(), "a b c d", true, count_words);
   assert_eq!(
     refused,
-    Err(SErr::Refused(SessionRefusal::BudgetExhausted {
-      spent: 10,
-      budget: 8
-    })),
+    Err(SErr::Refused(SessionRefusal::BudgetExhausted(
+      BudgetExhausted::new(10, 8)
+    ))),
     "the gate reports the Σ this attempt would have reached"
   );
   assert!(
