@@ -27,6 +27,8 @@ name: CI
 #     python3 ci/feature_cfg_coverage.py
 #     python3 ci/feature_cfg_coverage.py --print-legs \
 #       | while read -r leg; do cargo check -p tokora $leg || break; done
+#     for f in cower/alloc cower/std mayber/alloc mayber/std; do \
+#       cargo check -p tokora --no-default-features --features "$f" || break; done
 #     bash ci/name_collision/run.sh <merge-base> <inventory.json>   # see that job for the
 #                                                                  # inventory it requires
 #     python3 ci/layout/census.py --selftest
@@ -1050,6 +1052,29 @@ jobs:
             # Word splitting is the point: $leg is a flag string from the declaration.
             # shellcheck disable=SC2086
             cargo check -p tokora $leg
+            echo "::endgroup::"
+          done
+      # Cargo unifies a dependency's features across the whole build, so a tokora compiled
+      # WITHOUT `alloc` can still meet cower or mayber compiled WITH `alloc` or `std`, switched on
+      # by any other crate in the graph. tokora's own gates do not move when that happens; a type
+      # whose shape the dependency's features choose does. cower's default policy stores a `str`
+      # as a `Copy` `CowRepr` without `alloc` and as a standard `Cow` with it, and the no-alloc
+      # `CowStr` sat on that policy: under a unified `cower/alloc` it stopped being `Copy`, and
+      # `Unclosed::name`, `Undelimited::name` and `Unopened::name`, which return `self.name` from
+      # `&self`, failed with E0507 (Codex, tokora#365). It names `cower::BorrowedPolicy` now, as
+      # `CowSlice` does, and these legs keep both that way. They cover mayber too: its
+      # `into_owned` takes a `ToOwned`-bounded form under `alloc`, and tokora calls it from code
+      # that has no allocator.
+      #
+      # Not `EXTRA_LEGS`: that list is derived from tokora's own `cfg` predicates, and a
+      # dependency's feature has no predicate in tokora to cover, which is why nothing derived
+      # these. The host target, because `std` is among the features.
+      - name: cargo check, no-alloc tokora under unified cower and mayber features
+        run: |
+          set -euo pipefail
+          for feat in cower/alloc cower/std mayber/alloc mayber/std; do
+            echo "::group::cargo check -p tokora --no-default-features --features $feat"
+            cargo check -p tokora --no-default-features --features "$feat"
             echo "::endgroup::"
           done
 
