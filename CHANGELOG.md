@@ -73,6 +73,36 @@ and will red until they do.
 
 ### Source-breaking additions that can change behaviour with *no diagnostic at the call site*
 
+#### `Budget::unwrap_bytes` and `SessionRefusal::unwrap_budget_exhausted*` — SILENT on a discarded return
+
+**You are exposed if you call an `unwrap_bytes` of your own on an `input::Budget`, or an
+`unwrap_budget_exhausted`, `unwrap_budget_exhausted_ref` or `unwrap_budget_exhausted_mut` of your
+own on an `input::SessionRefusal`, with method syntax, and discard what it returns.** This release
+derives derive_more's `IsVariant`, `Unwrap` and `TryUnwrap` on both enums (see
+[below](#unreleased-changed-breaking)), so each gains inherent `is_*`, `unwrap_*` and `try_unwrap_*`
+items. An inherent item is picked before a trait item at the same step of the receiver walk, and
+for a method of yours that takes `&mut self` — the shape the name-collision probe builds — each of
+tokora's sits at that step or an earlier one, so it takes the call.
+
+The rows of `ci/name_collision/` for the silent shapes, two-sided against the base of this
+release:
+
+```text
+SILENT  unwrap_bytes/discarded                   base=witness=1  head=witness=0
+SILENT  unwrap_budget_exhausted/discarded        base=witness=1  head=witness=0
+SILENT  unwrap_budget_exhausted_ref/discarded    base=witness=1  head=witness=0
+SILENT  unwrap_budget_exhausted_mut/discarded    base=witness=1  head=witness=0
+```
+
+On these rows both sides compile, **neither emits any diagnostic**, and the two run different
+programs: yours before, tokora's after, and tokora's `unwrap_budget_exhausted*` panics on a
+`TerminalLatched` refusal. The `used` rows are `loud` (`E0308` against the probe's `-> u8`). The
+`is_*` items are `#[must_use]` and the `try_unwrap_*` items return a `Result`, so their discarded
+rows are reported by `unused_must_use`; a discarded `unwrap_*` return is the whole of the silent
+difference. **The remedy is UFCS**: `MyExt::unwrap_bytes(&mut budget)` pins your method by name.
+
+#### mayber 0.2's new methods on `Maybe` — not probed
+
 **You are exposed if you call a method of your own, from an extension trait, on a `Maybe`, and its
 name is one that mayber 0.2 adds** (the bump is [below](#unreleased-changed-breaking)): `fold`,
 `fold_ref`, `fold_mut`, `borrow_as`, `borrow_as_mut`, `try_map`, `make_owned_with`,
@@ -167,7 +197,9 @@ crate. **The remedy is UFCS**: `MyExt::fold(maybe, ..)` pins your method by name
   return what the two fields held; the refusal's message is unchanged. A refusal of your own, in a
   test say, is built as `SessionRefusal::BudgetExhausted(BudgetExhausted::new(spent, budget))`.
   `Budget` and `SessionRefusal` also gain derive_more's `is_*`, `unwrap_*` and `try_unwrap_*`
-  accessors, `SessionRefusal`'s in `_ref` and `_mut` forms as well.
+  accessors, `SessionRefusal`'s in `_ref` and `_mut` forms as well; a method of your own by one of
+  those names can lose its call to them, silently for a discarded `unwrap_*`, as disclosed
+  [above](#unreleased-source-breaking-additions-that-can-change-behaviour-with-no-diagnostic-at-the-call-site).
 
 ## 0.13.2 (2026-11-15)
 

@@ -255,3 +255,36 @@ refused_errors/discarded
 spanned_trimmed/later_pick_discarded
 sliced_trimmed/later_pick_discarded
 located_trimmed/later_pick_discarded
+
+# ── `Budget` and `SessionRefusal`: derive_more's `unwrap_*` — CONCRETE, PRE-EXISTING owners ──
+#
+# The session cap `input::Budget` and the session's refusal `input::SessionRefusal` are public
+# enums that shipped with `PartialSession`. This branch derives derive_more's `IsVariant`, `Unwrap`
+# and `TryUnwrap` on both, which adds `is_unbounded`, `is_bytes`, `unwrap_bytes` and
+# `try_unwrap_bytes` to `Budget`, and to `SessionRefusal` `is_budget_exhausted`,
+# `is_terminal_latched`, `unwrap_budget_exhausted` and `try_unwrap_budget_exhausted` with their
+# `_ref` and `_mut` twins. Each is an inherent item found no later in the receiver walk than the
+# generated consumer's `&mut self` item (the `_mut` twins at the same step, where an inherent
+# item outranks a trait item), so on the head side each takes the call.
+#
+# Derived from that walk and from derive_more 2.1's expansion, not yet measured: this branch's
+# own pull-request run measures them, and a row listed here that does not reproduce is STALE and
+# fails that run. The expected rows, per name:
+#
+#     loud    <name>/used          base=witness=1  head=no-compile      (E0308, `-> u8`)
+#     warned  is_*/discarded       base=witness=1  head=witness=0,warned
+#     warned  try_unwrap_*/discarded base=witness=1 head=witness=0,warned
+#     SILENT  unwrap_*/discarded   base=witness=1  head=witness=0
+#
+# The `is_*` items are `#[must_use]` and every `try_unwrap_*` returns a `Result`, so
+# `unused_must_use` reports their discarded rows. The `unwrap_*` items carry no `#[must_use]` and
+# return a plain value or a reference, so theirs are silent: the same discriminator as every row
+# above, the lint and not an attribute. The three on `SessionRefusal` run against
+# `TerminalLatched` under `catch_unwind` (see `gen_probe.py`), so tokora's item, which panics on
+# that variant, is the program the consumer's call now runs.
+#
+# NOT a bounded receiver: both are concrete enums, as `Verbose` and `Errors` are concrete structs.
+unwrap_bytes/discarded
+unwrap_budget_exhausted/discarded
+unwrap_budget_exhausted_ref/discarded
+unwrap_budget_exhausted_mut/discarded

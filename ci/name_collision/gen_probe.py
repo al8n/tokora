@@ -1370,6 +1370,31 @@ INHERENT_SUBJECTS = {
         # rather than an absent key, for the reason `Cst`'s empty `assoc_calls` gives.
         "assoc_calls": {},
     },
+    # `BudgetExhausted` is the payload of `SessionRefusal::BudgetExhausted`, re-exported at
+    # `tokora::input` by the same diff that makes the variant a newtype over it. The base ref has
+    # the VARIANT, as a struct variant, but no TYPE of this name, so this is this table's new-owner
+    # shape: every call at the item's real arity, every `used` binding at its real return type.
+    # `input` is not a new module, so a plain `use tokora::input::BudgetExhausted;` names the owner
+    # in the base-side diagnostic, as `TokenBudget`'s import does.
+    #
+    # It is `Copy` and both getters take `&self`, so the receiver walk is `Code`'s: tokora's item is
+    # found at the `&T` step, one step before the generated consumer's `&mut self` item, and takes
+    # the call. `new(spent, budget)` is the one associated function, and a path call prefers the
+    # inherent item over the consumer's trait item.
+    "BudgetExhausted": {
+        "imports": "use tokora::input::BudgetExhausted;\n",
+        "fixture": "",
+        "ty": "BudgetExhausted",
+        "setup": "",
+        "build": "  let mut subject: BudgetExhausted = BudgetExhausted::new(10, 8);\n",
+        "calls": {
+            "spent": ("", "u64"),
+            "budget": ("", "u64"),
+        },
+        "assoc_calls": {
+            "new": ("10, 8", "BudgetExhausted"),
+        },
+    },
 }
 
 
@@ -1711,6 +1736,86 @@ fn drive() {{
     Ok(())
   }}
   let _ = Parser::with_context(ctx()).apply(body).parse_str("1 2");
+}}
+""" + WITNESS
+    if owner == "Budget":
+        # A PRE-EXISTING public enum, the cap a `PartialSession` is built with, so this is the
+        # pre-existing-owner shape `INHERENT_SUBJECTS`' header prescribes: the consumer's item
+        # returns `u8`, the `used` spelling binds that `u8`, and the base side compiles and runs
+        # the consumer's item.
+        #
+        # Its new names are derive_more's: `is_unbounded` and `is_bytes` (`IsVariant`, `&self`,
+        # `#[must_use]`), `unwrap_bytes` (`Unwrap`, `self`) and `try_unwrap_bytes` (`TryUnwrap`,
+        # `self`). Every one is an inherent item found at an EARLIER step of the receiver walk
+        # than the consumer's `&mut self` item — the `T` step or the `&T` step — so on the head
+        # side tokora's takes the call.
+        #
+        # The subject is `Budget::Bytes(8)` and not `Budget::Unbounded`, because `unwrap_bytes`
+        # panics on any other variant, and a head side that panics never prints its witness. It is
+        # `Copy`, so a by-value call leaves the binding usable. `drive()` allows `unused_mut` for
+        # the reason `Verbose`'s branch gives: on the head side no item here takes `&mut self`.
+        call = f"let _v: u8 = subject.{name}();" if spelling == "used" else f"subject.{name}();"
+        return ITEM_FIXTURE + f"""
+use tokora::input::Budget;
+
+pub trait ConsumerExt {{
+  fn {name}(&mut self) -> u8;
+}}
+
+impl ConsumerExt for Budget {{
+  fn {name}(&mut self) -> u8 {{
+    ran();
+    7
+  }}
+}}
+
+#[allow(unused_mut)]
+fn drive() {{
+  let mut subject: Budget = Budget::Bytes(8);
+  reached();
+  {call}
+}}
+""" + WITNESS
+    if owner == "SessionRefusal":
+        # A PRE-EXISTING public enum, the session's own refusal, so the pre-existing-owner shape
+        # again. Its eight new names are derive_more's: `is_budget_exhausted` and
+        # `is_terminal_latched` (`&self`, `#[must_use]`), `unwrap_budget_exhausted` and
+        # `try_unwrap_budget_exhausted` (`self`), their `_ref` twins (`&self`) and their `_mut`
+        # twins (`&mut self`). Each is an inherent item found no later in the receiver walk than
+        # the consumer's `&mut self` item — the `_mut` twins at the SAME step, where an inherent
+        # item outranks a trait item — so on the head side tokora's takes the call.
+        #
+        # The subject must exist on BOTH sides, and the variant with a payload does not: the base
+        # ref spells it `BudgetExhausted { spent, budget }` and the head `BudgetExhausted(..)`, so
+        # no single expression builds it on both. The subject is therefore `TerminalLatched`, and
+        # the call runs under `catch_unwind`: on that variant the three `unwrap_budget_exhausted*`
+        # items PANIC, and a panic that escaped `drive()` would end the test before the witness
+        # is printed — an INCONCL that says nothing about the name. Caught, the head side
+        # completes with `REACHED: 1` and `CONSUMER-CALLS: 0`: tokora's item took the call and
+        # panicked in it, and the consumer's never ran. `AssertUnwindSafe`, because the `_mut`
+        # twins and the base side's consumer item capture the binding mutably.
+        call = f"let _v: u8 = subject.{name}();" if spelling == "used" else f"subject.{name}();"
+        return ITEM_FIXTURE + f"""
+use tokora::input::SessionRefusal;
+
+pub trait ConsumerExt {{
+  fn {name}(&mut self) -> u8;
+}}
+
+impl ConsumerExt for SessionRefusal {{
+  fn {name}(&mut self) -> u8 {{
+    ran();
+    7
+  }}
+}}
+
+#[allow(unused_mut)]
+fn drive() {{
+  let mut subject: SessionRefusal = SessionRefusal::TerminalLatched;
+  reached();
+  let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {{
+    {call}
+  }}));
 }}
 """ + WITNESS
     # Not a default and not a skip: an owner with no template must stop the run, because a probe
