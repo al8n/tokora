@@ -503,18 +503,12 @@ impl<T, State, Span> PeekedTokenExt<T, Span>
 {
   #[inline(always)]
   fn token(&self) -> &T {
-    match self {
-      Maybe::Ref(cached) => cached.token.data,
-      Maybe::Owned(cached) => &cached.token.data,
-    }
+    self.fold_ref(|cached| cached.token.data, |cached| &cached.token.data)
   }
 
   #[inline(always)]
   fn span(&self) -> &Span {
-    match self {
-      Maybe::Ref(cached) => cached.token.span,
-      Maybe::Owned(cached) => &cached.token.span,
-    }
+    self.fold_ref(|cached| cached.token.span, |cached| &cached.token.span)
   }
 }
 

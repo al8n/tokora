@@ -1796,9 +1796,6 @@ fn widest_peek_over_oversized_token_and_state_stays_in_stream_order() {
   match peeked[0].token() {
     BigTok::Num(payload) => assert_eq!(payload.probe(), 0),
   }
-  let head_state = match &peeked[0] {
-    mayber::Maybe::Ref(cached) => cached.state.probe(),
-    mayber::Maybe::Owned(cached) => cached.state.probe(),
-  };
+  let head_state = peeked[0].fold_ref(|cached| cached.state.probe(), |cached| cached.state.probe());
   assert_eq!(head_state, 0, "every entry carries a whole lexer state");
 }

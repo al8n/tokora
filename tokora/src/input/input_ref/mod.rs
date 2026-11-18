@@ -2181,7 +2181,7 @@ where
       // stream and the position being installed. So it is handed back and dies with the rest,
       // after the settle. The clamping branch below moves it into the new span, so there is
       // nothing left to return and no second clone is introduced to make the shapes match.
-      (to_owned(new), Some(end))
+      (new.into_owned(), Some(end))
     } else {
       (L::Span::new(new.start_ref().clone(), end), None)
     }
@@ -4774,17 +4774,6 @@ where
     // The one write-back: `Resume.at` observes the loop's final position on every exit path.
     *at_slot = lex_at;
     result
-  }
-}
-
-#[inline(always)]
-fn to_owned<T>(maybe: MaybeRef<'_, T>) -> T
-where
-  T: Clone,
-{
-  match maybe {
-    MaybeRef::Ref(r) => r.clone(),
-    MaybeRef::Owned(o) => o,
   }
 }
 
