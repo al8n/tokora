@@ -67,6 +67,74 @@ red the day this section became `0.9.0`. `ci/changelog_structure.sh` enforces ev
 and will red until they do.
 -->
 
+## Unreleased
+
+<a id="unreleased-source-breaking-additions-that-can-change-behaviour-with-no-diagnostic-at-the-call-site"></a>
+
+### Source-breaking additions that can change behaviour with *no diagnostic at the call site*
+
+**You are exposed if you call a method of your own, from an extension trait, on a `Maybe`, and its
+name is one that mayber 0.2 adds** (the bump is [below](#unreleased-changed-breaking)): `fold`,
+`fold_ref`, `fold_mut`, `borrow_as`, `borrow_as_mut`, `try_map`, `make_owned_with`,
+`try_make_owned_with`, `transpose` (on `Option` and `Result` payloads), `as_inner_mut`, `as_ref` on
+a `MaybeMut`, and `into_owned` in a build without `alloc`. tokora re-exports `Maybe` as
+`utils::Maybe`, and every peeked entry, `cache::MaybeRefCachedTokenOf`, is one. An inherent method
+is picked before a trait method at the same step of the receiver walk, so wherever mayber's method
+sits at your method's step or an earlier one, the call now runs mayber's, and nothing reports it
+when the two signatures are compatible. The two-sided name-collision probe has no rows for these
+names: it inventories the items tokora declares and skips the ones it re-exports from another
+crate. **The remedy is UFCS**: `MyExt::fold(maybe, ..)` pins your method by name.
+
+<a id="unreleased-changed-breaking"></a>
+
+### Changed (breaking)
+
+- **`utils::CowStr` is a type alias for `cower::Cow<'static, str>`, no longer a struct of tokora's
+  own.** It is the name a `Delimiter` and a `Punctuator` report, the name `Unclosed`, `Unopened`,
+  `Undelimited` and `UnexpectedEnd` carry, and the separator name a `SeparatedEmitter` is handed,
+  so a crate that builds or reads one meets the change. The everyday spellings keep working under
+  cower's names: `CowStr::from_static` and the new `CowStr::Borrowed` are both `const`, and
+  `as_str`, `to_mut`, `AsRef<str>`, `Borrow<str>`, `Display`, the comparisons, `Hash`, the
+  conversions from `&'static str`, `String` and `std::borrow::Cow<'static, str>`, and the
+  conversions back to the standard `Cow` are cower's. The rest:
+
+  | 0.13 | now |
+  |---|---|
+  | `CowStr::new(x)` | `CowStr::from(x)` |
+  | `CowStr::from_string(s)` | `CowStr::Owned(s)`, or `CowStr::from(s)` |
+  | `as_inner()` / `into_inner()` | `as_storage()` / `into_storage()`; with `alloc` or `std`, also `as_std()` / `into_std()` |
+  | `AsMut<str>`, with `alloc` or `std` | `to_mut().as_mut_str()` |
+  | `From<CowStr> for &'static str`, without `alloc` or `std` | `into_owned()`, which returns the `&'static str` |
+
+  Two differences have no spelling to migrate. `Debug` prints the string alone, `"()"`, where the
+  derive printed `CowStr { inner: "()" }`. And in a build without `alloc` or `std` the value is
+  cower's `CowRepr<'static, str>`, a borrowed `&str` or an owned `&'static str`, where it was a
+  bare `&'static str`: it is still `Copy`, and it is one word larger.
+
+- **The `Maybe` family is mayber 0.2's: the requirement is `mayber = "0.2"`.** tokora re-exports
+  `Maybe`, `MaybeRef`, `MaybeMut`, `Owned` and `Ref` from `tokora::utils`, and a peeked entry,
+  `cache::MaybeRefCachedTokenOf`, is a `Maybe`: it is the element of a `Peeked` window and of the
+  buffer `Cache::peek` fills, and what `Cache::peek_one`, `InputRef::peek_one` and
+  `InputRef::sync_to` return. A crate that names these through `tokora::utils` changes nothing. A
+  crate that spells them through a `mayber = "0.1"` dependency of its own — a custom `Cache` whose
+  `peek` pushes `mayber::Maybe::Ref(..)`, say — stops type-checking until it moves to mayber 0.2 or
+  to tokora's re-export.
+
+  mayber 0.2 keeps every 0.1 method and implementation, and its MSRV, 1.85, is below tokora's. It
+  implements `Clone`, `Copy` and `Debug` for every `Maybe<R, T>` whose two payloads do, where 0.1
+  had them for `MaybeRef` alone, so a peeked entry is now `Clone` whenever its token, lexer state
+  and span are. It adds `From<MaybeMut> for MaybeRef` and the methods listed
+  [above](#unreleased-source-breaking-additions-that-can-change-behaviour-with-no-diagnostic-at-the-call-site).
+  tokora uses `fold_ref` and `into_owned` in place of matches it wrote by hand, and behaves as
+  before.
+
+- **`SessionRefusal::BudgetExhausted` holds a `BudgetExhausted` value instead of its `spent` and
+  `budget` fields.** A match on `SessionRefusal::BudgetExhausted { spent, budget }` becomes
+  `SessionRefusal::BudgetExhausted(refused)`, and `refused.spent()` and `refused.budget()` return
+  what the two fields held; the refusal's message is unchanged. `Budget` and `SessionRefusal` also
+  gain derive_more's `is_*`, `unwrap_*` and `try_unwrap_*` accessors, `SessionRefusal`'s in `_ref`
+  and `_mut` forms as well.
+
 ## 0.13.2 (2026-11-15)
 
 <a id="0.13.2-source-breaking-additions-that-can-change-behaviour-with-no-diagnostic-at-the-call-site"></a>
