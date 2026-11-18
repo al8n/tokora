@@ -188,7 +188,7 @@ pub enum SessionRefusal {
 /// use tokora::cache::DefaultCache;
 /// use tokora::emitter::Fatal;
 /// use tokora::error::{Incomplete, MaybeIncomplete, MaybeTerminal};
-/// use tokora::input::{Budget, PartialSession, RedriveFromBase, SessionRefusal};
+/// use tokora::input::{Budget, BudgetExhausted, PartialSession, RedriveFromBase, SessionRefusal};
 /// #
 /// # #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 /// # struct WordKind;
@@ -270,7 +270,7 @@ pub enum SessionRefusal {
 /// let refused = session.parse(ctx(), "a b c d", true, count);
 /// assert_eq!(
 ///   refused,
-///   Err(MyErr::Refused(SessionRefusal::BudgetExhausted { spent: 10, budget: 8 })),
+///   Err(MyErr::Refused(SessionRefusal::BudgetExhausted(BudgetExhausted::new(10, 8)))),
 /// );
 /// // A refused attempt does no work, so neither the frontier nor the spend moved.
 /// assert_eq!(*session.committed(), 3);

@@ -92,6 +92,8 @@ crate. **The remedy is UFCS**: `MyExt::fold(maybe, ..)` pins your method by name
 - **`E0659`, "`CowSlice` is ambiguous"**, for a crate that glob-imports `tokora::utils` beside
   another glob that brings in a `CowSlice` of its own, at every use of the name. Import one of the
   two by name.
+- **`E0659`, "`BudgetExhausted` is ambiguous"**, the same for a crate that glob-imports
+  `tokora::input` beside a glob bringing in a `BudgetExhausted` of its own.
 
 <a id="unreleased-changed-breaking"></a>
 
@@ -159,12 +161,13 @@ crate. **The remedy is UFCS**: `MyExt::fold(maybe, ..)` pins your method by name
   tokora uses `fold_ref` and `into_owned` in place of matches it wrote by hand, and behaves as
   before.
 
-- **`SessionRefusal::BudgetExhausted` holds a `BudgetExhausted` value instead of its `spent` and
-  `budget` fields.** A match on `SessionRefusal::BudgetExhausted { spent, budget }` becomes
-  `SessionRefusal::BudgetExhausted(refused)`, and `refused.spent()` and `refused.budget()` return
-  what the two fields held; the refusal's message is unchanged. `Budget` and `SessionRefusal` also
-  gain derive_more's `is_*`, `unwrap_*` and `try_unwrap_*` accessors, `SessionRefusal`'s in `_ref`
-  and `_mut` forms as well.
+- **`SessionRefusal::BudgetExhausted` holds an `input::BudgetExhausted` value instead of its
+  `spent` and `budget` fields.** A match on `SessionRefusal::BudgetExhausted { spent, budget }`
+  becomes `SessionRefusal::BudgetExhausted(refused)`, and `refused.spent()` and `refused.budget()`
+  return what the two fields held; the refusal's message is unchanged. A refusal of your own, in a
+  test say, is built as `SessionRefusal::BudgetExhausted(BudgetExhausted::new(spent, budget))`.
+  `Budget` and `SessionRefusal` also gain derive_more's `is_*`, `unwrap_*` and `try_unwrap_*`
+  accessors, `SessionRefusal`'s in `_ref` and `_mut` forms as well.
 
 ## 0.13.2 (2026-11-15)
 
