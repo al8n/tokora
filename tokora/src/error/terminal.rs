@@ -209,7 +209,8 @@
 ///
 /// ```
 /// use tokora::{
-///   error::{MaybeTerminal, RecursionLimitReached, UnexpectedEot}, input::SessionRefusal,
+///   error::{MaybeTerminal, RecursionLimitReached, UnexpectedEot},
+///   input::{BudgetExhausted, SessionRefusal},
 ///   state::{RecursionLimiter, RecursionTracker},
 /// };
 ///
@@ -273,7 +274,7 @@
 /// // The coherence law `PartialSession::parse` asserts, checked here instead of at the panic:
 /// // both refusal legs must convert to a value that answers `true`.
 /// for refusal in [
-///   SessionRefusal::BudgetExhausted { spent: 10, budget: 8 },
+///   SessionRefusal::BudgetExhausted(BudgetExhausted::new(10, 8)),
 ///   SessionRefusal::TerminalLatched,
 /// ] {
 ///   assert!(MyError::from(refusal).is_terminal());

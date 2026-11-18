@@ -512,265 +512,268 @@ impl Lineage {
 }
 
 #[cfg(any(feature = "std", feature = "alloc"))]
-impl Lineage {
-  /// Opens a checkpoint entry: takes a fresh, never-reused id, records it on the live-checkpoint
-  /// lineage stack (youngest last), and returns it to be stamped into the
-  /// [`Checkpoint`](super::Checkpoint). [`restore`](super::InputRef::restore) later pops the stack
-  /// down through this id, and a [`StackedTransaction`](super::StackedTransaction) checks the id
-  /// is still present before honoring a savepoint — the check that makes stale savepoints panic on
-  /// release and no-ptr targets. Opening never invalidates another checkpoint; only restoring does.
-  #[inline(always)]
-  pub(crate) fn open(&mut self) -> u64 {
-    let id = self.next_ckp_id;
-    self.next_ckp_id = id.checked_add(1).expect(CKP_ID_EXHAUSTED);
-    self.live_ckpts.push(id);
-    id
-  }
-
-  /// CAPTURE_WINDOW — reserves the one slot [`open`](Self::open) is about to push into, so that
-  /// push cannot allocate and therefore cannot unwind.
-  ///
-  /// [`open`](Self::open) *is* half of a capture (the other half is the emitter mark): it records
-  /// a live entry that only a later settle — a restore, or [`forget`](Self::forget) through
-  /// `forget_kept_checkpoint` — can remove. A [`Checkpoint`](super::Checkpoint) has no `Drop` (it
-  /// cannot reach the input or the emitter to settle itself), so an unwind out of the push would
-  /// leave the entry with no owner at all. Calling this first moves the only fallible step to a
-  /// moment when nothing is captured yet: either it panics with nothing to strand, or the push is
-  /// infallible. Amortization is unchanged: a reserve that finds room is a compare, and one that
-  /// does not performs exactly the geometric growth the `push` would have performed. The guarantee
-  /// holds for `Vec` and for `SmallVec` alike — the latter's `reserve` compares against the
-  /// *inline* capacity when it has not spilled, so a stack sitting exactly at that capacity spills
-  /// to the heap here rather than in the push.
-  #[inline(always)]
-  pub(crate) fn reserve_open(&mut self) {
-    self.live_ckpts.reserve(1);
-  }
-
-  /// Returns whether `id` is still live on the lineage stack. Backs both the
-  /// [`StackedTransaction`](super::StackedTransaction) savepoint-staleness check (every allocator
-  /// build) and, in debug + ptr builds, [`restore`](super::InputRef::restore)'s non-LIFO panic.
-  ///
-  /// `O(1)` on the LIFO path — which is every guard settle — and `O(log d)` otherwise: ids are
-  /// minted strictly increasing and every writer preserves order, so the stack is sorted and a
-  /// binary search is licensed here, at the definition site where that invariant lives.
-  #[inline(always)]
-  pub(crate) fn contains(&self, id: u64) -> bool {
-    if self.live_ckpts.last() == Some(&id) {
-      scan_tick();
-      return true;
+#[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
+const _: () = {
+  impl Lineage {
+    /// Opens a checkpoint entry: takes a fresh, never-reused id, records it on the live-checkpoint
+    /// lineage stack (youngest last), and returns it to be stamped into the
+    /// [`Checkpoint`](super::Checkpoint). [`restore`](super::InputRef::restore) later pops the stack
+    /// down through this id, and a [`StackedTransaction`](super::StackedTransaction) checks the id
+    /// is still present before honoring a savepoint — the check that makes stale savepoints panic on
+    /// release and no-ptr targets. Opening never invalidates another checkpoint; only restoring does.
+    #[inline(always)]
+    pub(crate) fn open(&mut self) -> u64 {
+      let id = self.next_ckp_id;
+      self.next_ckp_id = id.checked_add(1).expect(CKP_ID_EXHAUSTED);
+      self.live_ckpts.push(id);
+      id
     }
-    self
-      .live_ckpts
-      .binary_search_by(|probe| {
+
+    /// CAPTURE_WINDOW — reserves the one slot [`open`](Self::open) is about to push into, so that
+    /// push cannot allocate and therefore cannot unwind.
+    ///
+    /// [`open`](Self::open) *is* half of a capture (the other half is the emitter mark): it records
+    /// a live entry that only a later settle — a restore, or [`forget`](Self::forget) through
+    /// `forget_kept_checkpoint` — can remove. A [`Checkpoint`](super::Checkpoint) has no `Drop` (it
+    /// cannot reach the input or the emitter to settle itself), so an unwind out of the push would
+    /// leave the entry with no owner at all. Calling this first moves the only fallible step to a
+    /// moment when nothing is captured yet: either it panics with nothing to strand, or the push is
+    /// infallible. Amortization is unchanged: a reserve that finds room is a compare, and one that
+    /// does not performs exactly the geometric growth the `push` would have performed. The guarantee
+    /// holds for `Vec` and for `SmallVec` alike — the latter's `reserve` compares against the
+    /// *inline* capacity when it has not spilled, so a stack sitting exactly at that capacity spills
+    /// to the heap here rather than in the push.
+    #[inline(always)]
+    pub(crate) fn reserve_open(&mut self) {
+      self.live_ckpts.reserve(1);
+    }
+
+    /// Returns whether `id` is still live on the lineage stack. Backs both the
+    /// [`StackedTransaction`](super::StackedTransaction) savepoint-staleness check (every allocator
+    /// build) and, in debug + ptr builds, [`restore`](super::InputRef::restore)'s non-LIFO panic.
+    ///
+    /// `O(1)` on the LIFO path — which is every guard settle — and `O(log d)` otherwise: ids are
+    /// minted strictly increasing and every writer preserves order, so the stack is sorted and a
+    /// binary search is licensed here, at the definition site where that invariant lives.
+    #[inline(always)]
+    pub(crate) fn contains(&self, id: u64) -> bool {
+      if self.live_ckpts.last() == Some(&id) {
+        scan_tick();
+        return true;
+      }
+      self
+        .live_ckpts
+        .binary_search_by(|probe| {
+          scan_tick();
+          probe.cmp(&id)
+        })
+        .is_ok()
+    }
+
+    /// Pops the lineage stack down through `id` inclusive, invalidating it and every checkpoint
+    /// saved after it. A no-op if `id` is already gone — a raw restore to a checkpoint an earlier
+    /// restore already invalidated (release's unspecified-but-bounded posture; debug + ptr asserts
+    /// presence in [`restore`](super::InputRef::restore) first).
+    ///
+    /// `O(1)` when `id` is the stack top — the LIFO common case, and every drop-rollback — and
+    /// `O(log d)` otherwise, over the same sorted-stack invariant [`contains`](Self::contains)
+    /// uses. An absent id still pops nothing.
+    #[inline(always)]
+    pub(crate) fn pop_through(&mut self, id: u64) {
+      if self.live_ckpts.last() == Some(&id) {
+        scan_tick();
+        self.live_ckpts.truncate(self.live_ckpts.len() - 1);
+        return;
+      }
+      if let Ok(pos) = self.live_ckpts.binary_search_by(|probe| {
         scan_tick();
         probe.cmp(&id)
-      })
-      .is_ok()
-  }
-
-  /// Pops the lineage stack down through `id` inclusive, invalidating it and every checkpoint
-  /// saved after it. A no-op if `id` is already gone — a raw restore to a checkpoint an earlier
-  /// restore already invalidated (release's unspecified-but-bounded posture; debug + ptr asserts
-  /// presence in [`restore`](super::InputRef::restore) first).
-  ///
-  /// `O(1)` when `id` is the stack top — the LIFO common case, and every drop-rollback — and
-  /// `O(log d)` otherwise, over the same sorted-stack invariant [`contains`](Self::contains)
-  /// uses. An absent id still pops nothing.
-  #[inline(always)]
-  pub(crate) fn pop_through(&mut self, id: u64) {
-    if self.live_ckpts.last() == Some(&id) {
-      scan_tick();
-      self.live_ckpts.truncate(self.live_ckpts.len() - 1);
-      return;
+      }) {
+        self.live_ckpts.truncate(pos);
+      }
     }
-    if let Ok(pos) = self.live_ckpts.binary_search_by(|probe| {
-      scan_tick();
-      probe.cmp(&id)
-    }) {
-      self.live_ckpts.truncate(pos);
+
+    /// Drops `id` from the live-checkpoint lineage stack because its checkpoint was **kept**
+    /// (committed) rather than restored.
+    ///
+    /// A restored checkpoint is popped off the stack by [`pop_through`](Self::pop_through); a
+    /// *committed* one never reaches a restore, so without this its id would linger and grow the
+    /// stack across commit-heavy loops. Removing it keeps the stack exact and bounded. `O(1)` when
+    /// `id` is the stack top (the common case for a committed checkpoint); a linear removal
+    /// otherwise (e.g. a raw checkpoint saved above it was dropped without restoring) — the
+    /// removal itself has to shift, so the search's order buys nothing here. Removing a non-top id
+    /// keeps the rest of the stack in order, so an older restore still pops cleanly through it.
+    /// Committing an already-invalidated id is a harmless no-op: it is simply absent.
+    #[inline(always)]
+    pub(crate) fn forget(&mut self, id: u64) {
+      if self.live_ckpts.last() == Some(&id) {
+        self.live_ckpts.pop();
+      } else if let Some(pos) = self.live_ckpts.iter().position(|&x| x == id) {
+        self.live_ckpts.remove(pos);
+      }
+    }
+
+    /// Pins `id` — the begin-point checkpoint of a transaction guard or an
+    /// [`attempt`](super::InputRef::attempt) — so a raw [`restore`](super::InputRef::restore) that
+    /// would pop it off the lineage (a restore reaching *below* the guard's begin point) panics at
+    /// the restore instead of silently tearing out the guard's foundation. Every guard constructor
+    /// and attempt pins on entry; the matching [`unpin`](Self::unpin) runs on every settle path.
+    ///
+    /// Nested guards are borrowck-serialized: an inner guard mutably borrows its parent for its
+    /// whole life, so the inner settles (and unpins) before the outer is usable again. An outer
+    /// rollback therefore never finds a live inner pin sitting above its base — only its own
+    /// (just-unpinned) begin point and any LIFO-clean raw checkpoints, none pinned.
+    #[inline(always)]
+    pub(crate) fn pin(&mut self, id: u64) {
+      self.pinned.push(id);
+    }
+
+    /// CAPTURE_WINDOW — reserves the one slot [`pin`](Self::pin) is about to push into, so that push
+    /// cannot allocate and therefore cannot unwind.
+    ///
+    /// Every pinning caller pins its begin point *after* taking the capture and *before* the capture
+    /// has an owner (a [`Transaction`](super::Transaction), a
+    /// [`StackedTransaction`](super::StackedTransaction), or the session-point stack), and this stack
+    /// is a **second** container, distinct from the one the capture will land in: reserving the
+    /// destination alone leaves the pin push as a live allocation site inside that window. An unwind
+    /// there drops the capture raw — no rollback, no commit, no `forget_kept_checkpoint`, no emitter
+    /// release — and, since the owner was never constructed, nothing else can settle it either. So
+    /// the caller reserves here first, with nothing yet captured to strand. Same guarantee for `Vec`
+    /// and for `SmallVec`: the latter's `reserve` compares against the *inline* capacity too, so a
+    /// pin set sitting exactly at its inline capacity spills to the heap here rather than in the
+    /// push.
+    #[inline(always)]
+    pub(crate) fn reserve_pin(&mut self) {
+      self.pinned.reserve(1);
+    }
+
+    /// Removes `id` from the pin set when its guard, attempt, or session point settles. Mirrors
+    /// [`forget`](Self::forget): `O(1)` when `id` is the top (the LIFO common case — guards and
+    /// attempts are borrowck-serialized, so the settling one is innermost), a linear removal
+    /// otherwise. Called on **every** settle path (commit, explicit rollback, `Drop`, both closure
+    /// arms of the attempts, both session-point verbs, and the [`InputRef`](super::InputRef) `Drop`
+    /// that releases session points abandoned with the handle), so the pin set stays bounded and holds
+    /// exactly the begin points of the currently-live guards, attempts, and session points.
+    #[inline(always)]
+    pub(crate) fn unpin(&mut self, id: u64) {
+      if self.pinned.last() == Some(&id) {
+        self.pinned.pop();
+      } else if let Some(pos) = self.pinned.iter().position(|&x| x == id) {
+        self.pinned.remove(pos);
+      }
+    }
+
+    /// Panics if restoring to `target_id` would pop a **pinned** checkpoint off the live lineage —
+    /// i.e. if it would tear the begin point out from under a still-live transaction guard or
+    /// attempt. This is the detect-at-cause check: a raw restore below a live guard/attempt begin
+    /// point is refused right where it is requested, in every allocator build.
+    ///
+    /// A [`restore`](super::InputRef::restore) pops the target and every younger checkpoint. A
+    /// guard's own settle unpins its held id **before** routing through the restore, so a guard
+    /// rolling back to its own base never trips its own pin; only a restore reaching *below* a live
+    /// begin point finds that begin point still pinned above the target. A stacked-transaction
+    /// savepoint `rollback_to` restores a checkpoint *above* the base, so it can never reach the
+    /// pinned base. A target that is not live pops nothing, so it cannot invalidate anything pinned.
+    ///
+    /// The search is ordered rather than nested-linear: both stacks are sorted ascending, so the
+    /// target is found by binary search, and the suffix `live_ckpts[pos..]` is exactly "every live
+    /// id `>= target_id`" — so only the pins at or above the target can be in it, and each is
+    /// looked up in that suffix by binary search. `O(|pins >= target| · log d)` with `|pins|` tiny
+    /// (live guards, attempts and session points).
+    ///
+    /// Deliberately **not** the `O(1)` `pinned.last() >= target_id` watermark: that form is exact
+    /// only under "pinned is a subset of live", which is an invariant statement rather than a
+    /// checked fact, and a false positive here is a release-active panic on a legal restore.
+    #[inline(always)]
+    pub(crate) fn assert_restore_preserves_pins(&self, target_id: u64) {
+      let Ok(pos) = self.live_ckpts.binary_search(&target_id) else {
+        // The target is already gone: the restore will pop nothing, so nothing pinned can be
+        // invalidated (release's unspecified-but-bounded posture for an already-dead target).
+        return;
+      };
+      // The restore truncates `live_ckpts` at `pos`, popping the target and every younger
+      // checkpoint. If any of those is pinned, the restore would invalidate a live guard/attempt.
+      let doomed = &self.live_ckpts[pos..];
+      if self
+        .pinned
+        .iter()
+        .rev()
+        .take_while(|p| **p >= target_id)
+        .any(|p| doomed.binary_search(p).is_ok())
+      {
+        panic!(
+          "restore would invalidate a live transaction guard or attempt (the target predates its begin point)"
+        );
+      }
+    }
+
+    /// Hands out the next input-global savepoint sequence number, bumping the counter. Because the
+    /// counter lives on the input (not on any one transaction) and is never reset, a
+    /// [`SavepointId`](super::SavepointId)'s `seq` is unique for the whole life of the input: an id
+    /// that crosses transactions can never collide with a live savepoint's `seq` in another
+    /// transaction's stack, so the membership scan in `rollback_to`/`release` panics deterministically
+    /// wherever the lifetime brand does not already reject the id.
+    #[inline(always)]
+    pub(crate) fn next_savepoint_seq(&mut self) -> u64 {
+      let seq = self.savepoint_seq;
+      self.savepoint_seq = seq.checked_add(1).expect(SAVEPOINT_SEQ_EXHAUSTED);
+      seq
+    }
+
+    /// The number of live checkpoints — test-only observability for the no-growth guarantee that
+    /// committing (and a success-path recover) gives the lineage stack.
+    #[cfg(all(test, feature = "logos_0_16", feature = "std"))]
+    pub(crate) fn live_len(&self) -> usize {
+      self.live_ckpts.len()
+    }
+
+    /// The number of pinned checkpoints — observability for the law this set states about itself:
+    /// it holds **exactly** the begin points of the currently-live guards, attempts, and session
+    /// points, and is therefore empty whenever none is live. It backs the drop-path release the
+    /// [`InputRef`](super::InputRef)'s `Drop` performs for abandoned session points (a pin whose
+    /// point nobody can settle would otherwise sit here for the life of the input).
+    ///
+    /// Reachable from the owning [`Input`](super::Input), not just from a handle, because that is
+    /// exactly where the question is asked: *after* the handle that opened the points is gone.
+    /// Gated to its callers — the `logos` + `std` session tests and the `fuzz` harness's abandon
+    /// oracle — so it is never dead code under `cargo hack --each-feature --tests`.
+    #[cfg(any(
+      all(test, feature = "logos_0_16", feature = "std"),
+      all(feature = "fuzz", feature = "std")
+    ))]
+    pub(crate) fn pinned_len(&self) -> usize {
+      self.pinned.len()
     }
   }
 
-  /// Drops `id` from the live-checkpoint lineage stack because its checkpoint was **kept**
-  /// (committed) rather than restored.
+  /// The settle path's **scan odometer**, test-only.
   ///
-  /// A restored checkpoint is popped off the stack by [`pop_through`](Self::pop_through); a
-  /// *committed* one never reaches a restore, so without this its id would linger and grow the
-  /// stack across commit-heavy loops. Removing it keeps the stack exact and bounded. `O(1)` when
-  /// `id` is the stack top (the common case for a committed checkpoint); a linear removal
-  /// otherwise (e.g. a raw checkpoint saved above it was dropped without restoring) — the
-  /// removal itself has to shift, so the search's order buys nothing here. Removing a non-top id
-  /// keeps the rest of the stack in order, so an older restore still pops cleanly through it.
-  /// Committing an already-invalidated id is a harmless no-op: it is simply absent.
-  #[inline(always)]
-  pub(crate) fn forget(&mut self, id: u64) {
-    if self.live_ckpts.last() == Some(&id) {
-      self.live_ckpts.pop();
-    } else if let Some(pos) = self.live_ckpts.iter().position(|&x| x == id) {
-      self.live_ckpts.remove(pos);
-    }
-  }
-
-  /// Pins `id` — the begin-point checkpoint of a transaction guard or an
-  /// [`attempt`](super::InputRef::attempt) — so a raw [`restore`](super::InputRef::restore) that
-  /// would pop it off the lineage (a restore reaching *below* the guard's begin point) panics at
-  /// the restore instead of silently tearing out the guard's foundation. Every guard constructor
-  /// and attempt pins on entry; the matching [`unpin`](Self::unpin) runs on every settle path.
-  ///
-  /// Nested guards are borrowck-serialized: an inner guard mutably borrows its parent for its
-  /// whole life, so the inner settles (and unpins) before the outer is usable again. An outer
-  /// rollback therefore never finds a live inner pin sitting above its base — only its own
-  /// (just-unpinned) begin point and any LIFO-clean raw checkpoints, none pinned.
-  #[inline(always)]
-  pub(crate) fn pin(&mut self, id: u64) {
-    self.pinned.push(id);
-  }
-
-  /// CAPTURE_WINDOW — reserves the one slot [`pin`](Self::pin) is about to push into, so that push
-  /// cannot allocate and therefore cannot unwind.
-  ///
-  /// Every pinning caller pins its begin point *after* taking the capture and *before* the capture
-  /// has an owner (a [`Transaction`](super::Transaction), a
-  /// [`StackedTransaction`](super::StackedTransaction), or the session-point stack), and this stack
-  /// is a **second** container, distinct from the one the capture will land in: reserving the
-  /// destination alone leaves the pin push as a live allocation site inside that window. An unwind
-  /// there drops the capture raw — no rollback, no commit, no `forget_kept_checkpoint`, no emitter
-  /// release — and, since the owner was never constructed, nothing else can settle it either. So
-  /// the caller reserves here first, with nothing yet captured to strand. Same guarantee for `Vec`
-  /// and for `SmallVec`: the latter's `reserve` compares against the *inline* capacity too, so a
-  /// pin set sitting exactly at its inline capacity spills to the heap here rather than in the
-  /// push.
-  #[inline(always)]
-  pub(crate) fn reserve_pin(&mut self) {
-    self.pinned.reserve(1);
-  }
-
-  /// Removes `id` from the pin set when its guard, attempt, or session point settles. Mirrors
-  /// [`forget`](Self::forget): `O(1)` when `id` is the top (the LIFO common case — guards and
-  /// attempts are borrowck-serialized, so the settling one is innermost), a linear removal
-  /// otherwise. Called on **every** settle path (commit, explicit rollback, `Drop`, both closure
-  /// arms of the attempts, both session-point verbs, and the [`InputRef`](super::InputRef) `Drop`
-  /// that releases session points abandoned with the handle), so the pin set stays bounded and holds
-  /// exactly the begin points of the currently-live guards, attempts, and session points.
-  #[inline(always)]
-  pub(crate) fn unpin(&mut self, id: u64) {
-    if self.pinned.last() == Some(&id) {
-      self.pinned.pop();
-    } else if let Some(pos) = self.pinned.iter().position(|&x| x == id) {
-      self.pinned.remove(pos);
-    }
-  }
-
-  /// Panics if restoring to `target_id` would pop a **pinned** checkpoint off the live lineage —
-  /// i.e. if it would tear the begin point out from under a still-live transaction guard or
-  /// attempt. This is the detect-at-cause check: a raw restore below a live guard/attempt begin
-  /// point is refused right where it is requested, in every allocator build.
-  ///
-  /// A [`restore`](super::InputRef::restore) pops the target and every younger checkpoint. A
-  /// guard's own settle unpins its held id **before** routing through the restore, so a guard
-  /// rolling back to its own base never trips its own pin; only a restore reaching *below* a live
-  /// begin point finds that begin point still pinned above the target. A stacked-transaction
-  /// savepoint `rollback_to` restores a checkpoint *above* the base, so it can never reach the
-  /// pinned base. A target that is not live pops nothing, so it cannot invalidate anything pinned.
-  ///
-  /// The search is ordered rather than nested-linear: both stacks are sorted ascending, so the
-  /// target is found by binary search, and the suffix `live_ckpts[pos..]` is exactly "every live
-  /// id `>= target_id`" — so only the pins at or above the target can be in it, and each is
-  /// looked up in that suffix by binary search. `O(|pins >= target| · log d)` with `|pins|` tiny
-  /// (live guards, attempts and session points).
-  ///
-  /// Deliberately **not** the `O(1)` `pinned.last() >= target_id` watermark: that form is exact
-  /// only under "pinned is a subset of live", which is an invariant statement rather than a
-  /// checked fact, and a false positive here is a release-active panic on a legal restore.
-  #[inline(always)]
-  pub(crate) fn assert_restore_preserves_pins(&self, target_id: u64) {
-    let Ok(pos) = self.live_ckpts.binary_search(&target_id) else {
-      // The target is already gone: the restore will pop nothing, so nothing pinned can be
-      // invalidated (release's unspecified-but-bounded posture for an already-dead target).
-      return;
-    };
-    // The restore truncates `live_ckpts` at `pos`, popping the target and every younger
-    // checkpoint. If any of those is pinned, the restore would invalidate a live guard/attempt.
-    let doomed = &self.live_ckpts[pos..];
-    if self
-      .pinned
-      .iter()
-      .rev()
-      .take_while(|p| **p >= target_id)
-      .any(|p| doomed.binary_search(p).is_ok())
-    {
-      panic!(
-        "restore would invalidate a live transaction guard or attempt (the target predates its begin point)"
-      );
-    }
-  }
-
-  /// Hands out the next input-global savepoint sequence number, bumping the counter. Because the
-  /// counter lives on the input (not on any one transaction) and is never reset, a
-  /// [`SavepointId`](super::SavepointId)'s `seq` is unique for the whole life of the input: an id
-  /// that crosses transactions can never collide with a live savepoint's `seq` in another
-  /// transaction's stack, so the membership scan in `rollback_to`/`release` panics deterministically
-  /// wherever the lifetime brand does not already reject the id.
-  #[inline(always)]
-  pub(crate) fn next_savepoint_seq(&mut self) -> u64 {
-    let seq = self.savepoint_seq;
-    self.savepoint_seq = seq.checked_add(1).expect(SAVEPOINT_SEQ_EXHAUSTED);
-    seq
-  }
-
-  /// The number of live checkpoints — test-only observability for the no-growth guarantee that
-  /// committing (and a success-path recover) gives the lineage stack.
+  /// [`contains`](Lineage::contains) and [`pop_through`](Lineage::pop_through) run on every guard
+  /// settle, so their cost as a function of nesting depth is the property worth pinning — and it is
+  /// invisible to a value-level assertion. Each element a search inspects ticks the odometer once,
+  /// which lets a cell assert the *law* (linear in depth) rather than a constant. Outside a
+  /// `std` test build this is an empty `#[inline(always)]` body and the odometer does not exist.
   #[cfg(all(test, feature = "logos_0_16", feature = "std"))]
-  pub(crate) fn live_len(&self) -> usize {
-    self.live_ckpts.len()
+  #[inline(always)]
+  fn scan_tick() {
+    scan_probe::tick();
   }
 
-  /// The number of pinned checkpoints — observability for the law this set states about itself:
-  /// it holds **exactly** the begin points of the currently-live guards, attempts, and session
-  /// points, and is therefore empty whenever none is live. It backs the drop-path release the
-  /// [`InputRef`](super::InputRef)'s `Drop` performs for abandoned session points (a pin whose
-  /// point nobody can settle would otherwise sit here for the life of the input).
+  /// The no-op form: every build that is not a `std` test, **and** has a `Lineage` to tick for.
   ///
-  /// Reachable from the owning [`Input`](super::Input), not just from a handle, because that is
-  /// exactly where the question is asked: *after* the handle that opened the points is gone.
-  /// Gated to its callers — the `logos` + `std` session tests and the `fuzz` harness's abandon
-  /// oracle — so it is never dead code under `cargo hack --each-feature --tests`.
-  #[cfg(any(
-    all(test, feature = "logos_0_16", feature = "std"),
-    all(feature = "fuzz", feature = "std")
+  /// The second half of that gate is not decoration. `Lineage` — and with it `contains` and
+  /// `pop_through`, the only callers this has — is `#[cfg(any(feature = "std", feature = "alloc"))]`,
+  /// so at an allocator-free feature point the callers do not exist and an unconditional no-op is
+  /// `dead_code`, which is `-D warnings` under this crate's lint posture. It must be gated to
+  /// exactly the set its callers are compiled for; the odometer form above needs no such clause
+  /// because `feature = "std"` already implies it.
+  #[cfg(all(
+    any(feature = "std", feature = "alloc"),
+    not(all(test, feature = "logos_0_16", feature = "std"))
   ))]
-  pub(crate) fn pinned_len(&self) -> usize {
-    self.pinned.len()
-  }
-}
-
-/// The settle path's **scan odometer**, test-only.
-///
-/// [`contains`](Lineage::contains) and [`pop_through`](Lineage::pop_through) run on every guard
-/// settle, so their cost as a function of nesting depth is the property worth pinning — and it is
-/// invisible to a value-level assertion. Each element a search inspects ticks the odometer once,
-/// which lets a cell assert the *law* (linear in depth) rather than a constant. Outside a
-/// `std` test build this is an empty `#[inline(always)]` body and the odometer does not exist.
-#[cfg(all(test, feature = "logos_0_16", feature = "std"))]
-#[inline(always)]
-fn scan_tick() {
-  scan_probe::tick();
-}
-
-/// The no-op form: every build that is not a `std` test, **and** has a `Lineage` to tick for.
-///
-/// The second half of that gate is not decoration. `Lineage` — and with it `contains` and
-/// `pop_through`, the only callers this has — is `#[cfg(any(feature = "std", feature = "alloc"))]`,
-/// so at an allocator-free feature point the callers do not exist and an unconditional no-op is
-/// `dead_code`, which is `-D warnings` under this crate's lint posture. It must be gated to
-/// exactly the set its callers are compiled for; the odometer form above needs no such clause
-/// because `feature = "std"` already implies it.
-#[cfg(all(
-  any(feature = "std", feature = "alloc"),
-  not(all(test, feature = "logos_0_16", feature = "std"))
-))]
-#[inline(always)]
-fn scan_tick() {}
+  #[inline(always)]
+  fn scan_tick() {}
+};
 
 /// The odometer itself — see [`scan_tick`].
 ///

@@ -67,6 +67,145 @@ red the day this section became `0.9.0`. `ci/changelog_structure.sh` enforces ev
 and will red until they do.
 -->
 
+## Unreleased
+
+<a id="unreleased-source-breaking-additions-that-can-change-behaviour-with-no-diagnostic-at-the-call-site"></a>
+
+### Source-breaking additions that can change behaviour with *no diagnostic at the call site*
+
+#### `Budget::unwrap_bytes` and `SessionRefusal::unwrap_budget_exhausted*` — SILENT on a discarded return
+
+**You are exposed if you call an `unwrap_bytes` of your own on an `input::Budget`, or an
+`unwrap_budget_exhausted`, `unwrap_budget_exhausted_ref` or `unwrap_budget_exhausted_mut` of your
+own on an `input::SessionRefusal`, with method syntax, and discard what it returns.** This release
+derives derive_more's `IsVariant`, `Unwrap` and `TryUnwrap` on both enums (see
+[below](#unreleased-changed-breaking)), so each gains inherent `is_*`, `unwrap_*` and `try_unwrap_*`
+items. An inherent item is picked before a trait item at the same step of the receiver walk, and
+for a method of yours that takes `&mut self` — the shape the name-collision probe builds — each of
+tokora's sits at that step or an earlier one, so it takes the call.
+
+The rows of `ci/name_collision/` for the silent shapes, two-sided against the base of this
+release:
+
+```text
+SILENT  unwrap_bytes/discarded                   base=witness=1  head=witness=0
+SILENT  unwrap_budget_exhausted/discarded        base=witness=1  head=witness=0
+SILENT  unwrap_budget_exhausted_ref/discarded    base=witness=1  head=witness=0
+SILENT  unwrap_budget_exhausted_mut/discarded    base=witness=1  head=witness=0
+```
+
+On these rows both sides compile, **neither emits any diagnostic**, and the two run different
+programs: yours before, tokora's after, and tokora's `unwrap_budget_exhausted*` panics on a
+`TerminalLatched` refusal. The `used` rows are `loud` (`E0308` against the probe's `-> u8`). The
+`is_*` items are `#[must_use]` and the `try_unwrap_*` items return a `Result`, so their discarded
+rows are reported by `unused_must_use`; a discarded `unwrap_*` return is the whole of the silent
+difference. **The remedy is UFCS**: `MyExt::unwrap_bytes(&mut budget)` pins your method by name.
+
+#### mayber 0.2's new methods on `Maybe` — not probed
+
+**You are exposed if you call a method of your own, from an extension trait, on a `Maybe`, and its
+name is one that mayber 0.2 adds** (the bump is [below](#unreleased-changed-breaking)): `fold`,
+`fold_ref`, `fold_mut`, `borrow_as`, `borrow_as_mut`, `try_map`, `make_owned_with`,
+`try_make_owned_with`, `transpose` (on `Option` and `Result` payloads), `as_inner_mut`, `as_ref` on
+a `MaybeMut`, and `into_owned` in a build without `alloc`. tokora re-exports `Maybe` as
+`utils::Maybe`, and every peeked entry, `cache::MaybeRefCachedTokenOf`, is one. An inherent method
+is picked before a trait method at the same step of the receiver walk, so wherever mayber's method
+sits at your method's step or an earlier one, the call now runs mayber's, and nothing reports it
+when the two signatures are compatible. The two-sided name-collision probe has no rows for these
+names: it inventories the items tokora declares and skips the ones it re-exports from another
+crate. **The remedy is UFCS**: `MyExt::fold(maybe, ..)` pins your method by name.
+
+<a id="unreleased-source-breaking-additions-that-fail-loudly"></a>
+
+### Source-breaking additions that fail *loudly*
+
+- **`E0659`, "`CowSlice` is ambiguous"**, for a crate that glob-imports `tokora::utils` beside
+  another glob that brings in a `CowSlice` of its own, at every use of the name. Import one of the
+  two by name.
+- **`E0659`, "`BudgetExhausted` is ambiguous"**, the same for a crate that glob-imports
+  `tokora::input` beside a glob bringing in a `BudgetExhausted` of its own.
+
+<a id="unreleased-changed-breaking"></a>
+
+### Changed (breaking)
+
+- **`utils::CowStr` is a type alias for a `cower::Cow` over `str`, no longer a struct of tokora's
+  own.** It is the name a `Delimiter` and a `Punctuator` report, the name `Unclosed`, `Unopened`,
+  `Undelimited` and `UnexpectedEnd` carry, and the separator name a `SeparatedEmitter` is handed,
+  so a crate that builds or reads one meets the change. Without `alloc` or `std` it is
+  `cower::Cow<'static, str, cower::BorrowedPolicy>`, which holds the `&'static str` itself as the
+  struct did: `Copy`, the same size, and the same type whatever features another crate in the
+  build turns on in cower. With `alloc` or `std` it is `cower::Cow<'static, str>`, backed by
+  `std::borrow::Cow<'static, str>` as the struct was.
+
+  The everyday spellings keep working under cower's names. In every tier: `CowStr::from_static`,
+  which is `const`, `as_str`, `AsRef<str>`, `Borrow<str>`, `Display`, the comparisons, `Hash` and
+  the conversion from `&'static str`. Without `alloc` or `std`, the conversions to `&'static str`
+  too. With `alloc` or `std`: `to_mut`, the conversions from `String` and
+  `std::borrow::Cow<'static, str>` and back to the standard `Cow`, and cower's `const`
+  `CowStr::Borrowed` and `CowStr::Owned`. The rest:
+
+  | 0.13 | now |
+  |---|---|
+  | `CowStr::new(x)` | `CowStr::from(x)` |
+  | `CowStr::from_string(s)`, with `alloc` or `std` | `CowStr::Owned(s)`, or `CowStr::from(s)` |
+  | `as_inner()` / `into_inner()` | `as_storage()` / `into_storage()`, which return the same types; with `alloc` or `std`, also `as_std()` / `into_std()` |
+  | `AsMut<str>`, with `alloc` or `std` | `to_mut().as_mut_str()` |
+
+  One difference has no spelling to migrate: `Debug` prints the string alone, `"()"`, where the
+  derive printed `CowStr { inner: "()" }`.
+
+- **`utils::OneOf` is gone: the set an `Expected::OneOf` carries is `utils::CowSlice<'a, T>`, a
+  `cower::Cow` over `[T]`.** Without `alloc` or `std` it is
+  `cower::Cow<'a, [T], cower::BorrowedPolicy>`, which stores the `&'a [T]` itself, has its layout,
+  has no owned form, stays that type whatever features another crate turns on in cower, and is
+  `Copy` for every `T`, where `OneOf` was `Copy` only for `T: Copy`. With
+  `alloc` or `std` it is `cower::Cow<'a, [T]>`, backed by `std::borrow::Cow<'a, [T]>` as `OneOf`
+  was, so it is a borrowed slice or an owned `Vec<T>`. `Expected` keeps its size in every tier,
+  `Expected::one_of` stays `const`, and the requirement is `cower = "0.1.3"`, the first release
+  with the borrow-only policy.
+
+  | 0.13 | now |
+  |---|---|
+  | `OneOf<'a, T>` | `CowSlice<'a, T>` |
+  | `OneOf::from_slice(s)` | `CowSlice::from_ref(s)`, `const` in every tier |
+  | `OneOf::new(x)` | `CowSlice::from(x)` |
+  | `OneOf::from_vec(v)`, with `alloc` or `std` | `CowSlice::Owned(v)`, or `CowSlice::from(v)` |
+  | `as_inner()` / `into_inner()` | `as_storage()` / `into_storage()`, which return the same types |
+  | `to_mut()`, returning `&mut [T]` | `to_mut()`, returning `&mut Vec<T>` |
+
+  `as_slice`, `Deref`, `AsRef<[T]>`, `Borrow<[T]>`, `Clone`, the comparisons, `Hash`, the
+  conversions from `&[T]`, `Vec<T>` and `std::borrow::Cow<'a, [T]>`, the conversions back to the
+  standard `Cow`, and without `alloc` the conversions to `&'a [T]`, are cower's. `Debug` prints the
+  slice alone where it printed `OneOf { inner: [..] }`.
+
+- **The `Maybe` family is mayber 0.2's: the requirement is `mayber = "0.2"`.** tokora re-exports
+  `Maybe`, `MaybeRef`, `MaybeMut`, `Owned` and `Ref` from `tokora::utils`, and a peeked entry,
+  `cache::MaybeRefCachedTokenOf`, is a `Maybe`: it is the element of a `Peeked` window and of the
+  buffer `Cache::peek` fills, and what `Cache::peek_one`, `InputRef::peek_one` and
+  `InputRef::sync_to` return. A crate that names these through `tokora::utils` changes nothing. A
+  crate that spells them through a `mayber = "0.1"` dependency of its own — a custom `Cache` whose
+  `peek` pushes `mayber::Maybe::Ref(..)`, say — stops type-checking until it moves to mayber 0.2 or
+  to tokora's re-export.
+
+  mayber 0.2 keeps every 0.1 method and implementation, and its MSRV, 1.85, is below tokora's. It
+  implements `Clone`, `Copy` and `Debug` for every `Maybe<R, T>` whose two payloads do, where 0.1
+  had them for `MaybeRef` alone, so a peeked entry is now `Clone` whenever its token, lexer state
+  and span are. It adds `From<MaybeMut> for MaybeRef` and the methods listed
+  [above](#unreleased-source-breaking-additions-that-can-change-behaviour-with-no-diagnostic-at-the-call-site).
+  tokora uses `fold_ref` and `into_owned` in place of matches it wrote by hand, and behaves as
+  before.
+
+- **`SessionRefusal::BudgetExhausted` holds an `input::BudgetExhausted` value instead of its
+  `spent` and `budget` fields.** A match on `SessionRefusal::BudgetExhausted { spent, budget }`
+  becomes `SessionRefusal::BudgetExhausted(refused)`, and `refused.spent()` and `refused.budget()`
+  return what the two fields held; the refusal's message is unchanged. A refusal of your own, in a
+  test say, is built as `SessionRefusal::BudgetExhausted(BudgetExhausted::new(spent, budget))`.
+  `Budget` and `SessionRefusal` also gain derive_more's `is_*`, `unwrap_*` and `try_unwrap_*`
+  accessors, `SessionRefusal`'s in `_ref` and `_mut` forms as well; a method of your own by one of
+  those names can lose its call to them, silently for a discarded `unwrap_*`, as disclosed
+  [above](#unreleased-source-breaking-additions-that-can-change-behaviour-with-no-diagnostic-at-the-call-site).
+
 ## 0.13.2 (2026-11-15)
 
 <a id="0.13.2-source-breaking-additions-that-can-change-behaviour-with-no-diagnostic-at-the-call-site"></a>

@@ -6,7 +6,6 @@ pub use lexeme::*;
 
 pub use mayber::{Maybe, MaybeMut, MaybeRef, Owned, Ref};
 pub use message::CowStr;
-pub use oneof::OneOf;
 pub use positioned_char::*;
 
 pub use to_equivalent::*;
@@ -39,7 +38,6 @@ mod escaped;
 mod expected;
 mod lexeme;
 mod message;
-mod oneof;
 mod positioned_char;
 pub(crate) mod to_equivalent;
 

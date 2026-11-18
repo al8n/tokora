@@ -243,11 +243,11 @@ fn plus_equal_try_parse_declines_non_plus_equal_token() {
 #[test]
 fn punctuator_name_returns_screaming_snake() {
   assert_eq!(
-    <At<(), (), ()> as Punctuator<'_, TestLexer<'_>>>::name().as_str(),
+    <At<(), (), ()> as Punctuator<'_, TestLexer<'_>>>::name(),
     "AT"
   );
   assert_eq!(
-    <Spread<(), (), ()> as Punctuator<'_, TestLexer<'_>>>::name().as_str(),
+    <Spread<(), (), ()> as Punctuator<'_, TestLexer<'_>>>::name(),
     "SPREAD"
   );
 }

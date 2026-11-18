@@ -418,18 +418,18 @@ errors carry it so `expected …, found …` diagnostics come for free.
 
 | Item | Shape | Role |
 |------|-------|------|
-| [`Expected<'a, T>`](crate::utils::Expected) | `One(T)` \| `OneOf(OneOf<'a, T>)` | one expected value, or a set |
+| [`Expected<'a, T>`](crate::utils::Expected) | `One(T)` \| `OneOf(CowSlice<'a, T>)` | one expected value, or a set |
 | [`Expected::one`](crate::utils::Expected::one) / [`one_of`](crate::utils::Expected::one_of) | `T` / `&[T]` | ergonomic constructors |
-| [`OneOf<'a, T>`](crate::utils::OneOf) | slice/owned wrapper | the multi-alternative payload |
+| [`CowSlice<'a, T>`](crate::utils::CowSlice) | a `cower::Cow` over `[T]`: borrowed only without `alloc`, borrowed or owned with it | the multi-alternative payload |
 | `Set` (type param) | element type, default `&'static str` | the **optional** end-of-input expected set an [`UnexpectedEnd`](crate::error::UnexpectedEnd) may carry (`Option<Expected<'static, Set>>`) |
 
 ```rust
-use tokora::utils::{Expected, OneOf};
+use tokora::utils::{CowSlice, Expected};
 
 let single = Expected::one("identifier");
 assert_eq!(format!("{single}"), "expected 'identifier'");
 
-let multiple = Expected::OneOf(OneOf::from_slice(&["ident", "number"]));
+let multiple = Expected::OneOf(CowSlice::<&str>::from_ref(&["ident", "number"]));
 assert_eq!(format!("{multiple}"), "expected one of: 'ident', 'number'");
 
 // A classifier's return value; `Kind` is the element type here.
@@ -481,7 +481,7 @@ assert_eq!(Punct::Comma.require(), Err(Punct::Comma));
 
 | Item | What it is |
 |------|-----------|
-| [`Expected`](crate::utils::Expected) / [`OneOf`](crate::utils::OneOf) | expected-set machinery (above) |
+| [`Expected`](crate::utils::Expected) / [`CowSlice`](crate::utils::CowSlice) | expected-set machinery (above) |
 | [`CowStr`](crate::utils::CowStr) | a clone-on-write string used for error/diagnostic messages |
 | [`Lexeme`](crate::utils::Lexeme) / [`PositionedChar`](crate::utils::PositionedChar) | lexer-error building blocks: a character (or range) plus its offset → a span |
 | [`Delimited`](crate::utils::Delimited) | an `Open`/`Close`/`Data`/span bundle for a parsed delimited construct |

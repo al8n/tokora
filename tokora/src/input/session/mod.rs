@@ -37,6 +37,8 @@ use crate::{Emitter, Lexer, ParseContext, ParseInput, Source, error::MaybeTermin
 
 use super::{Input, Partial, SurfaceIncomplete};
 
+use derive_more::{IsVariant, TryUnwrap, Unwrap};
+
 mod sealed {
   /// Seals [`ReplayMode`](super::ReplayMode) against downstream implementations.
   pub trait Sealed {}
@@ -75,14 +77,48 @@ impl ReplayMode for RedriveFromBase {}
 /// enforceable with no per-token instrumentation and no lexer cooperation.
 ///
 /// There is deliberately **no `Default`**: see the [module docs](crate::input).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IsVariant, TryUnwrap, Unwrap)]
 #[non_exhaustive]
 pub enum Budget {
   /// The caller has decided the stream is trusted, or bounded somewhere else. Visible in
   /// review because it had to be written.
+  #[unwrap(ignore)]
+  #[try_unwrap(ignore)]
   Unbounded,
   /// Refuse the attempt that would push Σ attempt-lexable bytes past this cap.
   Bytes(u64),
+}
+
+/// The attempt would have pushed Σ attempt-lexable bytes past the session's budget, so it
+/// was refused before any lexing.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
+#[error(
+  "the parse session's budget is exhausted: this attempt would reach {spent} lexable bytes against a budget of {budget}"
+)]
+pub struct BudgetExhausted {
+  spent: u64,
+  budget: u64,
+}
+
+impl BudgetExhausted {
+  /// Create a new `BudgetExhausted` error.
+  #[inline(always)]
+  pub const fn new(spent: u64, budget: u64) -> Self {
+    Self { spent, budget }
+  }
+
+  /// The Σ attempt-lexable bytes this attempt **would have** brought the session to. The
+  /// session's own spend is unchanged — a refused attempt does no work.
+  #[inline(always)]
+  pub const fn spent(&self) -> u64 {
+    self.spent
+  }
+
+  /// The cap that refused it.
+  #[inline(always)]
+  pub const fn budget(&self) -> u64 {
+    self.budget
+  }
 }
 
 /// A session's own refusal — decided **before any attempt work**, and always terminal.
@@ -112,25 +148,22 @@ pub enum Budget {
 /// terminal conditions,
 /// [where the set stops being closed](crate::error::MaybeTerminal#where-the-set-stops-being-closed)
 /// for the rule covering an arm the table does not name.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, thiserror::Error)]
+#[derive(
+  Debug, Clone, Copy, PartialEq, Eq, Hash, thiserror::Error, IsVariant, TryUnwrap, Unwrap,
+)]
+#[unwrap(ref, ref_mut)]
+#[try_unwrap(ref, ref_mut)]
 #[non_exhaustive]
 pub enum SessionRefusal {
   /// The attempt would have pushed Σ attempt-lexable bytes past the session's budget, so it
   /// was refused before any lexing.
-  #[error(
-    "the parse session's budget is exhausted: this attempt would reach {spent} lexable \
-     bytes against a budget of {budget}"
-  )]
-  BudgetExhausted {
-    /// The Σ attempt-lexable bytes this attempt **would have** brought the session to. The
-    /// session's own spend is unchanged — a refused attempt does no work.
-    spent: u64,
-    /// The cap that refused it.
-    budget: u64,
-  },
+  #[error(transparent)]
+  BudgetExhausted(BudgetExhausted),
   /// An earlier attempt returned a terminal error, so the session is latched and refuses
   /// every subsequent attempt before any work.
   #[error("the parse session is latched: an earlier attempt ended in a terminal error")]
+  #[unwrap(ignore)]
+  #[try_unwrap(ignore)]
   TerminalLatched,
 }
 
@@ -155,7 +188,7 @@ pub enum SessionRefusal {
 /// use tokora::cache::DefaultCache;
 /// use tokora::emitter::Fatal;
 /// use tokora::error::{Incomplete, MaybeIncomplete, MaybeTerminal};
-/// use tokora::input::{Budget, PartialSession, RedriveFromBase, SessionRefusal};
+/// use tokora::input::{Budget, BudgetExhausted, PartialSession, RedriveFromBase, SessionRefusal};
 /// #
 /// # #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 /// # struct WordKind;
@@ -237,7 +270,7 @@ pub enum SessionRefusal {
 /// let refused = session.parse(ctx(), "a b c d", true, count);
 /// assert_eq!(
 ///   refused,
-///   Err(MyErr::Refused(SessionRefusal::BudgetExhausted { spent: 10, budget: 8 })),
+///   Err(MyErr::Refused(SessionRefusal::BudgetExhausted(BudgetExhausted::new(10, 8)))),
 /// );
 /// // A refused attempt does no work, so neither the frontier nor the spend moved.
 /// assert_eq!(*session.committed(), 3);
@@ -479,10 +512,9 @@ impl<St, Off> PartialSession<St, Off, RedriveFromBase> {
     if let Budget::Bytes(cap) = self.budget
       && projected > cap
     {
-      return Err(refuse(SessionRefusal::BudgetExhausted {
-        spent: projected,
-        budget: cap,
-      }));
+      return Err(refuse(SessionRefusal::BudgetExhausted(
+        BudgetExhausted::new(projected, cap),
+      )));
     }
 
     // Step 2 — the terminal latch, also before any work. A latched session never unlatches:

@@ -364,7 +364,9 @@ pub use input_ref::{
   ScannerAttempt, ScannerOutcome, ScannerTripBaseline, Transaction,
 };
 pub(crate) use lineage::Lineage;
-pub use session::{Budget, PartialSession, RedriveFromBase, ReplayMode, SessionRefusal};
+pub use session::{
+  Budget, BudgetExhausted, PartialSession, RedriveFromBase, ReplayMode, SessionRefusal,
+};
 pub use token_budget::{TokenBudget, TokenBudgetTally};
 
 #[cfg(any(feature = "std", feature = "alloc"))]

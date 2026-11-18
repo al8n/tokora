@@ -320,7 +320,7 @@ where
 /// [`PeekedTokenExt`] reaches the token and the span arm-blind and deliberately does not reach the
 /// state: giving it a third accessor would need a third type parameter on that trait, a breaking
 /// change to a released public surface for a convenience nothing on the restore path needs. So
-/// the kit matches the arm itself. Third parties can read the same fact through public API — match
+/// the kit reads the arm itself. Third parties can read the same fact through public API — match
 /// the [`Maybe`] and call [`CachedToken::state`] — so this checks a publicly observable value, not
 /// a crate-private one.
 fn peeked_state<'s, 'r, 'inp, L>(entry: &'s MaybeRefCachedTokenOf<'r, 'inp, L>) -> &'s L::State
@@ -328,10 +328,7 @@ where
   L: Lexer<'inp>,
   'r: 's,
 {
-  match entry {
-    Maybe::Ref(borrowed) => borrowed.state,
-    Maybe::Owned(owned) => &owned.state,
-  }
+  entry.fold_ref(|borrowed| borrowed.state, |owned| &owned.state)
 }
 
 /// The consequence sentence the `back()` and `pop_back` state comparisons carry, and nothing else

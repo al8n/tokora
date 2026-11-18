@@ -214,3 +214,22 @@ fn str_multibyte_not_digit() {
 fn slice_multibyte_not_digit() {
   assert!(!IsAsciiChar::is_ascii_digit([0xFF].as_slice()));
 }
+
+// --- CowSlice without an allocator: a `Copy` borrow with the layout of `&[T]` ---
+
+#[cfg(not(any(feature = "std", feature = "alloc")))]
+#[test]
+fn cow_slice_without_alloc_is_a_copy_borrow() {
+  fn assert_copy<T: Copy>() {}
+  // `Cell<u8>` is not `Copy`, and the set still is: it holds only the borrow.
+  assert_copy::<CowSlice<'static, core::cell::Cell<u8>>>();
+  assert_eq!(
+    core::mem::size_of::<CowSlice<'static, u8>>(),
+    core::mem::size_of::<&'static [u8]>()
+  );
+
+  const SET: CowSlice<'static, u8> = CowSlice::<u8>::from_ref(&[1, 2]);
+  let expected: &[u8] = &[1, 2];
+  assert!(SET.is_borrowed());
+  assert_eq!(SET.as_slice(), expected);
+}
