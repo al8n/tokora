@@ -267,13 +267,13 @@ struct PairIdentity {
 impl PairIdentity {
   // Named only by the four concrete shapes, which the `punct` family supplies the openers for.
   #[cfg(feature = "punct")]
-  const PAREN: Self = Self::new(DelimiterKind::Paren, CowStr::Borrowed("()"));
+  const PAREN: Self = Self::new(DelimiterKind::Paren, CowStr::from_static("()"));
   #[cfg(feature = "punct")]
-  const BRACE: Self = Self::new(DelimiterKind::Brace, CowStr::Borrowed("{}"));
+  const BRACE: Self = Self::new(DelimiterKind::Brace, CowStr::from_static("{}"));
   #[cfg(feature = "punct")]
-  const BRACKET: Self = Self::new(DelimiterKind::Bracket, CowStr::Borrowed("[]"));
+  const BRACKET: Self = Self::new(DelimiterKind::Bracket, CowStr::from_static("[]"));
   #[cfg(feature = "punct")]
-  const ANGLE: Self = Self::new(DelimiterKind::Angle, CowStr::Borrowed("<>"));
+  const ANGLE: Self = Self::new(DelimiterKind::Angle, CowStr::from_static("<>"));
 
   const fn new(kind: DelimiterKind, name: CowStr) -> Self {
     Self { kind, name }

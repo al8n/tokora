@@ -129,32 +129,37 @@ crate. **The remedy is UFCS**: `MyExt::fold(maybe, ..)` pins your method by name
 
 ### Changed (breaking)
 
-- **`utils::CowStr` is a type alias for `cower::Cow<'static, str>`, no longer a struct of tokora's
+- **`utils::CowStr` is a type alias for a `cower::Cow` over `str`, no longer a struct of tokora's
   own.** It is the name a `Delimiter` and a `Punctuator` report, the name `Unclosed`, `Unopened`,
   `Undelimited` and `UnexpectedEnd` carry, and the separator name a `SeparatedEmitter` is handed,
-  so a crate that builds or reads one meets the change. The everyday spellings keep working under
-  cower's names: `CowStr::from_static` and the new `CowStr::Borrowed` are both `const`, and
-  `as_str`, `to_mut`, `AsRef<str>`, `Borrow<str>`, `Display`, the comparisons, `Hash`, the
-  conversions from `&'static str`, `String` and `std::borrow::Cow<'static, str>`, and the
-  conversions back to the standard `Cow` are cower's. The rest:
+  so a crate that builds or reads one meets the change. Without `alloc` or `std` it is
+  `cower::Cow<'static, str, cower::BorrowedPolicy>`, which holds the `&'static str` itself as the
+  struct did: `Copy`, the same size, and the same type whatever features another crate in the
+  build turns on in cower. With `alloc` or `std` it is `cower::Cow<'static, str>`, backed by
+  `std::borrow::Cow<'static, str>` as the struct was.
+
+  The everyday spellings keep working under cower's names. In every tier: `CowStr::from_static`,
+  which is `const`, `as_str`, `AsRef<str>`, `Borrow<str>`, `Display`, the comparisons, `Hash` and
+  the conversion from `&'static str`. Without `alloc` or `std`, the conversions to `&'static str`
+  too. With `alloc` or `std`: `to_mut`, the conversions from `String` and
+  `std::borrow::Cow<'static, str>` and back to the standard `Cow`, and cower's `const`
+  `CowStr::Borrowed` and `CowStr::Owned`. The rest:
 
   | 0.13 | now |
   |---|---|
   | `CowStr::new(x)` | `CowStr::from(x)` |
-  | `CowStr::from_string(s)` | `CowStr::Owned(s)`, or `CowStr::from(s)` |
-  | `as_inner()` / `into_inner()` | `as_storage()` / `into_storage()`; with `alloc` or `std`, also `as_std()` / `into_std()` |
+  | `CowStr::from_string(s)`, with `alloc` or `std` | `CowStr::Owned(s)`, or `CowStr::from(s)` |
+  | `as_inner()` / `into_inner()` | `as_storage()` / `into_storage()`, which return the same types; with `alloc` or `std`, also `as_std()` / `into_std()` |
   | `AsMut<str>`, with `alloc` or `std` | `to_mut().as_mut_str()` |
-  | `From<CowStr> for &'static str`, without `alloc` or `std` | `into_owned()`, which returns the `&'static str` |
 
-  Two differences have no spelling to migrate. `Debug` prints the string alone, `"()"`, where the
-  derive printed `CowStr { inner: "()" }`. And in a build without `alloc` or `std` the value is
-  cower's `CowRepr<'static, str>`, a borrowed `&str` or an owned `&'static str`, where it was a
-  bare `&'static str`: it is still `Copy`, and it is one word larger.
+  One difference has no spelling to migrate: `Debug` prints the string alone, `"()"`, where the
+  derive printed `CowStr { inner: "()" }`.
 
 - **`utils::OneOf` is gone: the set an `Expected::OneOf` carries is `utils::CowSlice<'a, T>`, a
   `cower::Cow` over `[T]`.** Without `alloc` or `std` it is
   `cower::Cow<'a, [T], cower::BorrowedPolicy>`, which stores the `&'a [T]` itself, has its layout,
-  has no owned form, and is `Copy` for every `T`, where `OneOf` was `Copy` only for `T: Copy`. With
+  has no owned form, stays that type whatever features another crate turns on in cower, and is
+  `Copy` for every `T`, where `OneOf` was `Copy` only for `T: Copy`. With
   `alloc` or `std` it is `cower::Cow<'a, [T]>`, backed by `std::borrow::Cow<'a, [T]>` as `OneOf`
   was, so it is a borrowed slice or an owned `Vec<T>`. `Expected` keeps its size in every tier,
   `Expected::one_of` stays `const`, and the requirement is `cower = "0.1.3"`, the first release

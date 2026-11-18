@@ -13,7 +13,9 @@ use derive_more::{From, IsVariant, TryUnwrap, Unwrap};
 /// `alloc` or `std` it is `cower::Cow<'a, [T]>`, backed by `std::borrow::Cow<'a, [T]>`, so it can
 /// also own a `Vec<T>`. It is one name for two types because no single `cower` policy keeps both
 /// tiers: the default policy stores a slice without `alloc` only for `T: 'static`, and the
-/// borrowed-only policy cannot own.
+/// borrowed-only policy cannot own. Naming the borrowed-only policy also keeps the first tier's
+/// type fixed when Cargo unifies cower's `alloc` and `std` features across a build, which the
+/// default policy's storage would follow.
 ///
 /// `from_ref` builds a borrowed one in every tier, in a `const` context too:
 ///
@@ -35,7 +37,9 @@ pub type CowSlice<'a, T> = cower::Cow<'a, [T], cower::BorrowedPolicy>;
 /// `alloc` or `std` it is `cower::Cow<'a, [T]>`, backed by `std::borrow::Cow<'a, [T]>`, so it can
 /// also own a `Vec<T>`. It is one name for two types because no single `cower` policy keeps both
 /// tiers: the default policy stores a slice without `alloc` only for `T: 'static`, and the
-/// borrowed-only policy cannot own.
+/// borrowed-only policy cannot own. Naming the borrowed-only policy also keeps the first tier's
+/// type fixed when Cargo unifies cower's `alloc` and `std` features across a build, which the
+/// default policy's storage would follow.
 ///
 /// `from_ref` builds a borrowed one in every tier, in a `const` context too:
 ///

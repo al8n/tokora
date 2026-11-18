@@ -291,7 +291,7 @@ impl<O> UnexpectedEnd<PrattRhsHint, O> {
   pub const fn eorhs(offset: O) -> Self {
     Self::maybe_name(
       offset,
-      Some(CowStr::Borrowed("expression (right hand side)")),
+      Some(CowStr::from_static("expression (right hand side)")),
       PrattRhsHint,
     )
   }
@@ -313,7 +313,7 @@ impl<O, Lang: ?Sized> UnexpectedEnd<PrattRhsHint, O, Lang> {
   pub const fn eorhs_of(offset: O) -> Self {
     Self::maybe_name_of(
       offset,
-      Some(CowStr::Borrowed("expression (right hand side)")),
+      Some(CowStr::from_static("expression (right hand side)")),
       PrattRhsHint,
     )
   }
@@ -335,7 +335,7 @@ impl<O> UnexpectedEnd<PrattLhsHint, O> {
   pub const fn eolhs(offset: O) -> Self {
     Self::maybe_name(
       offset,
-      Some(CowStr::Borrowed("expression (left hand side)")),
+      Some(CowStr::from_static("expression (left hand side)")),
       PrattLhsHint,
     )
   }
@@ -357,7 +357,7 @@ impl<O, Lang: ?Sized> UnexpectedEnd<PrattLhsHint, O, Lang> {
   pub const fn eolhs_of(offset: O) -> Self {
     Self::maybe_name_of(
       offset,
-      Some(CowStr::Borrowed("expression (left hand side)")),
+      Some(CowStr::from_static("expression (left hand side)")),
       PrattLhsHint,
     )
   }
@@ -377,7 +377,7 @@ impl<O> UnexpectedEnd<FileHint, O> {
   /// ```
   #[inline]
   pub const fn eof(offset: O) -> Self {
-    Self::maybe_name(offset, Some(CowStr::Borrowed("file")), FileHint)
+    Self::maybe_name(offset, Some(CowStr::from_static("file")), FileHint)
   }
 }
 
@@ -395,7 +395,7 @@ impl<O, Lang: ?Sized> UnexpectedEnd<FileHint, O, Lang> {
   /// ```
   #[inline]
   pub const fn eof_of(offset: O) -> Self {
-    Self::maybe_name_of(offset, Some(CowStr::Borrowed("file")), FileHint)
+    Self::maybe_name_of(offset, Some(CowStr::from_static("file")), FileHint)
   }
 }
 
@@ -413,7 +413,7 @@ impl<O> UnexpectedEnd<TokenHint, O> {
   /// ```
   #[inline]
   pub const fn eot(offset: O) -> Self {
-    Self::maybe_name(offset, Some(CowStr::Borrowed("token stream")), TokenHint)
+    Self::maybe_name(offset, Some(CowStr::from_static("token stream")), TokenHint)
   }
 }
 
@@ -431,7 +431,7 @@ impl<O, Lang: ?Sized> UnexpectedEnd<TokenHint, O, Lang> {
   /// ```
   #[inline]
   pub const fn eot_of(offset: O) -> Self {
-    Self::maybe_name_of(offset, Some(CowStr::Borrowed("token stream")), TokenHint)
+    Self::maybe_name_of(offset, Some(CowStr::from_static("token stream")), TokenHint)
   }
 }
 
@@ -449,7 +449,7 @@ impl<O> UnexpectedEnd<CharacterHint, O> {
   /// ```
   #[inline]
   pub const fn eos(offset: O) -> Self {
-    Self::maybe_name(offset, Some(CowStr::Borrowed("string")), CharacterHint)
+    Self::maybe_name(offset, Some(CowStr::from_static("string")), CharacterHint)
   }
 }
 
@@ -467,7 +467,7 @@ impl<O, Lang: ?Sized> UnexpectedEnd<CharacterHint, O, Lang> {
   /// ```
   #[inline]
   pub const fn eos_of(offset: O) -> Self {
-    Self::maybe_name_of(offset, Some(CowStr::Borrowed("string")), CharacterHint)
+    Self::maybe_name_of(offset, Some(CowStr::from_static("string")), CharacterHint)
   }
 }
 
@@ -497,7 +497,7 @@ impl<Hint, O> UnexpectedEnd<Hint, O> {
   /// # #[cfg(feature = "std")] {
   /// use tokora::{error::{FileHint, UnexpectedEnd}, utils::CowStr};
   ///
-  /// let error = UnexpectedEnd::maybe_name(10, Some(CowStr::Borrowed("string")), FileHint);
+  /// let error = UnexpectedEnd::maybe_name(10, Some(CowStr::from_static("string")), FileHint);
   /// assert_eq!(error.name(), Some("string"));
   /// assert_eq!(error.offset(), 10);
   /// # }
@@ -515,7 +515,7 @@ impl<Hint, O> UnexpectedEnd<Hint, O> {
   /// # #[cfg(feature = "std")] {
   /// use tokora::{error::{FileHint, UnexpectedEnd}, utils::CowStr};
   ///
-  /// let error = UnexpectedEnd::with_name(20, CowStr::Borrowed("block"), FileHint);
+  /// let error = UnexpectedEnd::with_name(20, CowStr::from_static("block"), FileHint);
   /// assert_eq!(error.name(), Some("block"));
   /// assert_eq!(error.offset(), 20);
   /// # }
@@ -568,7 +568,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// # #[cfg(feature = "std")] {
   /// use tokora::{error::{FileHint, UnexpectedEnd}, utils::CowStr};
   ///
-  /// let error = UnexpectedEnd::maybe_name(10, Some(CowStr::Borrowed("string")), FileHint);
+  /// let error = UnexpectedEnd::maybe_name(10, Some(CowStr::from_static("string")), FileHint);
   /// assert_eq!(error.name(), Some("string"));
   /// assert_eq!(error.offset(), 10);
   /// # }
@@ -593,7 +593,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// # #[cfg(feature = "std")] {
   /// use tokora::{error::{FileHint, UnexpectedEnd}, utils::CowStr};
   ///
-  /// let error = UnexpectedEnd::with_name(20, CowStr::Borrowed("block"), FileHint);
+  /// let error = UnexpectedEnd::with_name(20, CowStr::from_static("block"), FileHint);
   /// assert_eq!(error.name(), Some("block"));
   /// assert_eq!(error.offset(), 20);
   /// # }
@@ -651,7 +651,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// # #[cfg(feature = "std")] {
   /// use tokora::{error::{FileHint, UnexpectedEnd}, utils::CowStr};
   ///
-  /// let mut error = UnexpectedEnd::with_name(10, CowStr::Borrowed("old"), FileHint);
+  /// let mut error = UnexpectedEnd::with_name(10, CowStr::from_static("old"), FileHint);
   /// error.update_name(Some("new"));
   /// assert_eq!(error.name(), Some("new"));
   /// # }
@@ -670,7 +670,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// # #[cfg(feature = "std")] {
   /// use tokora::{error::{FileHint, UnexpectedEnd}, utils::CowStr};
   ///
-  /// let mut error = UnexpectedEnd::with_name(10, CowStr::Borrowed("block"), FileHint);
+  /// let mut error = UnexpectedEnd::with_name(10, CowStr::from_static("block"), FileHint);
   /// error.clear_name();
   /// assert_eq!(error.name(), None);
   /// # }
@@ -806,7 +806,7 @@ impl<Hint, O, Lang: ?Sized> UnexpectedEnd<Hint, O, Lang> {
   /// # #[cfg(feature = "std")] {
   /// use tokora::{error::{UnexpectedEnd, FileHint, TokenHint}, utils::CowStr};
   ///
-  /// let file_error = UnexpectedEnd::with_name(10, CowStr::Borrowed("file"), FileHint);
+  /// let file_error = UnexpectedEnd::with_name(10, CowStr::from_static("file"), FileHint);
   /// let token_error = file_error.reconstruct_without_name(|_| TokenHint);
   /// assert_eq!(token_error.name(), None);
   /// assert_eq!(token_error.offset(), 10);
@@ -955,7 +955,7 @@ where
   ///
   /// let error: UnexpectedEnd<TokenHint, usize, (), &'static str> = UnexpectedEnd::maybe_expected_of(
   ///     10,
-  ///     Some(CowStr::Borrowed("token stream")),
+  ///     Some(CowStr::from_static("token stream")),
   ///     TokenHint,
   ///     Some(Expected::one_of(&["if", "while"])),
   /// );
@@ -1057,7 +1057,7 @@ where
   pub const fn eot_expected_one_of(offset: O, expected: &'static [Set]) -> Self {
     Self::maybe_expected_of(
       offset,
-      Some(CowStr::Borrowed("token stream")),
+      Some(CowStr::from_static("token stream")),
       TokenHint,
       Some(Expected::one_of(expected)),
     )

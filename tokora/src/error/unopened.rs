@@ -236,7 +236,7 @@ impl<S, Lang: ?Sized> Unopened<Paren<(), (), Lang>, S, Lang> {
   /// ```
   #[inline]
   pub const fn paren_of(span: S) -> Self {
-    Self::of(span, CowStr::Borrowed("()"))
+    Self::of(span, CowStr::from_static("()"))
   }
 }
 
@@ -278,7 +278,7 @@ impl<S, Lang: ?Sized> Unopened<Bracket<(), (), Lang>, S, Lang> {
   /// ```
   #[inline]
   pub const fn bracket_of(span: S) -> Self {
-    Self::of(span, CowStr::Borrowed("[]"))
+    Self::of(span, CowStr::from_static("[]"))
   }
 }
 
@@ -320,7 +320,7 @@ impl<S, Lang: ?Sized> Unopened<Brace<(), (), Lang>, S, Lang> {
   /// ```
   #[inline]
   pub const fn brace_of(span: S) -> Self {
-    Self::of(span, CowStr::Borrowed("{}"))
+    Self::of(span, CowStr::from_static("{}"))
   }
 }
 
@@ -341,7 +341,7 @@ impl<S> Unopened<Angle, S> {
   /// ```
   #[inline]
   pub const fn angle(span: S) -> Self {
-    Self::of(span, CowStr::Borrowed("<>"))
+    Self::of(span, CowStr::from_static("<>"))
   }
 }
 
@@ -362,7 +362,7 @@ impl<S, Lang: ?Sized> Unopened<Angle<(), (), Lang>, S, Lang> {
   /// ```
   #[inline]
   pub const fn angle_of(span: S) -> Self {
-    Self::of(span, CowStr::Borrowed("<>"))
+    Self::of(span, CowStr::from_static("<>"))
   }
 }
 
@@ -511,7 +511,7 @@ impl<Delimiter, S, Lang: ?Sized> Unopened<Delimiter, S, Lang> {
   /// let error = Unopened::<char>::new(SimpleSpan::new(10, 11), "\"".into());
   /// let (span, delimiter) = error.into_components();
   /// assert_eq!(span, SimpleSpan::new(10, 11));
-  /// assert_eq!(delimiter, CowStr::Borrowed("\""));
+  /// assert_eq!(delimiter, CowStr::from_static("\""));
   /// ```
   #[inline]
   pub fn into_components(self) -> (S, CowStr) {

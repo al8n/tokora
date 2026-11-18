@@ -58,7 +58,7 @@ use crate::{Lexer, Token, error::UnexpectedToken, punct::*, span::Spanned, utils
 ///   type Close = CloseAngle<(), (), Lang>;
 ///
 ///   fn name() -> CowStr {
-///     CowStr::Borrowed("[]")
+///     CowStr::from_static("[]")
 ///   }
 /// }
 /// ```
@@ -87,7 +87,7 @@ use crate::{Lexer, Token, error::UnexpectedToken, punct::*, span::Spanned, utils
 ///   type Close = CloseAngle<(), (), Lang>;
 ///
 ///   fn name() -> CowStr {
-///     CowStr::Borrowed("[]")
+///     CowStr::from_static("[]")
 ///   }
 /// }
 /// ```
@@ -484,7 +484,7 @@ macro_rules! impl_builtin_delimiter {
 
         #[inline(always)]
         fn name() -> CowStr {
-          CowStr::Borrowed($description)
+          CowStr::from_static($description)
         }
       }
 
