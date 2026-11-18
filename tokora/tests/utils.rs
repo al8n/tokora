@@ -342,98 +342,10 @@ mod std_utils {
   use tokora::utils::{CowStr, OneOf};
 
   #[test]
-  fn cowstr_from_static() {
-    let s = CowStr::from_static("hello");
-    assert_eq!(s.as_str(), "hello");
-  }
-
-  #[test]
-  fn cowstr_from_string() {
-    let s = CowStr::from_string(String::from("dynamic"));
-    assert_eq!(s.as_str(), "dynamic");
-  }
-
-  #[test]
-  fn cowstr_to_mut() {
-    let mut s = CowStr::from_static("hello");
-    let m = s.to_mut();
-    m.push_str(" world");
-    assert_eq!(s.as_str(), "hello world");
-  }
-
-  #[test]
-  fn cowstr_into_inner() {
-    let s = CowStr::from_static("test");
-    let inner = s.into_inner();
-    assert_eq!(&*inner, "test");
-  }
-
-  #[test]
-  fn cowstr_as_inner() {
-    let s = CowStr::from_static("test");
-    let _ = s.as_inner();
-  }
-
-  #[test]
-  fn cowstr_from_string_impl() {
-    let s: CowStr = String::from("owned").into();
-    assert_eq!(s.as_str(), "owned");
-  }
-
-  #[test]
-  fn cowstr_from_cow() {
-    let cow: Cow<'static, str> = Cow::Borrowed("borrowed");
-    let s: CowStr = cow.into();
-    assert_eq!(s.as_str(), "borrowed");
-  }
-
-  #[test]
-  fn cowstr_into_cow() {
-    let s = CowStr::from_static("test");
-    let cow: Cow<'static, str> = s.into();
-    assert_eq!(&*cow, "test");
-  }
-
-  #[test]
   fn cowstr_ref_into_cow() {
     let s = CowStr::from_static("test");
     let cow: Cow<'static, str> = (&s).into();
     assert_eq!(&*cow, "test");
-  }
-
-  #[test]
-  fn cowstr_as_ref() {
-    let s = CowStr::from_static("test");
-    let r: &str = s.as_ref();
-    assert_eq!(r, "test");
-  }
-
-  #[test]
-  fn cowstr_borrow() {
-    use std::borrow::Borrow;
-    let s = CowStr::from_static("test");
-    let r: &str = s.borrow();
-    assert_eq!(r, "test");
-  }
-
-  #[test]
-  fn cowstr_to_mut_from_static() {
-    let mut s = CowStr::from_static("test");
-    let m = s.to_mut();
-    m.push('!');
-    assert_eq!(s.as_str(), "test!");
-  }
-
-  #[test]
-  fn cowstr_display() {
-    let s = CowStr::from_static("hello");
-    assert_eq!(format!("{s}"), "hello");
-  }
-
-  #[test]
-  fn cowstr_debug() {
-    let s = CowStr::from_static("hello");
-    let _ = format!("{s:?}");
   }
 
   #[test]

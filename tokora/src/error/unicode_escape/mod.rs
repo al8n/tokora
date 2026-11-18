@@ -1171,7 +1171,7 @@ impl<Char, O> VariableUnicodeEscapeError<Char, O> {
     Self::Unclosed(Unclosed::new(
       span,
       crate::delimiter::DelimiterKind::Brace,
-      CowStr::from_static("{}"),
+      CowStr::Borrowed("{}"),
     ))
   }
 

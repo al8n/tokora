@@ -72,12 +72,12 @@ macro_rules! define_parsers {
         {
           #[inline(always)]
           fn name() -> CowStr {
-            CowStr::from_static(stringify!([< $kind:upper >]))
+            CowStr::Borrowed(stringify!([< $kind:upper >]))
           }
 
           #[inline(always)]
           fn description() -> Option<CowStr> {
-            Some(CowStr::from_static(concat!("The `", $punct_char, "` punctuator.")))
+            Some(CowStr::Borrowed(concat!("The `", $punct_char, "` punctuator.")))
           }
 
           #[inline]

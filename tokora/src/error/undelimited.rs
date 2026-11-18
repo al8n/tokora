@@ -245,7 +245,7 @@ impl<S, Lang: ?Sized> Undelimited<Paren<(), (), Lang>, S, Lang> {
   /// ```
   #[inline]
   pub const fn paren_of(span: S) -> Self {
-    Self::of(span, CowStr::from_static("()"))
+    Self::of(span, CowStr::Borrowed("()"))
   }
 }
 
@@ -289,7 +289,7 @@ impl<S, Lang: ?Sized> Undelimited<Bracket<(), (), Lang>, S, Lang> {
   /// ```
   #[inline]
   pub const fn bracket_of(span: S) -> Self {
-    Self::of(span, CowStr::from_static("[]"))
+    Self::of(span, CowStr::Borrowed("[]"))
   }
 }
 
@@ -333,7 +333,7 @@ impl<S, Lang: ?Sized> Undelimited<Brace<(), (), Lang>, S, Lang> {
   /// ```
   #[inline]
   pub const fn brace_of(span: S) -> Self {
-    Self::of(span, CowStr::from_static("{}"))
+    Self::of(span, CowStr::Borrowed("{}"))
   }
 }
 
@@ -377,7 +377,7 @@ impl<S, Lang: ?Sized> Undelimited<Angle<(), (), Lang>, S, Lang> {
   /// ```
   #[inline]
   pub const fn angle_of(span: S) -> Self {
-    Self::of(span, CowStr::from_static("<>"))
+    Self::of(span, CowStr::Borrowed("<>"))
   }
 }
 
