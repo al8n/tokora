@@ -152,7 +152,7 @@ tinyvec_1 = ["dep:tinyvec_1"]
 
 [dependencies]
 ascii = { version = "1", default-features = false }
-cower = { version = "0.1", default-features = false }
+cower = { version = "0.1.3", default-features = false }
 deranged = { version = "0.5", default-features = false }
 mayber = { version = "0.2", default-features = false }
 derive_more = { version = "2", default-features = false, features = [

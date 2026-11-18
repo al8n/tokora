@@ -10,7 +10,7 @@ use tokora::{
   span::Located,
   syntax::{Language, Syntax},
   utils::{
-    ArrayDeque, Expected, Ignored, OneOf, PhantomDelimited, PhantomLocated, PhantomSliced,
+    ArrayDeque, CowSlice, Expected, Ignored, PhantomDelimited, PhantomLocated, PhantomSliced,
     PhantomSpan,
     typenum::{U0, U1, U2, U3},
   },
@@ -964,9 +964,9 @@ fn expected_one_of_display() {
 }
 
 #[test]
-fn expected_one_of_from_oneof() {
-  let oo: OneOf<'_, _> = OneOf::from_slice(&["a", "b"]);
-  let e = Expected::OneOf(oo);
+fn expected_one_of_from_cowslice() {
+  let set: CowSlice<'_, &str> = CowSlice::<&str>::from_ref(&["a", "b"]);
+  let e = Expected::OneOf(set);
   let s = format!("{e}");
   assert!(s.contains("expected one of"));
 }

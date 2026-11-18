@@ -472,7 +472,8 @@ DOCS_RS_MAP = {
   "crate::types::LitTrue": "types/struct.LitTrue.html",
   "crate::types::Recoverable": "types/enum.Recoverable.html",
   "crate::utils::CharLen": "utils/trait.CharLen.html",
-  "crate::utils::CowStr": "utils/struct.CowStr.html",
+  "crate::utils::CowSlice": "utils/type.CowSlice.html",
+  "crate::utils::CowStr": "utils/type.CowStr.html",
   "crate::utils::Delimited": "utils/struct.Delimited.html",
   "crate::utils::EscapedLexeme": "utils/struct.EscapedLexeme.html",
   "crate::utils::Expected": "utils/enum.Expected.html",
@@ -483,7 +484,6 @@ DOCS_RS_MAP = {
   "crate::utils::IsAsciiChar": "utils/trait.IsAsciiChar.html",
   "crate::utils::Lexeme": "utils/enum.Lexeme.html",
   "crate::utils::MultiCharEscape": "utils/struct.MultiCharEscape.html",
-  "crate::utils::OneOf": "utils/struct.OneOf.html",
   "crate::utils::PositionedChar": "utils/struct.PositionedChar.html",
   "crate::utils::SingleCharEscape": "utils/struct.SingleCharEscape.html",
   # `pub use typenum` is an extern-crate re-export: rustdoc emits no page for it, so point at the

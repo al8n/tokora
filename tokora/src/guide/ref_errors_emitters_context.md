@@ -115,7 +115,7 @@ impl that wires it in.
 trait MaybeIncomplete {
     fn is_incomplete(&self) -> bool { false }   // override only if the type can carry Incomplete
 }
-enum Expected<'a, T: Clone> { One(T), OneOf(OneOf<'a, T>) }   // the "expected set" on a mismatch
+enum Expected<'a, T: Clone> { One(T), OneOf(CowSlice<'a, T>) }   // the "expected set" on a mismatch
 ```
 
 The example makes an error enum and wires the taxonomy into it, one variant per category, then

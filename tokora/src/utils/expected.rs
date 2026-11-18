@@ -5,7 +5,49 @@
 
 use derive_more::{From, IsVariant, TryUnwrap, Unwrap};
 
-use crate::utils::OneOf;
+/// The set of alternatives an [`Expected::OneOf`] carries: a slice that is borrowed, or, with
+/// `alloc` or `std`, owned.
+///
+/// Without `alloc` or `std` this is `cower::Cow<'a, [T], cower::BorrowedPolicy>`: it stores the
+/// `&'a [T]` itself, has the layout of one, is `Copy` for every `T`, and has no owned form. With
+/// `alloc` or `std` it is `cower::Cow<'a, [T]>`, backed by `std::borrow::Cow<'a, [T]>`, so it can
+/// also own a `Vec<T>`. It is one name for two types because no single `cower` policy keeps both
+/// tiers: the default policy stores a slice without `alloc` only for `T: 'static`, and the
+/// borrowed-only policy cannot own.
+///
+/// `from_ref` builds a borrowed one in every tier, in a `const` context too:
+///
+/// ```
+/// use tokora::utils::CowSlice;
+///
+/// const KEYWORDS: CowSlice<'static, &str> = CowSlice::<&str>::from_ref(&["if", "while"]);
+/// assert_eq!(KEYWORDS.as_slice(), &["if", "while"]);
+/// assert!(KEYWORDS.is_borrowed());
+/// ```
+#[cfg(not(any(feature = "std", feature = "alloc")))]
+pub type CowSlice<'a, T> = cower::Cow<'a, [T], cower::BorrowedPolicy>;
+
+/// The set of alternatives an [`Expected::OneOf`] carries: a slice that is borrowed, or, with
+/// `alloc` or `std`, owned.
+///
+/// Without `alloc` or `std` this is `cower::Cow<'a, [T], cower::BorrowedPolicy>`: it stores the
+/// `&'a [T]` itself, has the layout of one, is `Copy` for every `T`, and has no owned form. With
+/// `alloc` or `std` it is `cower::Cow<'a, [T]>`, backed by `std::borrow::Cow<'a, [T]>`, so it can
+/// also own a `Vec<T>`. It is one name for two types because no single `cower` policy keeps both
+/// tiers: the default policy stores a slice without `alloc` only for `T: 'static`, and the
+/// borrowed-only policy cannot own.
+///
+/// `from_ref` builds a borrowed one in every tier, in a `const` context too:
+///
+/// ```
+/// use tokora::utils::CowSlice;
+///
+/// const KEYWORDS: CowSlice<'static, &str> = CowSlice::<&str>::from_ref(&["if", "while"]);
+/// assert_eq!(KEYWORDS.as_slice(), &["if", "while"]);
+/// assert!(KEYWORDS.is_borrowed());
+/// ```
+#[cfg(any(feature = "std", feature = "alloc"))]
+pub type CowSlice<'a, T> = cower::Cow<'a, [T]>;
 
 /// An enumeration representing expected tokens or values in parsing contexts.
 ///
@@ -15,14 +57,15 @@ use crate::utils::OneOf;
 /// # Examples
 ///
 /// ```
-/// use tokora::utils::{Expected, OneOf};
+/// use tokora::utils::{CowSlice, Expected};
 ///
 /// // A single expected token
 /// let single = Expected::One("identifier");
 /// assert_eq!(format!("{}", single), "expected 'identifier'");
 ///
 /// // Multiple expected tokens
-/// let multiple = Expected::OneOf(OneOf::from_slice(&["identifier", "number", "string"]));
+/// let multiple =
+///   Expected::OneOf(CowSlice::<&str>::from_ref(&["identifier", "number", "string"]));
 /// assert_eq!(format!("{}", multiple), "expected one of: 'identifier', 'number', 'string'");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash, From, IsVariant, Unwrap, TryUnwrap)]
@@ -33,7 +76,7 @@ pub enum Expected<'a, T: Clone> {
   /// A single expected token or value.
   One(T),
   /// Multiple alternative expected tokens or values.
-  OneOf(OneOf<'a, T>),
+  OneOf(CowSlice<'a, T>),
 }
 
 impl<'a, T: Clone> Expected<'a, T> {
@@ -72,7 +115,7 @@ impl<'a, T: Clone> Expected<'a, T> {
   /// ```
   #[inline]
   pub const fn one_of(expected: &'a [T]) -> Self {
-    Self::OneOf(OneOf::from_slice(expected))
+    Self::OneOf(CowSlice::<'a, T>::from_ref(expected))
   }
 }
 

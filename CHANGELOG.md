@@ -85,6 +85,14 @@ when the two signatures are compatible. The two-sided name-collision probe has n
 names: it inventories the items tokora declares and skips the ones it re-exports from another
 crate. **The remedy is UFCS**: `MyExt::fold(maybe, ..)` pins your method by name.
 
+<a id="unreleased-source-breaking-additions-that-fail-loudly"></a>
+
+### Source-breaking additions that fail *loudly*
+
+- **`E0659`, "`CowSlice` is ambiguous"**, for a crate that glob-imports `tokora::utils` beside
+  another glob that brings in a `CowSlice` of its own, at every use of the name. Import one of the
+  two by name.
+
 <a id="unreleased-changed-breaking"></a>
 
 ### Changed (breaking)
@@ -110,6 +118,29 @@ crate. **The remedy is UFCS**: `MyExt::fold(maybe, ..)` pins your method by name
   derive printed `CowStr { inner: "()" }`. And in a build without `alloc` or `std` the value is
   cower's `CowRepr<'static, str>`, a borrowed `&str` or an owned `&'static str`, where it was a
   bare `&'static str`: it is still `Copy`, and it is one word larger.
+
+- **`utils::OneOf` is gone: the set an `Expected::OneOf` carries is `utils::CowSlice<'a, T>`, a
+  `cower::Cow` over `[T]`.** Without `alloc` or `std` it is
+  `cower::Cow<'a, [T], cower::BorrowedPolicy>`, which stores the `&'a [T]` itself, has its layout,
+  has no owned form, and is `Copy` for every `T`, where `OneOf` was `Copy` only for `T: Copy`. With
+  `alloc` or `std` it is `cower::Cow<'a, [T]>`, backed by `std::borrow::Cow<'a, [T]>` as `OneOf`
+  was, so it is a borrowed slice or an owned `Vec<T>`. `Expected` keeps its size in every tier,
+  `Expected::one_of` stays `const`, and the requirement is `cower = "0.1.3"`, the first release
+  with the borrow-only policy.
+
+  | 0.13 | now |
+  |---|---|
+  | `OneOf<'a, T>` | `CowSlice<'a, T>` |
+  | `OneOf::from_slice(s)` | `CowSlice::from_ref(s)`, `const` in every tier |
+  | `OneOf::new(x)` | `CowSlice::from(x)` |
+  | `OneOf::from_vec(v)`, with `alloc` or `std` | `CowSlice::Owned(v)`, or `CowSlice::from(v)` |
+  | `as_inner()` / `into_inner()` | `as_storage()` / `into_storage()`, which return the same types |
+  | `to_mut()`, returning `&mut [T]` | `to_mut()`, returning `&mut Vec<T>` |
+
+  `as_slice`, `Deref`, `AsRef<[T]>`, `Borrow<[T]>`, `Clone`, the comparisons, `Hash`, the
+  conversions from `&[T]`, `Vec<T>` and `std::borrow::Cow<'a, [T]>`, the conversions back to the
+  standard `Cow`, and without `alloc` the conversions to `&'a [T]`, are cower's. `Debug` prints the
+  slice alone where it printed `OneOf { inner: [..] }`.
 
 - **The `Maybe` family is mayber 0.2's: the requirement is `mayber = "0.2"`.** tokora re-exports
   `Maybe`, `MaybeRef`, `MaybeMut`, `Owned` and `Ref` from `tokora::utils`, and a peeked entry,
