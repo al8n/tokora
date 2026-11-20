@@ -3,7 +3,8 @@
 //! Its loop reads `prefix* operand postfix* (infix prefix* operand postfix*)*`. Every head it reads,
 //! it reads with `InputRef::try_expect_map_or_stop`, and the mode's admission runs inside that
 //! read's closure, so a token is committed only once the mode has taken it, and a token that is
-//! not taken is staged for the next reader. No head is lexed twice.
+//! not taken is staged for the next reader. Under a cache with room for the head, no token is
+//! lexed twice.
 
 use core::marker::PhantomData;
 
