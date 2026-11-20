@@ -621,6 +621,53 @@ where
   }
 }
 
+/// A digit, or a signed digit, `-` and a digit, tried first inside a descent: an operand parser that
+/// recurses for its sign, and catches a refused descent and goes on as though there were no sign.
+#[derive(Debug, Clone, Copy)]
+pub struct Signed;
+
+impl<'inp, const SKIP: bool, Ctx> TryParseInput<'inp, ByteLexer<'inp, SKIP>, String, Ctx> for Signed
+where
+  Ctx: ParseContext<'inp, ByteLexer<'inp, SKIP>>,
+  <Ctx::Emitter as Emitter<'inp, ByteLexer<'inp, SKIP>>>::Error: From<RecursionLimitReached<usize>>,
+{
+  fn try_parse_input(
+    &mut self,
+    input: &mut InputRef<'inp, '_, ByteLexer<'inp, SKIP>, Ctx>,
+  ) -> Result<ParseAttempt<String>, <Ctx::Emitter as Emitter<'inp, ByteLexer<'inp, SKIP>>>::Error>
+  {
+    let signed: Result<
+      Option<String>,
+      <Ctx::Emitter as Emitter<'inp, ByteLexer<'inp, SKIP>>>::Error,
+    > = input.descending(|input| {
+      Ok(input.attempt(|input| {
+        let sign = input
+          .try_expect(|tok| tok.data().0 == b'-')
+          .ok()
+          .flatten()?;
+        let digit = input
+          .try_expect(|tok| tok.data().0.is_ascii_digit())
+          .ok()
+          .flatten()?;
+        Some(format!(
+          "{}{}",
+          char::from(sign.data().0),
+          char::from(digit.data().0)
+        ))
+      }))
+    });
+    if let Ok(Some(text)) = signed {
+      return Ok(ParseAttempt::Accept(text));
+    }
+    Ok(
+      match input.try_expect(|tok| tok.data().0.is_ascii_digit())? {
+        Some(tok) => ParseAttempt::Accept(char::from(tok.data().0).to_string()),
+        None => ParseAttempt::Decline,
+      },
+    )
+  }
+}
+
 // ── The typed driver's folds ──────────────────────────────────────────────────────────────────
 
 /// An operator token with its span, as the drivers hand one over.

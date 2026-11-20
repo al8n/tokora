@@ -357,10 +357,22 @@ impl<Expr: ?Sized, Power, Operand, L, O, Ctx, Lang: ?Sized, Cst, Mode>
     let scans = input.scanner_trip_snapshot();
     loop {
       // A term. The operand parser is asked first, and a token it declines is staged.
+      //
+      // The descent-trip count before it, for this attempt alone, as the collection drivers take
+      // theirs for each element: a refused descent the operand parser caught and declined over is
+      // no absence, and the head is not classified after it. It is taken per attempt rather than
+      // per expression because a caught descent trip, unlike a stop, does not stay true of the
+      // input: an operand parser that caught one and accepted parsed past it, and a later term
+      // must not be charged with it. A plain read, once for each term: a `u64` and the counter's
+      // address, and a nonce compare and a `u64` compare where the operand parser declines.
+      let trips = input.trip_snapshot();
       if let ParseAttempt::Accept(value) = operand.try_parse_input(input)? {
         run.operand();
         handler.on_operand(input, value)?;
       } else {
+        if input.tripped_during_attempt(trips) {
+          return Err(terminal_stop(input));
+        }
         let head = input.try_expect_map_or_stop(|tok| {
           if tok.is_trivia() {
             return Some(TermHead::Trivia);
@@ -384,7 +396,7 @@ impl<Expr: ?Sized, Power, Operand, L, O, Ctx, Lang: ?Sized, Cst, Mode>
           // whether an infix operator waits for it.
           None => {
             if input.scanner_tripped_during_attempt(scans) {
-              return Err(scanner_stop(input));
+              return Err(terminal_stop(input));
             }
             let at = input.span().end();
             return Err(if run.missing() {
@@ -454,7 +466,7 @@ impl<Expr: ?Sized, Power, Operand, L, O, Ctx, Lang: ?Sized, Cst, Mode>
           // stopped behind.
           None => {
             if input.scanner_tripped_during_attempt(scans) {
-              return Err(scanner_stop(input));
+              return Err(terminal_stop(input));
             }
             return match ending {
               Ending::Here => Ok(()),
@@ -501,9 +513,10 @@ enum Ending {
   Adjacent,
 }
 
-/// The scanner's stop, as the terminal end of input where the input stands.
+/// A trip's terminal end of input, where the input stands: the answer the collection drivers give
+/// an absence a trip produced, a scanner stop or a refused descent alike.
 #[cold]
-fn scanner_stop<'inp, L, Ctx, Lang, Cmpl>(
+fn terminal_stop<'inp, L, Ctx, Lang, Cmpl>(
   input: &InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
 ) -> <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error
 where

@@ -14,13 +14,13 @@ use tokora::{
   input::TokenBudget,
   pratt::{Bare, Flat, NoCst, PrattHandler, PrattInfix, Precedenced, flat},
   span::Spanned,
-  state::TokenLimiter,
+  state::{RecursionLimiter, TokenLimiter},
   utils::typenum::U2,
 };
 
 use flat_fixture::{
   BareCacheIr, ByteLexer, Expr, Fail, FatalCtx, FatalIr, Landing, LimitedIr, Mode, Operand,
-  Rekeying, Rolling, Skip, TABLE, Tok, TwoDigits, VerboseIr, forget_lexes, landing, lexes,
+  Rekeying, Rolling, Signed, Skip, TABLE, Tok, TwoDigits, VerboseIr, forget_lexes, landing, lexes,
 };
 use flat_items::{Item, Items};
 
@@ -601,6 +601,33 @@ fn the_caller_recovers_from_a_stop_by_re_keying() {
       Ok(())
     )
   );
+}
+
+/// A refused descent the operand parser caught is no absence either. Over `-1;` with a recursion
+/// limit of 0, the operand parser's descent for a signed operand is refused, and it declines at
+/// `-`: the driver does not take `-` for a prefix operator after it, and the parse ends in the
+/// terminal stop at 0, in both modes.
+#[test]
+fn a_decline_over_a_refused_descent_is_the_terminal_error() {
+  let stop = Err(Fail::Eot {
+    at: 0,
+    terminal: true,
+  });
+  for bare in [false, true] {
+    let got = Parser::with_context(
+      ParserContext::new(Fatal::new()).with_recursion_limiter(RecursionLimiter::with_limitation(0)),
+    )
+    .apply(|input: &mut FatalIr<'_, '_, true>| {
+      Ok(if bare {
+        flat(TABLE, Signed).bare().parse_into(input, &mut ())
+      } else {
+        flat(TABLE, Signed).parse_into(input, &mut ())
+      })
+    })
+    .parse_str("-1;")
+    .expect("the parse's own error is caught");
+    assert_eq!(got, stop, "bare: {bare}");
+  }
 }
 
 // ── The handler's contract ────────────────────────────────────────────────────────────────────

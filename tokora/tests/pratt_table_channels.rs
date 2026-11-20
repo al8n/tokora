@@ -14,12 +14,12 @@ use tokora::{
   input::TokenBudget,
   pratt::{PrattInfix, PrattLHS, PrattRHS, pratt},
   span::Spanned,
-  state::TokenLimiter,
+  state::{RecursionLimiter, TokenLimiter},
 };
 
 use flat_fixture::{
-  ByteLexer, Fail, FatalIr, Landing, LimitedIr, Lookahead, Operand, Rekeying, Rolling, TABLE, Tok,
-  TwoDigits, VerboseIr, fold_infix, fold_postfix, fold_prefix, landing,
+  ByteLexer, Fail, FatalIr, Landing, LimitedIr, Lookahead, Operand, Rekeying, Rolling, Signed,
+  TABLE, Tok, TwoDigits, VerboseIr, fold_infix, fold_postfix, fold_prefix, landing,
 };
 
 /// What the left-hand-side channel reported.
@@ -227,6 +227,30 @@ fn an_operand_accepted_over_a_stop_is_the_terminal_error() {
     got,
     Err(Fail::Eot {
       at: 1,
+      terminal: true
+    })
+  );
+}
+
+/// A refused descent the operand parser caught is no absence: over `-1;` with a recursion limit
+/// of 0, the operand parser's descent for a signed operand is refused and it declines at `-`, and
+/// the channel answers with the terminal stop at 0, not with `-` for a prefix operator.
+#[test]
+fn a_decline_over_a_refused_descent_is_the_terminal_error() {
+  let got = Parser::with_context(
+    ParserContext::new(Fatal::new()).with_recursion_limiter(RecursionLimiter::with_limitation(0)),
+  )
+  .apply(|input: &mut FatalIr<'_, '_, true>| {
+    let reported: Reported<PrattLHS<String, Spanned<Tok, SimpleSpan>, u8>> =
+      TABLE.lhs(Signed).parse_input(input);
+    Ok(reported.map(|_| ()))
+  })
+  .parse_str("-1;")
+  .expect("the parse's own error is caught");
+  assert_eq!(
+    got,
+    Err(Fail::Eot {
+      at: 0,
       terminal: true
     })
   );

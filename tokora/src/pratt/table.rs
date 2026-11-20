@@ -186,8 +186,19 @@ where
     // nonce compare and one `u64` compare for each call.
     let scans = input.scanner_trip_snapshot();
     let reported = loop {
+      // The descent-trip count before this attempt alone, as the collection drivers take theirs for
+      // each element: a refused descent the operand parser caught and declined over is no absence,
+      // and the head is not classified after it.
+      let trips = input.trip_snapshot();
       if let ParseAttempt::Accept(operand) = self.operand.try_parse_input(input)? {
         break Ok(PrattLHS::Operand(operand));
+      }
+      if input.tripped_during_attempt(trips) {
+        return Err(
+          UnexpectedEot::<L::Offset, Lang>::eot_of(input.span().end())
+            .into_terminal()
+            .into(),
+        );
       }
       let head = input.try_expect_map_or_stop(|tok| {
         if tok.is_trivia() {
