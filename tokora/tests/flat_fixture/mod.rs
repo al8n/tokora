@@ -179,8 +179,9 @@ impl<'inp, const SKIP: bool> Lexer<'inp> for ByteLexer<'inp, SKIP> {
 }
 
 /// One token for each byte, trivia included, under a token limit the lexer's own state keeps: it
-/// counts the tokens lexed, and past the limit `check` fails, which the input takes for a scanner
-/// trip. A rollback restores the count, and the latch the trip set with it.
+/// counts the tokens lexed, and reports the item past the limit as an error, which `check` then
+/// confirms, and the input takes for a scanner trip. A rollback restores the count, and the latch
+/// the trip set with it.
 pub struct Limited<'inp> {
   src: &'inp str,
   tok_start: usize,
@@ -243,6 +244,11 @@ impl<'inp> Lexer<'inp> for Limited<'inp> {
     self.tok_start = self.pos;
     self.pos += 1;
     self.state.increase();
+    // A lexer reports its own limit: the item past it is an error, which the input confirms through
+    // `check`, and takes for a trip. A token is never one.
+    if self.state.check().is_err() {
+      return Some(Err(LexErr));
+    }
     Some(Ok(Tok(byte)))
   }
 
