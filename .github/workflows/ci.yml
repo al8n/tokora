@@ -1104,14 +1104,29 @@ jobs:
         run: cargo check --target thumbv6m-none-eabi --no-default-features
       - name: cargo check --target thumbv6m-none-eabi --no-default-features --features alloc
         run: cargo check --target thumbv6m-none-eabi --no-default-features --features alloc
+      # The same two tiers with the Pratt family on, BESIDE the two above and not in place of
+      # them: those keep the build with no feature at all checked on bare metal. `pratt` holds
+      # code with a heap half and a core half (`pratt::PrattStack` spills to a `Vec` with an
+      # allocator and refuses past its inline frames without one), and no other leg builds it
+      # for a target that has no standard library.
+      - name: cargo check --target thumbv6m-none-eabi --no-default-features --features pratt
+        run: cargo check --target thumbv6m-none-eabi --no-default-features --features pratt
+      - name: cargo check --target thumbv6m-none-eabi --no-default-features --features alloc,pratt
+        run: cargo check --target thumbv6m-none-eabi --no-default-features --features alloc,pratt
       # Compile-only to RUNTIME: `cargo build --no-default-features` above compiles no test
       # targets at all, so a `Vec`/`vec!` violation in a test — where one has actually been
-      # found — slips past it. These two host runs execute the no_std tiers of the crate's own
-      # code (the harness links std; the crate paths under test do not).
+      # found — slips past it. These host runs execute the no_std tiers of the crate's own code
+      # (the harness links std; the crate paths under test do not). The two with `pratt` run the
+      # family's tests in the tiers that have no `std`, beside the two runs that keep every
+      # feature off.
       - name: cargo test -p tokora --no-default-features
         run: cargo test -p tokora --no-default-features
       - name: cargo test -p tokora --no-default-features --features alloc
         run: cargo test -p tokora --no-default-features --features alloc
+      - name: cargo test -p tokora --no-default-features --features pratt
+        run: cargo test -p tokora --no-default-features --features pratt
+      - name: cargo test -p tokora --no-default-features --features alloc,pratt
+        run: cargo test -p tokora --no-default-features --features alloc,pratt
       # The positive cell for CAS-less targets: `bstr` is the CAS-less-safe backing, pinned on
       # the real CAS-less target. The three CAS-needing backings (`bytes`, `hipstr`,
       # `smol-bytes`) are documented on their guide rows rather than pinned here as
