@@ -77,8 +77,8 @@ use crate::container::Stack;
 /// - `len` counts the frames, and [`with_stack`](Self::with_stack) reads it once;
 /// - a refusal hands the frame back, and only a stack that cannot hold the frame refuses it;
 /// - a `push` or a `pop` that unwinds leaves the frames as they were;
-/// - a clone is an independent copy that compares equal, which the machine's own `Clone` relies
-///   on;
+/// - a clone is an independent copy with the same items and the same `max_capacity`, which
+///   compares equal, and which the machine's own `Clone` relies on;
 /// - reads and a refused push change nothing observable, equality included, which every refusal,
 ///   [`offer`](Self::offer) and the reads of [`poll`](Self::poll) rely on.
 ///

@@ -101,9 +101,11 @@ pub trait Container<T> {
 /// - **A `push` or a `pop` that unwinds leaves the items as they were.** A push that unwinds has
 ///   not taken its item, and a pop that unwinds has not removed one. A reader counts the items by
 ///   what these two return, and an unwind returns nothing.
-/// - **A clone is an independent copy.** It holds the same items and compares equal to the
-///   original, and a push or a pop on either never touches the other. A reader's own clone copies
-///   its count beside the stack's clone, so the two counts must describe two stacks.
+/// - **A clone is an independent copy.** It holds the same items, has the same
+///   [`max_capacity`](Container::max_capacity) and compares equal to the original, and a push or
+///   a pop on either never touches the other. A reader's own clone copies its count and its cap
+///   beside the stack's clone, so the two stacks must hold the same items, refuse at the same
+///   bound, and stay apart.
 /// - **Reads and a refused push change nothing observable, equality included.**
 ///   [`last`](Container::last), [`len`](Container::len) and
 ///   [`max_capacity`](Container::max_capacity) leave the stack as it was, and so do
@@ -130,8 +132,10 @@ pub trait Container<T> {
 /// - None runs code of the item's in a push or a pop. A push into a fixed one and every pop cannot
 ///   unwind at all, and one that grows unwinds only while it grows, before the item is placed.
 /// - Each `Clone` clones the items into storage of its own, and each `PartialEq` compares the
-///   items in order. `&mut U` is not `Clone`, so this one does not reach it: a reader over a lent
-///   stack has no clone.
+///   items in order. Each `max_capacity` is a fixed bound, `N`, or the logical `usize::MAX` of a
+///   stack that grows, and never the spare room of an allocation, so a clone has the same one.
+///   `&mut U` is not `Clone`, so this one does not reach it: a reader over a lent stack has no
+///   clone.
 /// - Each read takes `&self` and holds no interior mutability, `last_mut` only hands out the
 ///   reference, and a refused push returns before it writes anything.
 ///
