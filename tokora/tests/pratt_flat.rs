@@ -14,11 +14,13 @@ use tokora::{
   input::TokenBudget,
   pratt::{Bare, Flat, NoCst, PrattHandler, PrattInfix, Precedenced, flat},
   span::Spanned,
+  state::TokenLimiter,
+  utils::typenum::U2,
 };
 
 use flat_fixture::{
-  BareCacheIr, ByteLexer, Expr, Fail, FatalCtx, FatalIr, Landing, Mode, Operand, Skip, TABLE, Tok,
-  TwoDigits, VerboseIr, forget_lexes, landing, lexes,
+  BareCacheIr, ByteLexer, Expr, Fail, FatalCtx, FatalIr, Landing, LimitedIr, Mode, Operand,
+  Rolling, Skip, TABLE, Tok, TwoDigits, VerboseIr, forget_lexes, landing, lexes,
 };
 use flat_items::{Item, Items};
 
@@ -450,6 +452,102 @@ fn a_decline_over_a_scanner_stop_is_the_terminal_error() {
         flat(TABLE, TwoDigits).parse_into(input, &mut items)
       })
     });
+    assert_eq!(got, stop, "bare: {bare}");
+  }
+}
+
+/// Tells no one, and after each operand peeks two tokens ahead: a handler whose lookahead can meet
+/// a scanner stop and return `Ok` over it.
+struct Peeks;
+
+impl<'inp, const SKIP: bool, Ctx> PrattHandler<'inp, u8, ByteLexer<'inp, SKIP>, String, Ctx>
+  for Peeks
+where
+  Ctx: ParseContext<'inp, ByteLexer<'inp, SKIP>>,
+  Ctx::Emitter: Emitter<'inp, ByteLexer<'inp, SKIP>, Error = Fail>,
+{
+  fn on_prefix(
+    &mut self,
+    _input: &mut InputRef<'inp, '_, ByteLexer<'inp, SKIP>, Ctx>,
+    _operator: Precedenced<Spanned<Tok, SimpleSpan>, u8>,
+  ) -> Result<(), Fail> {
+    Ok(())
+  }
+
+  fn on_operand(
+    &mut self,
+    input: &mut InputRef<'inp, '_, ByteLexer<'inp, SKIP>, Ctx>,
+    _operand: String,
+  ) -> Result<(), Fail> {
+    let _ = input.peek::<U2>()?;
+    Ok(())
+  }
+
+  fn on_infix(
+    &mut self,
+    _input: &mut InputRef<'inp, '_, ByteLexer<'inp, SKIP>, Ctx>,
+    _operator: Precedenced<
+      PrattInfix<Spanned<Tok, SimpleSpan>, Spanned<Tok, SimpleSpan>, Spanned<Tok, SimpleSpan>>,
+      u8,
+    >,
+  ) -> Result<(), Fail> {
+    Ok(())
+  }
+
+  fn on_postfix(
+    &mut self,
+    _input: &mut InputRef<'inp, '_, ByteLexer<'inp, SKIP>, Ctx>,
+    _operator: Precedenced<Spanned<Tok, SimpleSpan>, u8>,
+  ) -> Result<(), Fail> {
+    Ok(())
+  }
+}
+
+/// A stop a handler's lookahead met is the terminal error at the expression's end too. Over `1.2`
+/// within a budget of two items, the handler peeks past `1`, caches `.` and trips on `2`, and
+/// returns `Ok`. The `.` it left is no operator, and the expression would end there with `1`, in
+/// both modes.
+#[test]
+fn a_stop_a_handler_met_ends_the_expression_in_the_stop() {
+  let stop = Err(Fail::Eot {
+    at: 1,
+    terminal: true,
+  });
+  for bare in [false, true] {
+    let got = within::<true, _>("1.2", 2, |input| {
+      Ok(if bare {
+        flat(TABLE, Operand::STRICT)
+          .bare()
+          .parse_into(input, &mut Peeks)
+      } else {
+        flat(TABLE, Operand::STRICT).parse_into(input, &mut Peeks)
+      })
+    });
+    assert_eq!(got, stop, "bare: {bare}");
+  }
+}
+
+/// A stop a rollback took off the input is still the terminal error, read off the trip counter.
+/// Over `42` under a lexer-side limit of one token, an operand parser reads both digits inside an
+/// attempt, trips on `2`, and rolls back, which restores the limit's count and clears the latch.
+/// The driver's own read then finds `4`, no prefix operator, in both modes.
+#[test]
+fn a_stop_a_rollback_erased_is_still_the_terminal_error() {
+  let stop = Err(Fail::Eot {
+    at: 0,
+    terminal: true,
+  });
+  for bare in [false, true] {
+    let got = Parser::with_context(ParserContext::new(Fatal::new()))
+      .apply(|input: &mut LimitedIr<'_, '_>| {
+        Ok(if bare {
+          flat(TABLE, Rolling).bare().parse_into(input, &mut ())
+        } else {
+          flat(TABLE, Rolling).parse_into(input, &mut ())
+        })
+      })
+      .parse_with_state("42", TokenLimiter::with_limitation(1))
+      .expect("the parse's own error is caught");
     assert_eq!(got, stop, "bare: {bare}");
   }
 }

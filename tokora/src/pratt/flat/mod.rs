@@ -11,7 +11,7 @@ use core::marker::PhantomData;
 use crate::{
   Emitter, InputRef, Lexer, ParseAttempt, ParseContext, Token as _, TryParseInput,
   error::{NonAssociativeChain, PrattStackFull, UnexpectedEoLhs, UnexpectedEoRhs, UnexpectedEot},
-  input::{Completeness, SurfaceIncomplete},
+  input::{Completeness, ScannerOutcome, SurfaceIncomplete},
   span::Span as _,
   token::PrattToken,
 };
@@ -344,27 +344,24 @@ impl<Expr: ?Sized, Power, Operand, L, O, Ctx, Lang: ?Sized, Cst, Mode>
       + From<NonAssociativeChain<L::Offset, Lang>>
       + From<PrattStackFull<L::Offset, Lang>>,
   {
-    // The scanner's trip count as the expression begins, taken once, as the collection drivers take
-    // theirs: a stop met at one term still stands at the next. The operand parser, or a handler
-    // that reads on, can meet one with tokens before it still cached, and a decline over them is
-    // then no absence. So every term's decline is judged against this baseline. A plain read, once
-    // for each expression: a `u64` and the counter's address.
-    let scans = input.scanner_trip_snapshot();
+    // The scanner as the expression begins: its trip count, the committed end and the lexer regime,
+    // taken once, as the collection drivers take their baseline for the absences they conclude.
+    // User code runs between here and each point at which the loop ends or refuses: the operand
+    // parser, and a handler that reads on. A stop it met is still on the trip counter, which no
+    // rollback reaches, even where the input no longer shows it, so the one point the expression
+    // reaches asks first, and answers the stop. A trip followed by a new lexer regime is the
+    // documented recovery, and no stop.
+    //
+    // Its cost: here, a `u64`, the counter's address, one offset and the regime. At the one point
+    // where the expression ends or refuses, a nonce compare and a `u64` compare where nothing
+    // tripped. Nothing on the path that goes on.
+    let scans = input.scanner_attempt();
     loop {
       // A term. The operand parser is asked first, and a token it declines is staged.
       if let ParseAttempt::Accept(value) = operand.try_parse_input(input)? {
         run.operand();
         handler.on_operand(input, value)?;
       } else {
-        // A stop met since the expression began is the parse's terminal error, never a missing
-        // operand: the operand parser may have declined only because the input was cut short.
-        if input.scanner_stopped_during_attempt(scans) {
-          return Err(
-            UnexpectedEot::<L::Offset, Lang>::eot_of(input.span().end())
-              .into_terminal()
-              .into(),
-          );
-        }
         let head = input.try_expect_map_or_stop(|tok| {
           if tok.is_trivia() {
             return Some(TermHead::Trivia);
@@ -383,8 +380,13 @@ impl<Expr: ?Sized, Power, Operand, L, O, Ctx, Lang: ?Sized, Cst, Mode>
             }
             handler.on_prefix(input, Precedenced::new(operator, power))?;
           }
-          // No term: the mode knows whether an infix operator waits for it.
+          // No term. A stop since the expression began answers for it, since the operand parser
+          // may have declined only because the input was cut short. Otherwise the mode knows
+          // whether an infix operator waits for it.
           None => {
+            if stopped(input.scanner_outcome(scans)) {
+              return Err(scanner_stop(input));
+            }
             let at = input.span().end();
             return Err(if run.missing() {
               UnexpectedEoRhs::<L::Offset, Lang>::eorhs_of(at).into()
@@ -448,8 +450,12 @@ impl<Expr: ?Sized, Power, Operand, L, O, Ctx, Lang: ?Sized, Cst, Mode>
             run.postfix(&power);
             handler.on_postfix(input, Precedenced::new(operator, power))?;
           }
-          // The token is staged, or there is none.
+          // The token is staged, or there is none. A stop since the expression began answers for
+          // every ending: a handler that read on may have left the head it stopped behind.
           None => {
+            if stopped(input.scanner_outcome(scans)) {
+              return Err(scanner_stop(input));
+            }
             return match ending {
               Ending::Here => Ok(()),
               Ending::Chain => {
@@ -493,6 +499,30 @@ enum Ending {
   Chain,
   /// The mode took a zero-token operator, which has no token to tell.
   Adjacent,
+}
+
+/// Whether the scanner stopped since the baseline, read off the trip counter, which no rollback
+/// reaches: any trip, but one after which the lexer regime was replaced.
+#[inline(always)]
+fn stopped(outcome: ScannerOutcome) -> bool {
+  !matches!(outcome, ScannerOutcome::NoTrip | ScannerOutcome::ReKeyed)
+}
+
+/// The scanner's stop, as the terminal end of input where the input stands.
+#[cold]
+fn scanner_stop<'inp, L, Ctx, Lang, Cmpl>(
+  input: &InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
+) -> <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error
+where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  Lang: ?Sized,
+  Cmpl: Completeness,
+  <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
+{
+  UnexpectedEot::<L::Offset, Lang>::eot_of(input.span().end())
+    .into_terminal()
+    .into()
 }
 
 /// A full stack. The trip is counted on the input session before the error is built, as a

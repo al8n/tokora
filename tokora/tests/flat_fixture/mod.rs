@@ -18,7 +18,7 @@ use tokora::{
   },
   pratt::{PrattInfix, PrattLHS, PrattRHS, PrattTable, Precedenced},
   span::Spanned,
-  state::State,
+  state::{State, TokenLimiter},
   token::PrattToken,
   utils::typenum::U2,
 };
@@ -166,6 +166,84 @@ impl<'inp, const SKIP: bool> Lexer<'inp> for ByteLexer<'inp, SKIP> {
     } else {
       Ok(Tok(byte))
     })
+  }
+
+  fn read_frontier(&self) -> ReadFrontier<usize> {
+    ReadFrontier::SpanEnd
+  }
+
+  fn bump(&mut self, n: &usize) {
+    self.pos += *n;
+    self.tok_start = self.pos;
+  }
+}
+
+/// One token for each byte, trivia included, under a token limit the lexer's own state keeps: it
+/// counts the tokens lexed, and past the limit `check` fails, which the input takes for a scanner
+/// trip. A rollback restores the count, and the latch the trip set with it.
+pub struct Limited<'inp> {
+  src: &'inp str,
+  tok_start: usize,
+  pos: usize,
+  state: TokenLimiter,
+}
+
+impl<'inp> Lexer<'inp> for Limited<'inp> {
+  type State = TokenLimiter;
+  type Source = str;
+  type Token = Tok;
+  type Span = SimpleSpan;
+  type Offset = usize;
+
+  const SURFACES_TRIVIA: bool = true;
+
+  fn new(src: &'inp str) -> Self {
+    Self::with_state(src, TokenLimiter::new())
+  }
+
+  fn with_state(src: &'inp str, state: TokenLimiter) -> Self {
+    Self {
+      src,
+      tok_start: 0,
+      pos: 0,
+      state,
+    }
+  }
+
+  fn check(&self) -> Result<(), LexErr> {
+    self.state.check().map_err(|_| LexErr)
+  }
+
+  fn state(&self) -> &Self::State {
+    &self.state
+  }
+
+  fn state_mut(&mut self) -> &mut Self::State {
+    &mut self.state
+  }
+
+  fn into_state(self) -> Self::State {
+    self.state
+  }
+
+  fn source(&self) -> &'inp str {
+    self.src
+  }
+
+  fn span(&self) -> SimpleSpan {
+    SimpleSpan::new(self.tok_start, self.pos)
+  }
+
+  fn slice(&self) -> &'inp str {
+    &self.src[self.tok_start..self.pos]
+  }
+
+  fn lex(&mut self) -> Option<Result<Tok, LexErr>> {
+    let byte = *self.src.as_bytes().get(self.pos)?;
+    self.tok_start = self.pos;
+    self.pos += 1;
+    self.state.increase();
+    Some(Ok(Tok(byte)))
   }
 
   fn read_frontier(&self) -> ReadFrontier<usize> {
@@ -378,6 +456,9 @@ pub type BareCacheIr<'inp, 'c, const SKIP: bool> =
 /// The input a closure over [`VerboseCtx`] is handed.
 pub type VerboseIr<'inp, 'c, const SKIP: bool> =
   InputRef<'inp, 'c, ByteLexer<'inp, SKIP>, VerboseCtx<'inp, SKIP>>;
+/// The input a closure over the limited lexer, with a rejecting emitter, is handed.
+pub type LimitedIr<'inp, 'c> =
+  InputRef<'inp, 'c, Limited<'inp>, ParserContext<'inp, Limited<'inp>, Fatal<Fail>>>;
 
 // ── The operand parser ────────────────────────────────────────────────────────────────────────
 
@@ -458,6 +539,38 @@ where
       }
     }
     Ok(ParseAttempt::Accept(text))
+  }
+}
+
+/// Two digits, read inside an attempt that rolls back unless both are there: an operand parser
+/// whose decline takes back everything its reads did to the input.
+#[derive(Debug, Clone, Copy)]
+pub struct Rolling;
+
+impl<'inp, L, Ctx> TryParseInput<'inp, L, String, Ctx> for Rolling
+where
+  L: Lexer<'inp, Token = Tok>,
+  Ctx: ParseContext<'inp, L>,
+{
+  fn try_parse_input(
+    &mut self,
+    input: &mut InputRef<'inp, '_, L, Ctx>,
+  ) -> Result<ParseAttempt<String>, <Ctx::Emitter as Emitter<'inp, L>>::Error> {
+    let digits = input.attempt(|input| {
+      let mut text = String::new();
+      while text.len() < 2 {
+        let tok = input
+          .try_expect(|tok| tok.data().0.is_ascii_digit())
+          .ok()
+          .flatten()?;
+        text.push(char::from(tok.data().0));
+      }
+      Some(text)
+    });
+    Ok(match digits {
+      Some(text) => ParseAttempt::Accept(text),
+      None => ParseAttempt::Decline,
+    })
   }
 }
 

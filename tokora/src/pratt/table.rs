@@ -9,6 +9,7 @@ use core::{fmt, marker::PhantomData};
 use crate::{
   Emitter, InputRef, Lexer, ParseAttempt, ParseContext, ParseInput, Token as _, TryParseInput,
   error::{UnexpectedEoLhs, UnexpectedEoRhs, UnexpectedEot},
+  input::ScannerOutcome,
   span::{Span as _, Spanned},
   token::PrattToken,
 };
@@ -178,19 +179,14 @@ where
     PrattLHS<O, Spanned<L::Token, L::Span>, Power>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   > {
+    // The scanner as the call begins: its trip count, the committed end and the lexer regime. The
+    // operand parser can meet a stop and decline, and a rollback inside it can take the stop off the
+    // input; the trip counter, which no rollback reaches, still has it. So the one refusal the
+    // channel makes asks first. A trip followed by a new lexer regime is the documented recovery.
+    let scans = input.scanner_attempt();
     loop {
-      // A stop the operand parser meets and declines over is the terminal error, never a missing
-      // operand: the head it left staged was read before the stop.
-      let scans = input.scanner_trip_snapshot();
       if let ParseAttempt::Accept(operand) = self.operand.try_parse_input(input)? {
         return Ok(PrattLHS::Operand(operand));
-      }
-      if input.scanner_stopped_during_attempt(scans) {
-        return Err(
-          UnexpectedEot::<L::Offset, Lang>::eot_of(input.span().end())
-            .into_terminal()
-            .into(),
-        );
       }
       let head = input.try_expect_map_or_stop(|tok| {
         if tok.is_trivia() {
@@ -207,6 +203,16 @@ where
           return Ok(PrattLHS::Prefix(Precedenced::new(operator, power)));
         }
         None => {
+          if !matches!(
+            input.scanner_outcome(scans),
+            ScannerOutcome::NoTrip | ScannerOutcome::ReKeyed
+          ) {
+            return Err(
+              UnexpectedEot::<L::Offset, Lang>::eot_of(input.span().end())
+                .into_terminal()
+                .into(),
+            );
+          }
           return Err(UnexpectedEoLhs::<L::Offset, Lang>::eolhs_of(input.span().end()).into());
         }
       }

@@ -14,11 +14,12 @@ use tokora::{
   input::TokenBudget,
   pratt::{PrattInfix, PrattLHS, PrattRHS, pratt},
   span::Spanned,
+  state::TokenLimiter,
 };
 
 use flat_fixture::{
-  ByteLexer, Fail, FatalIr, Landing, Operand, TABLE, Tok, TwoDigits, VerboseIr, fold_infix,
-  fold_postfix, fold_prefix, landing,
+  ByteLexer, Fail, FatalIr, Landing, LimitedIr, Operand, Rolling, TABLE, Tok, TwoDigits, VerboseIr,
+  fold_infix, fold_postfix, fold_prefix, landing,
 };
 
 /// What the left-hand-side channel reported.
@@ -151,6 +152,28 @@ fn a_decline_over_a_scanner_stop_is_the_terminal_error() {
       TABLE.lhs(TwoDigits).parse_input(input);
     Ok(reported.map(|_| ()))
   });
+  assert_eq!(
+    got,
+    Err(Fail::Eot {
+      at: 0,
+      terminal: true
+    })
+  );
+}
+
+/// A stop a rollback took off the input is still the channel's terminal error, read off the trip
+/// counter: over `42` under a lexer-side limit of one token, an operand parser reads both digits
+/// inside an attempt, trips on `2`, and rolls back, and the table's read then finds `4`.
+#[test]
+fn a_stop_a_rollback_erased_is_still_the_terminal_error() {
+  let got = Parser::with_context(ParserContext::new(Fatal::new()))
+    .apply(|input: &mut LimitedIr<'_, '_>| {
+      let reported: Reported<PrattLHS<String, Spanned<Tok, SimpleSpan>, u8>> =
+        TABLE.lhs(Rolling).parse_input(input);
+      Ok(reported.map(|_| ()))
+    })
+    .parse_with_state("42", TokenLimiter::with_limitation(1))
+    .expect("the parse's own error is caught");
   assert_eq!(
     got,
     Err(Fail::Eot {
