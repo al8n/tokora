@@ -235,6 +235,10 @@ impl<Expr: ?Sized, Power, Operand, L, O, Ctx, Lang: ?Sized, Cst, Mode>
 {
   /// Wraps every expression [`parse_into`](Self::parse_into) reads in one node of `kind`, a bare
   /// operand too. See [`WithFlatKind`] for where trivia lands.
+  ///
+  /// The leading trivia is crossed before the operand parser is asked, in the lexer mode the input
+  /// is in when `parse_into` is called: an operand parser's mode applies from its own first read,
+  /// so a grammar whose operand changes what counts as trivia sets that mode before `parse_into`.
   #[must_use]
   #[inline]
   pub fn with_cst_kind(
