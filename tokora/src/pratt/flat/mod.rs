@@ -347,22 +347,29 @@ impl<Expr: ?Sized, Power, Operand, L, O, Ctx, Lang: ?Sized, Cst, Mode>
       // peek's is dropped with its window, so there the head is read first, and parked: the
       // operand parser then inspects it in place, by any read, and it is lexed once. A stop met
       // by that read is terminal, before the operand parser could take it for a decline.
-      if input.cache().is_empty() && input.cache().remaining() == 0 {
+      if input.cache().is_empty() && input.cache().remaining() == 0 && !input.ended_here() {
         input.try_expect_map_or_stop(|_| None::<()>)?;
       }
       if let ParseAttempt::Accept(value) = operand.try_parse_input(input)? {
         run.operand();
         handler.on_operand(input, value)?;
       } else {
-        let head = input.try_expect_map_or_stop(|tok| {
-          if tok.is_trivia() {
-            return Some(TermHead::Trivia);
-          }
-          match tok.try_pratt_lhs() {
-            Some(PrattLHS::Prefix(prefix)) => Some(TermHead::Prefix(prefix.into_precedence())),
-            Some(PrattLHS::Operand(())) | None => None,
-          }
-        })?;
+        // A read that met the end of the input from here, after lexer errors, is not made again:
+        // its answer stands, and a second read would lex the errors, and charge for them, again.
+        // The missing operand is then reported where the input stands, the last committed offset.
+        let head = if input.ended_here() {
+          None
+        } else {
+          input.try_expect_map_or_stop(|tok| {
+            if tok.is_trivia() {
+              return Some(TermHead::Trivia);
+            }
+            match tok.try_pratt_lhs() {
+              Some(PrattLHS::Prefix(prefix)) => Some(TermHead::Prefix(prefix.into_precedence())),
+              Some(PrattLHS::Operand(())) | None => None,
+            }
+          })?
+        };
         match head {
           // Committed: the operand parser is asked again.
           Some((TermHead::Trivia, _)) => {}

@@ -17,8 +17,8 @@ use tokora::{
 };
 
 use flat_fixture::{
-  BareCacheIr, ByteLexer, Fail, FatalIr, Landing, Operand, Peeking, TABLE, Tok, VerboseIr,
-  fold_infix, fold_postfix, fold_prefix, landing,
+  BareCacheIr, ByteLexer, Fail, FatalIr, Landing, Operand, Peeking, TABLE, Tok, VerboseBareCacheIr,
+  VerboseIr, fold_infix, fold_postfix, fold_prefix, landing,
 };
 
 /// What the left-hand-side channel reported.
@@ -139,6 +139,36 @@ fn budgeted<const SKIP: bool, O>(
   .expect("the cell catches every error it expects")
 }
 
+/// Runs `f` over `src` with an accepting emitter, the default cache, and a budget of `budget`
+/// items.
+fn accepting<const SKIP: bool, O>(
+  src: &str,
+  budget: usize,
+  f: impl FnMut(&mut VerboseIr<'_, '_, SKIP>) -> Result<O, Fail>,
+) -> O {
+  Parser::with_context(
+    ParserContext::new(Verbose::new()).with_token_budget(TokenBudget::with_limitation(budget)),
+  )
+  .apply(f)
+  .parse_str(src)
+  .expect("the cell catches every error it expects")
+}
+
+/// Runs `f` over `src` with an accepting emitter, a cache of no capacity, and a budget of
+/// `budget` items.
+fn accepting_uncached<const SKIP: bool, O>(
+  src: &str,
+  budget: usize,
+  f: impl FnMut(&mut VerboseBareCacheIr<'_, '_, SKIP>) -> Result<O, Fail>,
+) -> O {
+  Parser::with_context(
+    ParserContext::new(Verbose::new()).with_token_budget(TokenBudget::with_limitation(budget)),
+  )
+  .apply(f)
+  .parse_str(src)
+  .expect("the cell catches every error it expects")
+}
+
 // ── The operand parser first, and a prefix operator by the table ──────────────────────────────
 
 /// Under a cache that holds no token, the head the operand parser peeked at and declined is the
@@ -158,6 +188,29 @@ fn a_head_the_operand_parser_peeked_at_is_lexed_once() {
     Ok((tree, input.token_budget().spent()))
   });
   assert_eq!(got, (Ok(String::from("(-1)")), 2));
+}
+
+/// A read that met the end of the input after a lexer error is not made again. Over `$`, a lone
+/// lexer error the emitter accepts, within a budget of one item, the channel's missing operand is
+/// `UnexpectedEoLhs` at 0 and recoverable, never the budget's terminal stop: behind an operand
+/// parser that tries and one that peeks, and under a cache of no capacity.
+#[test]
+fn an_end_of_input_after_a_lexer_error_is_not_read_again() {
+  let missing = Err(Fail::EoLhs {
+    at: 0,
+    terminal: false,
+  });
+  let tried = accepting::<true, _>("$", 1, |input| Ok(lhs(input, Operand::STRICT).map(|_| ())));
+  let peeked = accepting::<true, _>("$", 1, |input| {
+    let reported: Reported<PrattLHS<String, Spanned<Tok, SimpleSpan>, u8>> =
+      TABLE.lhs(Peeking).parse_input(input);
+    Ok(reported.map(|_| ()))
+  });
+  let uncached =
+    accepting_uncached::<true, _>("$", 1, |input| Ok(lhs(input, Operand::STRICT).map(|_| ())));
+  for (case, got) in [("tries", tried), ("peeks", peeked), ("no cache", uncached)] {
+    assert_eq!(got, missing, "{case}");
+  }
 }
 
 /// A head that the operand parser and the table's prefix row would both take is the operand

@@ -420,6 +420,8 @@ where
     // Set when a limit trip latches the input mid-scan: the staged overflow
     // tokens then become unreachable and must be truncated away (see below).
     let mut tripped = false;
+    // Set when the fill stopped short because the lexer met the end of the source, or a boundary.
+    let mut exhausted = false;
 
     // Otherwise, lex additional tokens to fill the request. `lex_within_boundary`
     // stops the fill at the durable frontier during a replay, so an overflow peek
@@ -518,7 +520,10 @@ where
           }
         }
         // Boundary already reached, or the lexer is exhausted: the fill simply stops short.
-        LexStep::Stop => break,
+        LexStep::Stop => {
+          exhausted = true;
+          break;
+        }
         // The withheld-head memo answered for lexing from here: the fill stops short exactly as
         // at the `Withheld` arm above, without lexing the item or charging for it.
         LexStep::Withheld => break,
@@ -531,6 +536,19 @@ where
           break;
         }
       }
+    }
+    // A genuine end of a complete or sealed input, not a latched boundary: the run that met it
+    // began after the newest token this fill produced, and crossed nothing but lexer errors.
+    // Remembered, as the scanner remembers its own, so that a later read from there is answered
+    // without lexing them again. A staged token is newer than every cached one, and with nothing
+    // staged `offset()` is the newest retained token's end, or where the fill began.
+    if exhausted && (!Cmpl::PARTIAL || self.is_final()) && !self.reached_boundary(&lex_at) {
+      use crate::cache::PeekedTokenExt as _;
+      let from = match buf.back() {
+        Some(newest) if staged > 0 => newest.span().end_ref().clone(),
+        _ => self.offset().clone(),
+      };
+      self.remember_ended(&from);
     }
     *at_slot = lex_at;
 

@@ -183,21 +183,27 @@ where
       // The head the operand parser inspects and declines is the one the read below takes. Where
       // the cache can hold no token, a peek's head is dropped with its window, so the head is
       // read first and parked, to be lexed once; a stop met there is terminal.
-      if input.cache().is_empty() && input.cache().remaining() == 0 {
+      if input.cache().is_empty() && input.cache().remaining() == 0 && !input.ended_here() {
         input.try_expect_map_or_stop(|_| None::<()>)?;
       }
       if let ParseAttempt::Accept(operand) = self.operand.try_parse_input(input)? {
         return Ok(PrattLHS::Operand(operand));
       }
-      let head = input.try_expect_map_or_stop(|tok| {
-        if tok.is_trivia() {
-          return Some(LhsHead::Trivia);
-        }
-        match tok.try_pratt_lhs() {
-          Some(PrattLHS::Prefix(prefix)) => Some(LhsHead::Prefix(prefix.into_precedence())),
-          Some(PrattLHS::Operand(())) | None => None,
-        }
-      })?;
+      // A read that met the end of the input from here, after lexer errors, is not made again,
+      // and the missing operand is reported where the input stands.
+      let head = if input.ended_here() {
+        None
+      } else {
+        input.try_expect_map_or_stop(|tok| {
+          if tok.is_trivia() {
+            return Some(LhsHead::Trivia);
+          }
+          match tok.try_pratt_lhs() {
+            Some(PrattLHS::Prefix(prefix)) => Some(LhsHead::Prefix(prefix.into_precedence())),
+            Some(PrattLHS::Operand(())) | None => None,
+          }
+        })?
+      };
       match head {
         Some((LhsHead::Trivia, _)) => {}
         Some((LhsHead::Prefix(power), operator)) => {
