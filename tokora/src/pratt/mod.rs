@@ -96,7 +96,7 @@ impl<P: Ord> PrattFloor<P> {
 }
 
 /// A type with an associated precedence level, used in Pratt parsing.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Precedenced<T, Power = i64> {
   token: T,
   precedence: Power,
@@ -162,7 +162,7 @@ pub enum PrattLHS<Op, Pre, Power = i64> {
 }
 
 /// An infix operator for Pratt parsing, which can be left-associative, right-associative, or non-associative with its precedence level.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PrattInfix<LeftAssoc, RightAssoc, NeitherAssoc> {
   /// A left-associative infix operator with its precedence level and operator type.
   Left(LeftAssoc),
