@@ -187,8 +187,11 @@ where
     }
   }
 
-  /// How many times this parse exceeded its **recursion budget** — zero for a parse that stayed
-  /// inside it.
+  /// How many times this parse exceeded its **recursion budget**, or found a flat expression
+  /// driver's stack full — zero for a parse that did neither.
+  ///
+  /// The flat driver's refusal, `PrattStackFull` (with `pratt`), is counted on the same session
+  /// counter, and like a descent trip it is returned and never emitted.
   ///
   /// # The question this answers, and why nothing else could
   ///

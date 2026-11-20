@@ -32,7 +32,7 @@ use crate::{
 /// A failed dispatch consumes nothing and reports exactly what the peek shape reports:
 ///
 /// - **Miss** (the next token's kind is absent from the table): the token is **put back
-///   into the cache** — where the peek shape's lookahead would have left it — so the
+///   at the front of the stream** — where the peek shape's lookahead would have left it — so the
 ///   stream state the next parser observes is identical, and the returned
 ///   [`UnexpectedToken`] carries the *whole* table as its expected set
 ///   (`expected one of …`), built from the token in hand exactly as
@@ -47,8 +47,9 @@ use crate::{
 /// lexer state observed right after it was lexed (the resume-pairing contract), it is
 /// appended through the lineage-counted push (checkpoint restores drop it exactly like
 /// a peeked token), and span ordering is untouched because the scan position never
-/// advanced past it. A full cache simply drops the put-back — the cursor did not move,
-/// so the next operation re-lexes the same token, exactly as an overflowed peek would.
+/// advanced past it. A cache that refuses the put-back does not lose
+/// the token: it is parked in a slot outside the cache, in front of every cache entry, and the
+/// next read takes it from there, so nothing is lexed again.
 ///
 /// # Table misuse: duplicates and oversized tables
 ///

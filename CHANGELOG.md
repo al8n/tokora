@@ -206,6 +206,24 @@ crate. **The remedy is UFCS**: `MyExt::fold(maybe, ..)` pins your method by name
   those names can lose its call to them, silently for a discarded `unwrap_*`, as disclosed
   [above](#unreleased-source-breaking-additions-that-can-change-behaviour-with-no-diagnostic-at-the-call-site).
 
+- **`smallvec_1` turns on the `smallvec` dependency and nothing else: it no longer turns `alloc`
+  on.** A feature for an optional dependency enables that dependency alone, by the crate's tier
+  rule, and `smallvec` and `smallvec_1` now follow it. Every `SmallVec` impl of the crate,
+  `Container`'s among them, then needs `std` or `alloc` beside it: a build that names the feature
+  with neither still compiles, and has no `SmallVec` impl. A `default-features = false` build that
+  got its allocator tier only through `smallvec` loses the tier as well, and everything `alloc`
+  gates with it. Name `alloc` beside the feature, or keep `std`, which `default` carries.
+
+- **The Pratt-only errors are behind `pratt`.** `error::NonAssociativeChain`, the two
+  end-of-expression aliases `error::UnexpectedEoLhs` and `error::UnexpectedEoRhs`, their hints
+  `error::PrattLhsHint` and `error::PrattRhsHint`, and the four constructors that build the two,
+  `UnexpectedEnd::{eolhs, eolhs_of, eorhs, eorhs_of}`, exist only with the `pratt` feature, as the
+  Pratt drivers and the `PrattEmitter` channel that report them already did. A build with `pratt`
+  on sees no difference, and `default` and `combinators` turn it on. A crate that names one of them
+  with `pratt` off, in a `From` impl on its error type say, gates that item on `pratt` or turns the
+  feature on. `error::RecursionLimitReached` stays ungated: it is the general recursion budget's
+  error, raised by `InputRef::descend` for any recursive grammar.
+
 ## 0.13.2 (2026-11-15)
 
 <a id="0.13.2-source-breaking-additions-that-can-change-behaviour-with-no-diagnostic-at-the-call-site"></a>

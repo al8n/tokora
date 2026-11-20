@@ -366,7 +366,7 @@ build on is unconditional: `Parser`, `Parse` and the `parse` drivers, the `Parse
 | `smol-bytes_0_1` | Enables the `smol-bytes@0.1` types (`shared::Bytes`, `compact::Bytes`, `Utf8Bytes`, `compact::Utf8Bytes`) as sources and slices; requires smol-bytes ≥ 0.1.2. |
 | `smol-bytes_0_2` | Enables the same four types from `smol-bytes@0.2`. Both versions can be enabled together. |
 | `smallvec` | Alias for `smallvec_1`. |
-| `smallvec_1` | Enables `SmallVec` as a `Container`; implies `alloc`. |
+| `smallvec_1` | Enables `SmallVec` as a `Container` in a build with `alloc` or `std`, and turns on neither. |
 | `heapless` | Alias for `heapless_0_9`. |
 | `heapless_0_9` | Enables `heapless::Vec` and `heapless::Deque` as containers. |
 | `tinyvec` | Alias for `tinyvec_1`. |
@@ -405,8 +405,8 @@ the ones the `cst` module is built over.
 Tokora's MSRV is Rust 1.95. The core supports allocator-free `no_std` (`no_std` without `alloc`)
 and allocation-enabled `no_std` (`no_std` with `alloc`). Disable default features for core-only
 parsing over bounded caches and containers, and enable `alloc` when a parser, container or selected
-facility needs allocation. `rowan_0_17` (and so its `rowan` alias), `stacker`, `trace` and `fuzz` require `std`; `conformance` and
-`smallvec` require `alloc`.
+facility needs allocation. `rowan_0_17` (and so its `rowan` alias), `stacker`, `trace` and `fuzz` require `std`; `conformance`
+requires `alloc`. `smallvec` turns on no tier, and its impls need `alloc` or `std` beside it.
 
 Allocator-free `no_std`:
 

@@ -7,7 +7,16 @@ pub use invalid::*;
 pub use invalid_hex_digits::*;
 pub use malformed::*;
 pub use missing::*;
+// The Pratt family's own errors, behind its feature: the chain refusal and the full stack here,
+// and the two end-of-expression aliases with their hints in `unexpected_end`.
+// `RecursionLimitReached` stays ungated: it is the general recursion budget's error, raised by
+// `InputRef::descend` for any recursive grammar.
+#[cfg(feature = "pratt")]
+#[cfg_attr(docsrs, doc(cfg(feature = "pratt")))]
 pub use non_associative_chain::*;
+#[cfg(feature = "pratt")]
+#[cfg_attr(docsrs, doc(cfg(feature = "pratt")))]
+pub use pratt_stack_full::*;
 pub use recursion_limit_reached::*;
 pub use terminal::MaybeTerminal;
 pub use unclosed::*;
@@ -47,7 +56,10 @@ mod incomplete_token;
 mod invalid;
 mod malformed;
 mod missing;
+#[cfg(feature = "pratt")]
 mod non_associative_chain;
+#[cfg(feature = "pratt")]
+mod pratt_stack_full;
 mod recursion_limit_reached;
 mod terminal;
 mod unclosed;

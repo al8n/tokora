@@ -142,7 +142,7 @@ smol-bytes_0_1 = ["dep:smol-bytes_0_1"]
 smol-bytes_0_2 = ["dep:smol-bytes_0_2"]
 
 smallvec = ["smallvec_1"]
-smallvec_1 = ["dep:smallvec_1", "alloc"]
+smallvec_1 = ["dep:smallvec_1"]
 
 heapless = ["heapless_0_9"]
 heapless_0_9 = ["dep:heapless_0_9"]

@@ -83,6 +83,8 @@ pub struct CharacterHint;
 /// let error = UnexpectedEnd::eorhs(100);
 /// assert_eq!(error.to_string(), "unexpected end of expression (right hand side), expected either an infix or a postfix");
 /// ```
+#[cfg(feature = "pratt")]
+#[cfg_attr(docsrs, doc(cfg(feature = "pratt")))]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Display)]
 #[display("either an infix or a postfix")]
 pub struct PrattRhsHint;
@@ -100,6 +102,8 @@ pub struct PrattRhsHint;
 /// let error = UnexpectedEnd::eolhs(100);
 /// assert_eq!(error.to_string(), "unexpected end of expression (left hand side), expected one of an operand, an infix or a postfix");
 /// ```
+#[cfg(feature = "pratt")]
+#[cfg_attr(docsrs, doc(cfg(feature = "pratt")))]
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Display)]
 #[display("one of an operand, an infix or a postfix")]
 pub struct PrattLhsHint;
@@ -275,6 +279,8 @@ where
 {
 }
 
+#[cfg(feature = "pratt")]
+#[cfg_attr(docsrs, doc(cfg(feature = "pratt")))]
 impl<O> UnexpectedEnd<PrattRhsHint, O> {
   /// Creates an unexpected **end of expression (right hand side)** error at the given offset.
   ///
@@ -297,6 +303,8 @@ impl<O> UnexpectedEnd<PrattRhsHint, O> {
   }
 }
 
+#[cfg(feature = "pratt")]
+#[cfg_attr(docsrs, doc(cfg(feature = "pratt")))]
 impl<O, Lang: ?Sized> UnexpectedEnd<PrattRhsHint, O, Lang> {
   /// Creates an unexpected **end of expression (right hand side)** error at the given offset.
   ///
@@ -319,6 +327,8 @@ impl<O, Lang: ?Sized> UnexpectedEnd<PrattRhsHint, O, Lang> {
   }
 }
 
+#[cfg(feature = "pratt")]
+#[cfg_attr(docsrs, doc(cfg(feature = "pratt")))]
 impl<O> UnexpectedEnd<PrattLhsHint, O> {
   /// Creates an unexpected **end of expression (left hand side)** error at the given offset.
   ///
@@ -341,6 +351,8 @@ impl<O> UnexpectedEnd<PrattLhsHint, O> {
   }
 }
 
+#[cfg(feature = "pratt")]
+#[cfg_attr(docsrs, doc(cfg(feature = "pratt")))]
 impl<O, Lang: ?Sized> UnexpectedEnd<PrattLhsHint, O, Lang> {
   /// Creates an unexpected **end of expression (left hand side)** error at the given offset.
   ///
@@ -1082,9 +1094,13 @@ pub type UnexpectedEot<O = usize, Lang = (), Set = &'static str> =
 pub type UnexpectedEos<O = usize, Lang = (), Set = &'static str> =
   UnexpectedEnd<CharacterHint, O, Lang, Set>;
 /// A type alias for unexpected end of right hand side.
+#[cfg(feature = "pratt")]
+#[cfg_attr(docsrs, doc(cfg(feature = "pratt")))]
 pub type UnexpectedEoRhs<O = usize, Lang = (), Set = &'static str> =
   UnexpectedEnd<PrattRhsHint, O, Lang, Set>;
 /// A type alias for unexpected end of left hand side.
+#[cfg(feature = "pratt")]
+#[cfg_attr(docsrs, doc(cfg(feature = "pratt")))]
 pub type UnexpectedEoLhs<O = usize, Lang = (), Set = &'static str> =
   UnexpectedEnd<PrattLhsHint, O, Lang, Set>;
 

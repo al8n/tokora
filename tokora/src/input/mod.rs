@@ -470,9 +470,10 @@ impl<E, C> InputContext<E, C> {
   /// The recursion budget defaults to [`RecursionLimiter::PARSE_DEFAULT_DEPTH`], protection on —
   /// the figure tokora's own parser wiring requests explicitly, NOT
   /// [`RecursionLimiter::new`]'s own (unrelated) general-purpose default of 500 — and is
-  /// changed with [`with_recursion_limiter`](Self::with_recursion_limiter). That constant is 16
-  /// in every build — no feature moves it, deliberately, because this cell is what unsegmented
-  /// hand-written descent reads — so it is named here rather than written out.
+  /// changed with [`with_recursion_limiter`](Self::with_recursion_limiter). That constant is the
+  /// same in every build — no feature moves it, deliberately, because this cell is what
+  /// unsegmented hand-written descent reads — and its value, and the reason for that value, are
+  /// on the constant's own documentation, so neither is written out here.
   ///
   /// The token budget defaults to [`TokenBudget::unlimited`], protection **off**, and is changed
   /// with [`with_token_budget`](Self::with_token_budget). The two defaults differ on purpose: a
@@ -537,88 +538,38 @@ impl<E, C> InputContext<E, C> {
   }
 }
 
-/// A zero-copy token stream adapter that bridges Logos and Chumsky.
+/// The crate-private input layer under [`InputRef`]: a lexer over one source, advanced token by
+/// token on demand.
 ///
-/// `Input` is the core integration layer between [Logos](https://github.com/maciejhirsz/logos)
-/// lexical analysis and [Chumsky](https://github.com/zesterer/chumsky) parser combinators.
-/// It efficiently wraps a Logos token source and implements all necessary Chumsky input traits,
-/// allowing you to use Chumsky parsers directly on Logos tokens.
+/// `Input` owns what a parse reads and what it can rewind: the source, the lexer state, the
+/// current span, the token cache, and the emitter and recursion/token budgets its
+/// [`ParseContext`] supplies. Parsers never hold it; they are handed an [`InputRef`], which
+/// borrows it mutably for the handle's whole life. Tokens come from any [`Lexer`] — the bundled
+/// Logos adapter is one implementation — and none of this depends on another parsing library.
 ///
 /// # Zero-Copy Design
 ///
-/// `Input` doesn't allocate or copy tokens. Instead, it maintains a cursor position
-/// and calls Logos on-demand as the parser consumes tokens. This makes it efficient for
-/// large inputs and streaming scenarios.
+/// `Input` doesn't copy the source: it holds a reference to it and calls the lexer on demand as
+/// the parser consumes tokens, keeping only the tokens the cache retains.
 ///
 /// # State Management
 ///
-/// For stateful lexers (those with non-`()` `Extras`), `Input` maintains the lexer
-/// state and passes it through token-by-token. This allows for context-sensitive lexing
-/// patterns. Because the adapter clones `Extras` each time it polls Logos, it is best to
-/// keep your state `Copy` or otherwise cheap to clone. If you need heavy state, consider
-/// storing handles (e.g. `Arc`) inside `Extras` so clones stay inexpensive.
+/// The lexer's state, [`Lexer::State`], is held by value in `Input` and handed to a fresh lexer
+/// each time one is built to resume lexing at an offset. `State` requires `Clone`, and the state
+/// is cloned: when a [`Checkpoint`] is saved; when a lexed token enters the cache, which records
+/// the state the lexer was in after it; and when [`InputRef::state`] hands a copy to the caller.
+/// Keep a state cheap to clone: put heavy data behind a handle (such as an `Arc`) inside it. A
+/// state whose `Clone` shares interior mutability, rather than copying it, breaks the `Lexer`
+/// determinism contract.
 ///
 /// # Type Parameters
 ///
-/// - `'inp`: The lifetime of the input source
-/// - `T`: The token type implementing [`Token<'inp>`]
-///
-/// # Implemented Traits
-///
-/// This type implements all core Chumsky input traits:
-/// - [`Input`](chumsky::input::Input) - Basic input stream functionality
-/// - [`ValueInput`](chumsky::input::ValueInput) - Token-by-token consumption
-/// - [`SliceInput`](chumsky::input::SliceInput) - Slice extraction from source
-/// - [`ExactSizeInput`](chumsky::input::ExactSizeInput) - Known input length
-///
-/// # Examples
-///
-/// ## Basic Usage
-///
-/// ```rust,ignore
-/// use tokora::{Token, Input, TokenExt};
-/// use logos::Logos;
-/// use chumsky::prelude::*;
-///
-/// #[derive(Logos, Debug, Clone, Copy, PartialEq)]
-/// #[logos(skip r"[ \t\n]+")]
-/// enum MyTokens {
-///     #[regex(r"[0-9]+")]
-///     Number,
-///     #[token("+")]
-///     Plus,
-/// }
-///
-/// // Create a token stream from input
-/// let input = "42 + 13";
-/// let stream = MyToken::lexer(input); // Returns Input<'_, MyToken>
-///
-/// // Use with Chumsky parsers
-/// let parser = any().repeated().collect::<Vec<_>>();
-/// let tokens = parser.parse(stream).into_result();
-/// ```
-///
-/// ## Stateful Lexing
-///
-/// ```rust,ignore
-/// #[derive(Default, Clone)]
-/// struct LexerState {
-///     brace_count: usize,
-/// }
-///
-/// #[derive(Logos, Debug, Clone, Copy)]
-/// #[logos(extras = LexerState)]
-/// enum MyTokens {
-///     #[token("{", |lex| lex.extras.brace_count += 1)]
-///     LBrace,
-///     #[token("}", |lex| lex.extras.brace_count -= 1)]
-///     RBrace,
-/// }
-///
-/// let input = "{ { } }";
-/// let initial_state = LexerState::default();
-/// let stream = Input::with_state_and_context(input, initial_state, ctx.provide());
-/// ```
+/// - `'inp`: the lifetime of the source the lexer reads.
+/// - `L`: the [`Lexer`], which fixes the source, token, span, offset and state types.
+/// - `Ctx`: the [`ParseContext`] whose emitter and cache this input is bound to; the declared
+///   default is [`DefaultCache`].
+/// - `Lang`: the language marker the context's emitter and cache are keyed on; defaults to `()`.
+/// - `Cmpl`: the [`Completeness`] typestate, [`Complete`] (the default) or [`Partial`].
 pub(crate) struct Input<'inp, L, Ctx = DefaultCache<'inp, L>, Lang: ?Sized = (), Cmpl = Complete>
 where
   L: Lexer<'inp>,

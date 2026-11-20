@@ -1023,7 +1023,14 @@ where
 )]
 /// `From<UnexpectedEot>` and the two conversions for the failures it *returns*
 /// ([`RecursionLimitReached`](crate::error::RecursionLimitReached) and
-/// [`NonAssociativeChain`](crate::error::NonAssociativeChain)). The **typed** engine
+#[cfg_attr(
+  feature = "pratt",
+  doc = " [`NonAssociativeChain`](crate::error::NonAssociativeChain)). The **typed** engine"
+)]
+#[cfg_attr(
+  not(feature = "pratt"),
+  doc = " `NonAssociativeChain`). The **typed** engine"
+)]
 #[cfg_attr(
   feature = "pratt",
   doc = " ([`Pratt`](crate::pratt::Pratt)) names no emitter sub-trait at all: it builds its"

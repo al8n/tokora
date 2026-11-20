@@ -193,25 +193,47 @@ import sys
 # reason two of the three legs originally derived for #200 turned out not to be needed.
 EXTRA_LEGS = [
     {
-        "features": "fold,alloc",
+        "features": "fold,pratt,alloc",
         "tests": False,
         "unique_predicates": False,
         # No `--tests`, so it builds no integration target and can hold no suite.
         "unique_suites": False,
         # Kept for the CONFIGURATION, not for a predicate: it is the only leg that compiles the
-        # `many`/`fold` family at the alloc-WITHOUT-std tier. `--features many` and
-        # `--features fold` have no allocator; `--features alloc`, `conformance` and
-        # `smallvec_1` have no family; `default` has the family but brings `std` with it. So
-        # `src/combinator/list.rs` and the `list`/`separated1` sinks — gated
-        # `all(many, any(alloc, std))` — are compiled by no other leg without `std`, and a
-        # `std`-only path leaking into them would be invisible.
+        # `many`/`fold` and `pratt` families at the alloc-WITHOUT-std tier. `--features many`,
+        # `--features fold` and `--features pratt` have no allocator; `--features alloc` and
+        # `conformance` have no family; `default` has the families but brings `std` with them.
+        # So `src/combinator/list.rs` and the `list`/`separated1` sinks — gated
+        # `all(many, any(alloc, std))` — and the heap half of `pratt::PrattStack`, gated
+        # `any(alloc, std)` inside the `pratt` module, are compiled by no other leg without
+        # `std`, and a `std`-only path leaking into them would be invisible.
         #
         # `fold = ["many"]` is the crate's ONE inter-family edge (the other twelve families are
-        # `[]`), so naming `fold` reaches both families for the price of one leg.
+        # `[]`), so naming `fold` reaches both families for the price of one leg; `pratt` is
+        # named on its own.
         #
         # It is NOT predicate-load-bearing: the `default` leg already satisfies
-        # `all(many, any(alloc, std))` and `all(fold, any(alloc, std))`.
-        "why": "only leg building the many/fold family at the alloc-without-std tier",
+        # `all(many, any(alloc, std))` and `all(fold, any(alloc, std))`, and the `PrattStack`
+        # half's predicate names no family, since its family gate is the module's.
+        "why": "only leg building the many/fold and pratt families at the alloc-without-std tier",
+    },
+    {
+        "features": "alloc,smallvec_1",
+        # No `--tests`, so it builds no integration target and can hold no suite — the
+        # `fold,pratt,alloc` shape. It is here for one predicate and nothing else.
+        "tests": False,
+        "unique_predicates": True,
+        "unique_suites": False,
+        # DECLARED FOR ONE PREDICATE: `smallvec_1` together with `alloc` or `std`. It gates the
+        # session's `SmallVec` lineage stacks in `src/input/mod.rs` and `mod smallvec_1` in
+        # `src/integration/mod.rs`. The `--each-feature` `smallvec_1` leg reached it while the
+        # feature turned `alloc` on. The feature turns on the dependency alone now, by the tier
+        # house rule, so no `--each-feature` leg names it and a tier at once, and `default` has
+        # a tier and not the feature.
+        #
+        # `alloc` rather than `std`, because that is the configuration the `smallvec_1` leg used
+        # to compile: the feature with an allocator and without the standard library, where a
+        # `std`-only path leaking into the `SmallVec` impls would show.
+        "why": "all(smallvec_1, any(alloc, std)), which `smallvec_1` alone no longer reaches",
     },
     {
         "features": "std,logos,combinators",
@@ -360,8 +382,8 @@ EXTRA_LEGS = [
     {
         "features": "std,logos,combinators,stacker",
         "tests": True,
-        # Both claims are FALSE and the leg is kept anyway, exactly as `fold,alloc` is. Neither
-        # derived quantity can see what this leg protects, and saying so is the point.
+        # Both claims are FALSE and the leg is kept anyway, exactly as `fold,pratt,alloc` is.
+        # Neither derived quantity can see what this leg protects, and saying so is the point.
         #
         # `unique_predicates`: no predicate in `tokora/src/` names `stacker` beside another
         # feature. The two gates the feature owns are single-feature — `cfg(feature = "pratt")`
@@ -409,7 +431,7 @@ EXTRA_LEGS = [
     {
         "features": "rowan,stacker",
         # No `--tests`, so it builds no integration target and can hold no suite — the
-        # `fold,alloc` shape. It is here for one predicate and nothing else.
+        # `fold,pratt,alloc` shape. It is here for one predicate and nothing else.
         "tests": False,
         "unique_predicates": True,
         "unique_suites": False,

@@ -352,8 +352,10 @@ where
   /// counts rather than latching a `bool`.
   ///
   /// Read through [`trip_snapshot`](Self::trip_snapshot) and compared through
-  /// [`tripped_during_attempt`](Self::tripped_during_attempt); its only writer is
-  /// [`raise_level`](Self::raise_level)'s trip arm, which is why grammar code cannot lower it:
+  /// [`tripped_during_attempt`](Self::tripped_during_attempt); its only writer is the crate-private
+  /// [`count_resource_trip`](Self::count_resource_trip), which
+  /// [`raise_level`](Self::raise_level)'s trip arm calls, and the flat expression driver when its
+  /// stack is full. That is why grammar code cannot lower it:
   /// no handle method exposes a mutable route to the cell, and the recursion cell it guards is
   /// read-only too.
   pub(super) resource_trips: &'closure mut u64,

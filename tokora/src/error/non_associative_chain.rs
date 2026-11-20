@@ -1,18 +1,13 @@
 use core::marker::PhantomData;
 
 /// A non-associative operator appeared a second time at its own binding power in one chain:
-#[cfg_attr(
-  feature = "pratt",
-  doc = " `a == b == c` where `==` is [`PrattInfix::Neither`](crate::pratt::PrattInfix::Neither)."
-)]
-#[cfg_attr(
-  not(feature = "pratt"),
-  doc = " `a == b == c` where `==` is `PrattInfix::Neither`."
-)]
+/// `a == b == c` where `==` is [`PrattInfix::Neither`](crate::pratt::PrattInfix::Neither).
 ///
-/// Both Pratt engines raise this, on the same trigger, with the same restored posture: the
-/// deciding read is handed back — the offending operator is left on the input, unconsumed — and
-/// the error is **returned**, never emitted.
+/// Three engines raise this, on the same trigger, with the same posture: the typed driver, the
+/// token-level driver, and the flat driver's
+/// [`parse_into`](crate::pratt::Flat::parse_into) in its [`Checked`](crate::pratt::Checked) mode.
+/// The deciding read is handed back — the offending operator is left on the input, unconsumed —
+/// and the error is **returned**, never emitted.
 ///
 /// # Why an error rather than an ending
 ///
@@ -33,14 +28,7 @@ use core::marker::PhantomData;
 /// [`skip_then_retry`](crate::ParseInput::skip_then_retry) may spend it. A grammar that *wants*
 /// the fold-once-then-stop behaviour asks for it explicitly, by wrapping the pratt parser in a
 /// recovery combinator or by reclassifying the operator
-#[cfg_attr(
-  feature = "pratt",
-  doc = " [`Left`](crate::pratt::PrattInfix::Left); tolerance is a caller policy stated in grammar"
-)]
-#[cfg_attr(
-  not(feature = "pratt"),
-  doc = " `PrattInfix::Left`; tolerance is a caller policy stated in grammar"
-)]
+/// [`Left`](crate::pratt::PrattInfix::Left); tolerance is a caller policy stated in grammar
 /// code, not a silent engine default.
 ///
 /// # The offset is the handback position, and that is one specific number
@@ -75,14 +63,7 @@ use core::marker::PhantomData;
 /// re-emitted.
 ///
 /// The operator's head is also not a quantity the typed engine could report even if it wanted to.
-#[cfg_attr(
-  feature = "pratt",
-  doc = " [`ParsePrattRHS`](crate::pratt::ParsePrattRHS) is caller code holding a whole"
-)]
-#[cfg_attr(
-  not(feature = "pratt"),
-  doc = " `ParsePrattRHS` is caller code holding a whole"
-)]
+/// [`ParsePrattRHS`](crate::pratt::ParsePrattRHS) is caller code holding a whole
 /// [`InputRef`](crate::InputRef) and decides for itself where its operator begins; learning how
 /// much it would skip means *running* it, and running it before the repeat has been decided is
 /// what the driver's transaction rules forbid.
@@ -101,6 +82,14 @@ use core::marker::PhantomData;
 /// cycle found it. Both therefore report the same number on any input both can parse, and the
 /// numbers agree because the two engines answer the same question, not because two mechanisms
 /// happen to line up.
+///
+/// **The flat driver reads it as the token engine does.** Its machine's offer answers that the
+/// operator at the head repeats the chain inside the read's closure, which declines the token, and
+/// the driver reads `span().end()` with the operator staged. It has committed every trivia token
+/// it crossed before it classified the operator, so where only trivia tokens stand between the
+/// last operand and the operator, nothing is handed back between them, and its offset is the
+/// operator's head: 8 in the second row above, where the typed engine reports 5. In the other three
+/// rows it reports what the typed engine does.
 ///
 /// # Which recovery paths resume at the offset, and which do not
 ///
