@@ -300,6 +300,7 @@ fn a_full_tinyvec_of_units_refuses_the_next_push() {
 }
 
 /// Reads a stack of two zero-sized items down to empty, its length at each step.
+#[cfg(feature = "heapless_0_9")]
 fn counts_two_down_to_none<S: Stack<()>>(mut stack: S) {
   assert_eq!(stack.len(), 2);
   assert!(!stack.is_empty());
