@@ -19,6 +19,9 @@ use std::vec::Vec;
 ///   time one is needed, and [`max_capacity`](Container::max_capacity) is `usize::MAX`. A push is
 ///   refused only once the stack holds `usize::MAX` items, which only zero-sized items reach: they
 ///   take no memory, so nothing else stops them before the length can no longer count them.
+///   Growing the `Vec` may panic before that bound, and an allocation failure goes to the global
+///   allocation error handler, as [`push`](Container::push) documents for every container that
+///   grows. Neither is a refusal.
 /// - **With neither**, the push is refused and the item handed back, by [`Container`]'s contract,
 ///   and [`max_capacity`](Container::max_capacity) is `N`. Where an expression keeps more pending,
 ///   name a larger `N`: `PrattStack<_, U16>`.

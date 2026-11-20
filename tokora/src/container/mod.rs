@@ -27,6 +27,22 @@ pub trait Container<T> {
   ///
   /// A refusal is not a parse failure. The drivers drop the refused element, count it like any
   /// other parsed element, and carry on.
+  ///
+  /// # When this crate's containers refuse, and when growing panics instead
+  ///
+  /// - **A container with a fixed capacity refuses once it is full:** `ArrayDeque`, `Option`,
+  ///   heapless's `Vec` and `Deque`, tinyvec's `ArrayVec` and `SliceVec`, and the Pratt family's
+  ///   `PrattStack` where the crate cannot allocate.
+  /// - **A container that grows refuses zero-sized items only, at `usize::MAX`:** `Vec`,
+  ///   `VecDeque`, `SmallVec`, tinyvec's `TinyVec`, and `PrattStack` where the crate can allocate.
+  ///   Each grows as its collection does. Zero-sized items take no memory, so nothing but the
+  ///   length stops them, and the push refuses the item the length could not count.
+  /// - **The three that discard, `()`, `PhantomData` and `Ignored`, take every item and refuse
+  ///   none,** and `&mut C` answers as `C` does.
+  /// - **Growing is not refusing.** A growth whose capacity overflows, by needing a layout of more
+  ///   than `isize::MAX` bytes, panics as `Vec::push` does. An allocation failure goes to the global
+  ///   allocation error handler, which aborts the process in a default `std` build. Neither reaches
+  ///   the caller as an `Err`, so neither becomes a diagnostic.
   fn push(&mut self, item: T) -> Result<(), T>;
 
   /// Returns the first item in the container, if any.
@@ -49,6 +65,12 @@ pub trait Container<T> {
   /// `usize::MAX` when there is no fixed bound, e.g. for `Vec<T>`; the real bound otherwise.
   /// This is the capacity a [`FullContainer`](crate::error::FullContainer) diagnostic
   /// names, so it must be the bound [`push`](Self::push) refuses at.
+  ///
+  /// For a container that grows, `usize::MAX` is a logical bound. Zero-sized items meet it and are
+  /// refused there. For a sized item, growth can panic before it: no layout holds more than
+  /// `isize::MAX` bytes, and a collection that grows by doubling asks for more room than one item
+  /// needs, so a 1 GiB `Vec<u8>` on a 32-bit target panics on the push that would double it. See
+  /// [`push`](Self::push).
   fn max_capacity(&self) -> usize;
 }
 
@@ -64,7 +86,9 @@ pub trait Container<T> {
 /// - [`last`](Container::last) and [`last_mut`](Self::last_mut) are that same item.
 /// - [`len`](Container::len) counts the items pushed and not yet popped.
 /// - [`push`](Container::push) keeps [`Container`]'s contract: it refuses only what the stack
-///   cannot hold, and [`max_capacity`](Container::max_capacity) is the bound it refuses at.
+///   cannot hold, and [`max_capacity`](Container::max_capacity) is the bound it refuses at. A
+///   stack that grows may panic while growing, before that bound, as `push` documents; that is not
+///   a refusal.
 ///
 /// Breaking them is a logic error. What a reader of the stack does then is unspecified, a panic
 /// or a wrong result, but it is never undefined behaviour: the crate reads a `Stack` through
