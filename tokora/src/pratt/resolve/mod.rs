@@ -80,7 +80,9 @@ use crate::container::Stack;
 /// - a clone is an independent copy with the same items and the same `max_capacity`, which
 ///   compares equal, and which the machine's own `Clone` relies on;
 /// - reads and a refused push change nothing observable, equality included, which every refusal,
-///   [`offer`](Self::offer) and the reads of [`poll`](Self::poll) rely on.
+///   [`offer`](Self::offer) and the reads of [`poll`](Self::poll) rely on;
+/// - its `Clone`, `PartialEq` and `Debug` only read it, and do not panic on a stack that keeps
+///   these, which the machine's own `Clone`, `PartialEq` and `Debug` rely on.
 ///
 /// It relies on nothing of `S::default`, since [`new`](Self::new) empties what that returns. With
 /// a storage that breaks one of them, an answer may be wrong, or a panic that names `Stack`, but it

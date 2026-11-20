@@ -113,12 +113,17 @@ pub trait Container<T> {
 ///   A stack that counts these for its own instruments keeps the counters out of its `PartialEq`.
 ///   A reader promises that a read and a refusal leave it equal to a clone taken before them, and
 ///   it reads the top, or tries a push, before it refuses.
+/// - **Its `Clone`, `PartialEq` and `Debug`, where it has them, only read it.** They change
+///   nothing, and none of them panics on a stack that keeps these obligations, unless the items'
+///   own code does. A reader derives its own three from them and states its refusal promise in
+///   its equality, so a comparison or a clone that moved the stack, or that panicked on it, would
+///   take that promise with it.
 ///
 /// It relies on nothing else: not on [`first`](Container::first) or
 /// [`is_empty`](Container::is_empty), which it never calls, and not on a `Default`, since it
 /// empties any stack it is handed.
 ///
-/// Every public stack this crate implements `Stack` for keeps all seven: `ArrayDeque`, `Vec`,
+/// Every public stack this crate implements `Stack` for keeps all eight: `ArrayDeque`, `Vec`,
 /// `VecDeque`, heapless's `Vec`, `SmallVec`, the Pratt family's `PrattStack`, which is an
 /// `ArrayDeque` with a `Vec` above it, and `&mut U` over any of them. heapless's `Deque` is a
 /// `Container` and no `Stack`.
@@ -138,6 +143,10 @@ pub trait Container<T> {
 ///   clone.
 /// - Each read takes `&self` and holds no interior mutability, `last_mut` only hands out the
 ///   reference, and a refused push returns before it writes anything.
+/// - Each `Clone`, `PartialEq` and `Debug` takes `&self`, and reads the items by their length and
+///   their slices, with no arithmetic that a valid stack can overflow. heapless's `Deque` is not
+///   among them for this reason: its own equality computes a wrapped length, which overflows at a
+///   capacity of `usize::MAX`. `&mut U` has no `Clone`, and its `PartialEq` and `Debug` are `U`'s.
 ///
 /// `&mut U` answers as `U` does for each of the others.
 ///
