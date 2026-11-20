@@ -88,6 +88,11 @@ const _: () = {
 
       #[inline(always)]
       fn push(&mut self, item: T) -> Result<(), T> {
+        // Refused at `max_capacity` rather than left to the heap `Vec`'s capacity-overflow panic,
+        // as for `Vec` in `container/mod.rs`: only zero-sized items reach `usize::MAX`.
+        if core::mem::size_of::<T>() == 0 && TinyVec::len(self) == usize::MAX {
+          return Err(item);
+        }
         TinyVec::push(self, item);
         Ok(())
       }

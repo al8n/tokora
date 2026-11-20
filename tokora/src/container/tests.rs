@@ -240,3 +240,61 @@ fn ref_mut_stack_delegates() {
   drive_stack(&mut inner);
   assert!(inner.is_empty());
 }
+
+// --- The length bound of zero-sized items ---
+
+/// Holds a stack of zero-sized items already at `usize::MAX` to `Container`'s refusal: the push
+/// is refused and the item handed back, the length does not move, and a pop makes room for the
+/// next push.
+fn refuses_at_the_length_bound<S: Stack<()>>(mut stack: S) {
+  assert_eq!(stack.len(), usize::MAX);
+  assert_eq!(stack.max_capacity(), usize::MAX);
+  assert_eq!(stack.push(()), Err(()));
+  assert_eq!(stack.len(), usize::MAX);
+  assert_eq!(stack.pop(), Some(()));
+  assert_eq!(stack.len(), usize::MAX - 1);
+  assert_eq!(stack.push(()), Ok(()));
+  assert_eq!(stack.len(), usize::MAX);
+}
+
+/// `usize::MAX` units, put in place by one slice copy, which moves no bytes and allocates nothing.
+/// `vec![(); usize::MAX]` would clone the unit once for each item, in a loop that a debug build
+/// and Miri both run.
+fn full_of_units() -> Vec<()> {
+  let mut units = Vec::new();
+  units.extend_from_slice(&[(); usize::MAX]);
+  units
+}
+
+#[test]
+fn a_full_vec_of_units_refuses_the_next_push() {
+  refuses_at_the_length_bound(full_of_units());
+}
+
+#[test]
+fn a_full_vecdeque_of_units_refuses_the_next_push() {
+  // `From<Vec>` takes the vector's buffer as it is, so this moves nothing either.
+  refuses_at_the_length_bound(std::collections::VecDeque::from(full_of_units()));
+}
+
+#[cfg(feature = "smallvec_1")]
+#[test]
+fn a_full_smallvec_of_units_refuses_the_next_push() {
+  // A `SmallVec` holds zero-sized items inline at any length, so this one never spills.
+  let mut units = smallvec_1::SmallVec::<[(); 4]>::new();
+  units.extend_from_slice(&[(); usize::MAX]);
+  refuses_at_the_length_bound(units);
+}
+
+/// `TinyVec` is a `Container` and not a `Stack`, so the pop that makes room is its own.
+#[cfg(feature = "tinyvec_1")]
+#[test]
+fn a_full_tinyvec_of_units_refuses_the_next_push() {
+  let mut units = tinyvec_1::TinyVec::<[(); 4]>::Heap(full_of_units());
+  assert_eq!(Container::max_capacity(&units), usize::MAX);
+  assert_eq!(Container::push(&mut units, ()), Err(()));
+  assert_eq!(Container::len(&units), usize::MAX);
+  assert_eq!(units.pop(), Some(()));
+  assert_eq!(Container::push(&mut units, ()), Ok(()));
+  assert_eq!(Container::len(&units), usize::MAX);
+}

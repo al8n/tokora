@@ -14,6 +14,12 @@ const _: () = {
 
     #[inline(always)]
     fn push(&mut self, item: T) -> Result<(), T> {
+      // Refused at `max_capacity` rather than left to `SmallVec::push`'s capacity-overflow panic,
+      // as for `Vec` in `container/mod.rs`. A `SmallVec` holds zero-sized items inline up to
+      // `usize::MAX`, and sized items run out of memory first.
+      if core::mem::size_of::<T>() == 0 && SmallVec::len(self) == usize::MAX {
+        return Err(item);
+      }
       SmallVec::push(self, item);
       Ok(())
     }

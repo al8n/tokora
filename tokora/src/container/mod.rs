@@ -251,6 +251,13 @@ const _: () = {
 
     #[inline(always)]
     fn push(&mut self, item: T) -> Result<(), T> {
+      // Refused at `max_capacity`, as the trait requires, rather than left to `Vec::push`'s
+      // capacity-overflow panic. Only zero-sized items reach it: they take no memory, so a `Vec`
+      // holds them up to `usize::MAX` without allocating. Sized items run out of memory first,
+      // and for them the test is the constant `false` and compiles away.
+      if core::mem::size_of::<T>() == 0 && Vec::len(self) == usize::MAX {
+        return Err(item);
+      }
       Vec::push(self, item);
       Ok(())
     }
@@ -291,6 +298,11 @@ const _: () = {
 
     #[inline(always)]
     fn push(&mut self, item: T) -> Result<(), T> {
+      // Refused at `max_capacity` rather than left to the deque's capacity-overflow panic, for the
+      // reason `Vec`'s impl above gives.
+      if core::mem::size_of::<T>() == 0 && VecDeque::len(self) == usize::MAX {
+        return Err(item);
+      }
       VecDeque::push_back(self, item);
       Ok(())
     }
