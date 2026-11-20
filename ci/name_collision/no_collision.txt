@@ -499,3 +499,43 @@ pop/later_pick_discarded
 last_mut/same_pick
 last_mut/later_pick_used
 last_mut/later_pick_discarded
+
+# ── `pratt::PrattHandler` — four `&mut self` items on a NEW trait ────────────────────────────
+#
+# tokora's items are `on_prefix`, `on_operand`, `on_infix` and `on_postfix`, each `&mut self`
+# with an input and an item after it. The `trait_method` template's consumer is `impl<T>
+# ConsumerComb for T`, so it supplies a candidate at every pick, and its three spellings declare
+# `self` (`same_pick`) or `&self` (`later_pick_used`, `later_pick_discarded`). The subject, `()`,
+# derefs to nothing, so there is one step and three picks: by value, `&`, then `&mut`. The
+# consumer's item sits at the first or the second, and tokora's at the third. The earlier pick wins
+# on both sides and tokora's item is never a candidate: the `container::Stack` shape exactly, and
+# #225's foreknown-vacuous class. The probe calls each item with no argument, the consumer's arity,
+# which it can because tokora's item is never the one resolved.
+#
+# `PrattHandler` is new and `tokora::pratt` is not, so the probe reaches the trait through
+# `use tokora::pratt::*;`, which on the base ref brings in the typed driver's names alone. The
+# base side therefore compiles and runs the consumer's item, for the receiver-kind reason above
+# and no other.
+#
+# No control exists for this entry, for the reason the `TrackerExt` entry gives: all four items
+# are `&mut self`, so no sibling spelling sits at a matching pick.
+#
+# `recvr` is trusted, not verified: tokora implements `PrattHandler` for `()` at every parameter,
+# in `pratt/flat/handler.rs`, and `()` declares no inherent item of these names.
+#
+# Read these twelve as "the `self`/`&self` consumer keeps its call", never as "these names cannot
+# be stolen". A consumer's own `&mut self` `on_infix` on a handler that also implements
+# `PrattHandler` meets tokora's at its pick and is refused with E0034, wherever both traits are in
+# scope.
+on_prefix/same_pick
+on_prefix/later_pick_used
+on_prefix/later_pick_discarded
+on_operand/same_pick
+on_operand/later_pick_used
+on_operand/later_pick_discarded
+on_infix/same_pick
+on_infix/later_pick_used
+on_infix/later_pick_discarded
+on_postfix/same_pick
+on_postfix/later_pick_used
+on_postfix/later_pick_discarded
