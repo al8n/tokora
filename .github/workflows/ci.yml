@@ -564,7 +564,7 @@ jobs:
       - name: Install Rust
         run: rustup update stable --no-self-update && rustup default stable
       - name: Install cargo-semver-checks (pinned)
-        run: cargo install cargo-semver-checks --locked --version 0.49.0
+        run: cargo install cargo-semver-checks --locked --version 0.51.0
       - name: cargo semver-checks against the published baseline
         run: cargo semver-checks check-release -p tokora --all-features
 
