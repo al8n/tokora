@@ -14,8 +14,11 @@ mod flat_fixture;
 use tokora::{
   Emitter, InputRef, ParseAttempt, ParseContext, ParseInput, SimpleSpan, Token as _, TryParseInput,
   cache::DefaultCache,
-  cst::{CstProfile, FinishError, KindValidator, Sink, parse_lossless},
+  cst::{
+    CstProfile, FinishError, KindValidator, Sink, parse_lossless, parse_lossless_with_context,
+  },
   emitter::{CstEmitter, Verbose},
+  input::{InputContext, TokenBudget},
   pratt::{PrattFoldOp, PrattHandler, PrattInfix, PrattLHS, Precedenced, flat, pratt},
   rowan::{GreenNode, Language, NodeOrToken, SyntaxKind, SyntaxNode},
   span::Spanned,
@@ -131,6 +134,18 @@ fn rendered(src: &str, green: Result<GreenNode, FinishError>) -> String {
   render(&root)
 }
 
+/// What a lossless parse of `src`, within a budget of `budget` items, returned.
+fn run_budgeted<O>(
+  src: &str,
+  budget: usize,
+  parser: impl FnMut(&mut Ir<'_, '_>) -> Result<O, Fail>,
+) -> Result<O, Fail> {
+  let context = InputContext::new(Verbose::new(), DefaultCache::<Surface<'_>>::default())
+    .with_token_budget(TokenBudget::with_limitation(budget));
+  let (_cst, result) = parse_lossless_with_context(src, Mode(0), context, profile(), parser);
+  result
+}
+
 /// Consumes what is left of the input, so that the tree covers the whole source.
 fn drain(input: &mut Ir<'_, '_>) -> Result<(), Fail> {
   while input.next()?.is_some() {}
@@ -196,6 +211,29 @@ where
     input.cst_start_at(mark, K_HOLE);
     input.cst_finish(K_HOLE);
     Ok(ParseAttempt::Accept(String::from("?")))
+  }
+}
+
+/// A digit, and an error of its own where none is: an operand parser that takes a miss for an
+/// error rather than declining it.
+#[derive(Debug, Clone, Copy)]
+struct Atom;
+
+impl<'inp, Ctx> TryParseInput<'inp, Surface<'inp>, String, Ctx> for Atom
+where
+  Ctx: ParseContext<'inp, Surface<'inp>>,
+  Ctx::Emitter: Emitter<'inp, Surface<'inp>, Error = Fail>,
+{
+  fn try_parse_input(
+    &mut self,
+    input: &mut InputRef<'inp, '_, Surface<'inp>, Ctx>,
+  ) -> Result<ParseAttempt<String>, Fail> {
+    match input.try_expect(|tok| tok.data().0.is_ascii_digit())? {
+      Some(tok) => Ok(ParseAttempt::Accept(
+        char::from(tok.into_data().0).to_string(),
+      )),
+      None => Err(Fail::Own("an atom")),
+    }
   }
 }
 
@@ -521,6 +559,50 @@ fn leading_trivia_is_outside() {
   let (result, tree) = both("  1 + 2 ;");
   assert_eq!(result, Ok(()));
   assert_eq!(tree, "Root[ws, ws, Expr[Lit[1], ws, +, ws, Lit[2], ws], ;]");
+}
+
+/// A scanner stop met while the seam crosses leading trivia is the parse's terminal error, and no
+/// node is opened over it: ` 1` within a budget of one item, behind an operand parser that would
+/// take a miss for an error of its own.
+#[test]
+fn a_stop_met_crossing_leading_trivia_is_terminal() {
+  let result = run_budgeted(" 1", 1, |input| {
+    flat(TABLE, Atom)
+      .with_cst_kind(K_EXPR)
+      .parse_into(input, &mut ())
+  });
+  assert_eq!(
+    result,
+    Err(Fail::Eot {
+      at: 1,
+      terminal: true
+    })
+  );
+}
+
+/// At the end of the input the seam commits nothing, and the operand parser's read after its own
+/// is answered from it: over `$`, a lone lexer error, the missing operand is at 0 with a kind as
+/// without one, and recoverable within a budget of one item too.
+#[test]
+fn the_seam_moves_over_no_lexer_error() {
+  let missing = Err(Fail::EoLhs {
+    at: 0,
+    terminal: false,
+  });
+  let (with_kind, _, _) = run("$", |input| {
+    flat(TABLE, PLAIN)
+      .with_cst_kind(K_EXPR)
+      .parse_into(input, &mut ())
+  });
+  let (without, _, _) = run("$", |input| flat(TABLE, PLAIN).parse_into(input, &mut ()));
+  let budgeted = run_budgeted("$", 1, |input| {
+    flat(TABLE, PLAIN)
+      .with_cst_kind(K_EXPR)
+      .parse_into(input, &mut ())
+  });
+  assert_eq!(with_kind, missing, "with a kind");
+  assert_eq!(without, missing, "without one");
+  assert_eq!(budgeted, missing, "within a budget of one item");
 }
 
 // ── Recovery, and a rollback ──────────────────────────────────────────────────────────────────

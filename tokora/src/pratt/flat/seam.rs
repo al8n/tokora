@@ -4,6 +4,7 @@ use crate::{
   Emitter, InputRef, Lexer, ParseContext, Token as _,
   cst::EventMark,
   emitter::CstEmitter,
+  error::UnexpectedEot,
   input::{Complete, Completeness},
 };
 
@@ -116,6 +117,7 @@ where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: CstEmitter<'inp, L, Lang>,
+  <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
 {
   type Open = EventMark;
 
@@ -124,9 +126,11 @@ where
     &self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<EventMark, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    // Leading trivia is crossed before the node opens, so it lands in the parent. The token the
-    // skip stops at is staged, and the driver's first read takes it.
-    input.skip_while(|tok| tok.is_trivia())?;
+    // Leading trivia is crossed before the node opens, so it lands in the parent: one token at a
+    // time, each committed, so the input moves over the trivia it consumed and over nothing else.
+    // The token the read stops at is staged, and the driver's first read takes it. The read is
+    // stop-aware: a scanner stop met here is the parse's terminal error, and no node is opened.
+    while input.try_expect_or_stop(|tok| tok.is_trivia())?.is_some() {}
     Ok(input.emitter().cst_start(self.kind))
   }
 
@@ -146,5 +150,6 @@ where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
   Ctx::Emitter: CstEmitter<'inp, L, Lang>,
+  <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
 {
 }
