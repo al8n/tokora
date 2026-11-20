@@ -179,8 +179,18 @@ where
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   > {
     loop {
+      // A stop the operand parser meets and declines over is the terminal error, never a missing
+      // operand: the head it left staged was read before the stop.
+      let scans = input.scanner_trip_snapshot();
       if let ParseAttempt::Accept(operand) = self.operand.try_parse_input(input)? {
         return Ok(PrattLHS::Operand(operand));
+      }
+      if input.scanner_stopped_during_attempt(scans) {
+        return Err(
+          UnexpectedEot::<L::Offset, Lang>::eot_of(input.span().end())
+            .into_terminal()
+            .into(),
+        );
       }
       let head = input.try_expect_map_or_stop(|tok| {
         if tok.is_trivia() {

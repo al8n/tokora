@@ -344,12 +344,27 @@ impl<Expr: ?Sized, Power, Operand, L, O, Ctx, Lang: ?Sized, Cst, Mode>
       + From<NonAssociativeChain<L::Offset, Lang>>
       + From<PrattStackFull<L::Offset, Lang>>,
   {
+    // The scanner's trip count as the expression begins, taken once, as the collection drivers take
+    // theirs: a stop met at one term still stands at the next. The operand parser, or a handler
+    // that reads on, can meet one with tokens before it still cached, and a decline over them is
+    // then no absence. So every term's decline is judged against this baseline. A plain read, once
+    // for each expression: a `u64` and the counter's address.
+    let scans = input.scanner_trip_snapshot();
     loop {
       // A term. The operand parser is asked first, and a token it declines is staged.
       if let ParseAttempt::Accept(value) = operand.try_parse_input(input)? {
         run.operand();
         handler.on_operand(input, value)?;
       } else {
+        // A stop met since the expression began is the parse's terminal error, never a missing
+        // operand: the operand parser may have declined only because the input was cut short.
+        if input.scanner_stopped_during_attempt(scans) {
+          return Err(
+            UnexpectedEot::<L::Offset, Lang>::eot_of(input.span().end())
+              .into_terminal()
+              .into(),
+          );
+        }
         let head = input.try_expect_map_or_stop(|tok| {
           if tok.is_trivia() {
             return Some(TermHead::Trivia);

@@ -17,8 +17,8 @@ use tokora::{
 };
 
 use flat_fixture::{
-  ByteLexer, Fail, FatalIr, Landing, Operand, TABLE, Tok, VerboseIr, fold_infix, fold_postfix,
-  fold_prefix, landing,
+  ByteLexer, Fail, FatalIr, Landing, Operand, TABLE, Tok, TwoDigits, VerboseIr, fold_infix,
+  fold_postfix, fold_prefix, landing,
 };
 
 /// What the left-hand-side channel reported.
@@ -124,7 +124,41 @@ fn fatal<const SKIP: bool, O>(
     .expect("the cell catches every error it expects")
 }
 
+/// Runs `f` over `src` with a rejecting emitter, the default cache, and a budget of `budget`
+/// items.
+fn within<const SKIP: bool, O>(
+  src: &str,
+  budget: usize,
+  f: impl FnMut(&mut FatalIr<'_, '_, SKIP>) -> Result<O, Fail>,
+) -> O {
+  Parser::with_context(
+    ParserContext::new(Fatal::new()).with_token_budget(TokenBudget::with_limitation(budget)),
+  )
+  .apply(f)
+  .parse_str(src)
+  .expect("the cell catches every error it expects")
+}
+
 // ── The operand parser first, and a prefix operator by the table ──────────────────────────────
+
+/// A scanner stop the operand parser met and declined over is the channel's terminal error, never
+/// a missing operand: over `42` within a budget of one item, an operand parser that wants two
+/// digits peeks at both, finds the window cut short, and declines, with `4` left in the cache.
+#[test]
+fn a_decline_over_a_scanner_stop_is_the_terminal_error() {
+  let got = within::<true, _>("42", 1, |input| {
+    let reported: Reported<PrattLHS<String, Spanned<Tok, SimpleSpan>, u8>> =
+      TABLE.lhs(TwoDigits).parse_input(input);
+    Ok(reported.map(|_| ()))
+  });
+  assert_eq!(
+    got,
+    Err(Fail::Eot {
+      at: 0,
+      terminal: true
+    })
+  );
+}
 
 /// A head that the operand parser and the table's prefix row would both take is the operand
 /// parser's. Where the operand parser declines it, it is the table's prefix operator.

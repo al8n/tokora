@@ -10,6 +10,7 @@ use core::cell::RefCell;
 use tokora::{
   Emitter, InputRef, Lexer, ParseAttempt, ParseContext, ParserContext, ReadFrontier, ScanLookahead,
   SimpleSpan, Token, TryParseInput,
+  cache::PeekedTokenExt as _,
   emitter::{Fatal, Verbose},
   error::{
     MaybeIncomplete, MaybeTerminal, NonAssociativeChain, PrattStackFull, RecursionLimitReached,
@@ -19,6 +20,7 @@ use tokora::{
   span::Spanned,
   state::State,
   token::PrattToken,
+  utils::typenum::U2,
 };
 
 // ── The token and the lexer ───────────────────────────────────────────────────────────────────
@@ -423,6 +425,39 @@ where
       Some(tok) => ParseAttempt::Accept(char::from(tok.into_data().0).to_string()),
       None => ParseAttempt::Decline,
     })
+  }
+}
+
+/// Two digits, decided by a peek at both before either is read: an operand parser that declines
+/// a window the input cut short.
+#[derive(Debug, Clone, Copy)]
+pub struct TwoDigits;
+
+impl<'inp, const SKIP: bool, Ctx> TryParseInput<'inp, ByteLexer<'inp, SKIP>, String, Ctx>
+  for TwoDigits
+where
+  Ctx: ParseContext<'inp, ByteLexer<'inp, SKIP>>,
+{
+  fn try_parse_input(
+    &mut self,
+    input: &mut InputRef<'inp, '_, ByteLexer<'inp, SKIP>, Ctx>,
+  ) -> Result<ParseAttempt<String>, <Ctx::Emitter as Emitter<'inp, ByteLexer<'inp, SKIP>>>::Error>
+  {
+    let both = {
+      let window = input.peek::<U2>()?;
+      window.len() == 2 && window.iter().all(|tok| tok.token().0.is_ascii_digit())
+    };
+    if !both {
+      return Ok(ParseAttempt::Decline);
+    }
+    let mut text = String::new();
+    while let Some(tok) = input.try_expect(|tok| tok.data().0.is_ascii_digit())? {
+      text.push(char::from(tok.into_data().0));
+      if text.len() == 2 {
+        break;
+      }
+    }
+    Ok(ParseAttempt::Accept(text))
   }
 }
 

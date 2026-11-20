@@ -18,7 +18,7 @@ use tokora::{
 
 use flat_fixture::{
   BareCacheIr, ByteLexer, Expr, Fail, FatalCtx, FatalIr, Landing, Mode, Operand, Skip, TABLE, Tok,
-  VerboseIr, forget_lexes, landing, lexes,
+  TwoDigits, VerboseIr, forget_lexes, landing, lexes,
 };
 use flat_items::{Item, Items};
 
@@ -109,6 +109,21 @@ fn uncached<const SKIP: bool, O>(
     .apply(f)
     .parse_str(src)
     .expect("the cell catches every error it expects")
+}
+
+/// Runs `f` over `src` with a rejecting emitter, the default cache, and a budget of `budget`
+/// items.
+fn within<const SKIP: bool, O>(
+  src: &str,
+  budget: usize,
+  f: impl FnMut(&mut FatalIr<'_, '_, SKIP>) -> Result<O, Fail>,
+) -> O {
+  Parser::with_context(
+    ParserContext::new(Fatal::new()).with_token_budget(TokenBudget::with_limitation(budget)),
+  )
+  .apply(f)
+  .parse_str(src)
+  .expect("the cell catches every error it expects")
 }
 
 fn operand(text: &str) -> Item {
@@ -413,6 +428,29 @@ fn a_scanner_stop_is_the_terminal_error() {
     .parse_str("1+2;")
     .expect("the parse's own error is caught");
     assert_eq!(accepting, stop, "budget {budget}, an accepting emitter");
+  }
+}
+
+/// A scanner stop the operand parser met and declined over is the terminal error, never a
+/// missing operand. Over `42` within a budget of one item, an operand parser that wants two digits
+/// peeks at both, finds the window cut short, and declines, with `4` left in the cache, in both
+/// modes.
+#[test]
+fn a_decline_over_a_scanner_stop_is_the_terminal_error() {
+  let stop = Err(Fail::Eot {
+    at: 0,
+    terminal: true,
+  });
+  for bare in [false, true] {
+    let got = within::<true, _>("42", 1, |input| {
+      let mut items = Items::default();
+      Ok(if bare {
+        flat(TABLE, TwoDigits).bare().parse_into(input, &mut items)
+      } else {
+        flat(TABLE, TwoDigits).parse_into(input, &mut items)
+      })
+    });
+    assert_eq!(got, stop, "bare: {bare}");
   }
 }
 
