@@ -372,10 +372,6 @@ where
   /// for why a rollback leaves it alone. Written only by `remember_withheld`, read only by
   /// [`lex_within_boundary`](Self::lex_within_boundary).
   pub(super) withheld: &'closure mut Option<super::WithheldHead<L::Offset>>,
-  /// The **ended-run memo**, borrowed from the owning [`Input`](super::Input) — see that field for
-  /// why a rollback leaves it alone. Written only by `remember_ended`; read only by
-  /// `ended_covers`, from the budget's ceiling and from [`ended_here`](Self::ended_here).
-  pub(super) ended: &'closure mut Option<super::EndedRun<L::Offset>>,
   /// The **session cell**: the input's lineage memos (the live-checkpoint stack, the pin set, and
   /// the cache-push/checkpoint-id/savepoint counters), the handle's **emitter borrow** (the
   /// ground-truth emission log, reached through [`emitter`](Self::emitter)), and the live
@@ -1559,7 +1555,7 @@ where
   /// put four consumer steps in front of it, because every way to reach a boundary runs consumer
   /// code.
   ///
-  /// # Three steps, and the last cannot be repeated
+  /// # Two steps, and the second cannot be repeated
   ///
   /// **The end of the source, positionally.** With `lex_at` at the source end there is no item and
   /// cannot be one, whatever the counter says. Free, and it answers a zero budget over an empty
@@ -1567,15 +1563,6 @@ where
   /// whose probe is **unspent**: once a refusal is on record, what `Source::len` — caller code,
   /// answering off a `&self` this layer does not own — says about the end of the source cannot
   /// make the refusal un-happen.
-  ///
-  /// **A run already known to end.** Lexer errors are never kept the way a declined token is, so a
-  /// second read from where a first one crossed them to the end of the source lexes them again,
-  /// and is charged again. At the ceiling that second lex would be refused, and a parse that has
-  /// read every item there is would stop, terminally. Where the ended-run memo
-  /// ([`EndedRun`](super::EndedRun)) says that lexing from at or before `lex_at`, under this
-  /// regime, meets the end of this source having crossed only errors whose reports still stand,
-  /// that is the answer, given without the lex. Below the ceiling the second read still lexes and
-  /// is charged, as every re-lex is.
   ///
   /// **The one-shot probe**, for the residue a positional test cannot see: a tail the lexer
   /// *skips*. After the last token of `"aa  "` the lex position is `2` against a source length of
@@ -1650,15 +1637,6 @@ where
     // unspent, so no refusal is on record — and the two caller-code steps this runs
     // (`Source::len`, `Offset::Ord`) may unwind freely.
     if lex_at.ge(&self.input.len()) {
-      return MetCeiling::Stop;
-    }
-    // STEP 1b — the same answer, from a run already known to end: lexing from at or before
-    // `lex_at`, under this regime, met the end of this source having crossed nothing but lexer
-    // errors whose reports still stand (see `EndedRun`). The item a lex here would produce is one
-    // of those errors, lexed again, and refusing it would stop, terminally, a parse that has read
-    // every item there is. Nothing is owed yet, so the caller code this runs, `Offset::Ord` and
-    // `Source::len`, may unwind as freely as STEP 1's.
-    if self.ended_covers(lex_at) {
       return MetCeiling::Stop;
     }
     // STEP 2 — STAGE the stop, before the lexer call that decides whether one is owed.
@@ -1745,61 +1723,6 @@ where
         .diagnosed
         .as_ref()
         .is_none_or(|end| *self.emitted_error_end >= *end)
-  }
-
-  /// Whether the next read would meet the end of input, known without lexing: nothing waits at the
-  /// front of the stream, and a run already known to end covers the cursor. A driver that reads a
-  /// head after a parser of its caller's declined it asks this first, so that the lexer errors the
-  /// first read crossed to the end are not lexed, and charged, a second time.
-  ///
-  /// Never where a stop is on record, a refused item or a latched boundary: there the read is made,
-  /// so that it reports the stop as terminal, as it would have.
-  #[cfg(feature = "pratt")]
-  #[inline]
-  pub(crate) fn ended_here(&self) -> bool {
-    self.ended.is_some()
-      && !self.has_front()
-      && !self.token_budget.limit_probe_spent()
-      && self.poison_boundary.is_none()
-      && self.ended_covers(self.offset())
-  }
-
-  /// Whether a run already known to end covers a lex that would start at `lex_at`: lexing from
-  /// at or before it, under the regime in place, met the end of this source having crossed only
-  /// lexer errors whose reports still stand. See [`EndedRun`](super::EndedRun) for the key.
-  #[cold]
-  #[inline(never)]
-  fn ended_covers(&self, lex_at: &L::Offset) -> bool {
-    match self.ended.as_ref() {
-      Some(memo) => {
-        memo.from <= *lex_at
-          && super::same_regime(memo.regime, *self.regime)
-          && (!Cmpl::PARTIAL || self.is_final())
-          && memo.at == self.input.len()
-          && *self.emitted_error_end >= memo.diagnosed
-      }
-      None => false,
-    }
-  }
-
-  /// Records that lexing from `from` met a genuine end of the source. Called from the two places
-  /// one is met, the scanner and the peek fill, and nowhere else. A run that crossed no lexer
-  /// error is not recorded: lexing it again produces nothing, and is charged nothing.
-  #[cold]
-  #[inline(never)]
-  fn remember_ended(&mut self, from: &L::Offset) {
-    // Every lexer error the run crossed ends past `from`, and is on record once the run passed
-    // it, reported now or deduplicated against an earlier report. So the watermark stands past
-    // `from` exactly when the run crossed one.
-    if *self.emitted_error_end <= *from {
-      return;
-    }
-    *self.ended = Some(super::EndedRun {
-      from: from.clone(),
-      regime: *self.regime,
-      at: self.input.len(),
-      diagnosed: self.emitted_error_end.clone(),
-    });
   }
 
   /// Records that lexing from `from` reached an item the frontier rules withheld, reporting `at`.
@@ -4848,12 +4771,6 @@ where
         break 'scan Err(Cmpl::surface_incomplete(frontier));
       }
 
-      // A genuine end of input, not a latched boundary: a scan stops at its first token, so the
-      // run that met it, from `at_slot`, crossed nothing but lexer errors. Remembered, so that a
-      // later read from here is answered without lexing them again.
-      if !self.reached_boundary(&lex_at) {
-        self.remember_ended(at_slot);
-      }
       Ok(Scan::Eof)
     };
     // The one write-back: `Resume.at` observes the loop's final position on every exit path.

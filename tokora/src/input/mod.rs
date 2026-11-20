@@ -358,34 +358,6 @@ pub(crate) struct WithheldHead<O> {
   diagnosed: Option<O>,
 }
 
-/// A **run known to end**: lexing from one offset met the end of the source, having crossed
-/// nothing but lexer errors, kept under everything that decides it.
-///
-/// A token a read lexed and did not take waits at the front of the stream, and the next read takes
-/// it without lexing it again. A lexer error is never kept that way: a scan reports it, crosses
-/// it, and goes on, so a second read from the same place lexes it again, and charges the token
-/// budget for it again. Where the budget is spent, that second lex is refused, and the second read
-/// reports a **terminal** stop over input whose every item was read. The lexer is deterministic in
-/// source, offset and state, so the first read's answer is the second's: this keeps it, and the
-/// budget's ceiling and a driver that reads a head twice are given it without lexing again.
-///
-/// The memo holds only while all of its key still matches:
-///
-/// - `from`, the offset the run began lexing at. The run crossed only errors to the end of the
-///   source, so every offset a lex from there can stand at is the run's;
-/// - `regime`, the lexer regime that lexed it;
-/// - `at`, the length of the source the run met the end of;
-/// - `diagnosed`, the dedup watermark the run's lexer-error reports raised. A rollback that takes
-///   those reports back takes the memo's standing with them, and the errors are lexed and reported
-///   again;
-/// - and the input must be complete or sealed, since only then is its end the end.
-pub(crate) struct EndedRun<O> {
-  from: O,
-  regime: u64,
-  at: O,
-  diagnosed: O,
-}
-
 pub(crate) use input_ref::Session;
 pub use input_ref::{
   Balance, Commit, DelimClass, Descent, DropPolicy, Hole, InputRef, ResourceTripBaseline, Rollback,
@@ -1086,18 +1058,6 @@ where
   /// Its writers are the two places a withheld verdict is reached: the peek fill and the scanner,
   /// each through `InputRef::remember_withheld`. Its one reader is the lexing site.
   withheld: Option<WithheldHead<L::Offset>>,
-  /// The **ended-run memo**: the last run this input's lexer met the end of the source in, having
-  /// crossed nothing but lexer errors, under the key that decides it (see [`EndedRun`]). `None`
-  /// until a scan or a peek fill first meets the end of a complete or sealed input after an error.
-  ///
-  /// Outside the rollback set for the reason [`withheld`](Self::withheld) is: it records what
-  /// lexing from one offset under one regime does to this source, and the one lineage fact it
-  /// depends on, the dedup watermark its run's reports raised, is part of its key.
-  ///
-  /// Its writers are the two places a genuine end of input is met: the scanner and the peek fill,
-  /// each through `InputRef::remember_ended`. Its readers are the budget's ceiling, in
-  /// `InputRef::settle_met_ceiling`, and `InputRef::ended_here`.
-  ended: Option<EndedRun<L::Offset>>,
   /// The **bound emitter** — the one emission log this input's parse writes, owned here for the
   /// input's whole life and paired with it at
   /// [`with_state_and_context`](Self::with_state_and_context).
@@ -1286,8 +1246,6 @@ where
       scanner_trips: 0,
       // Nothing withheld yet: only a scan of this input can withhold an item.
       withheld: None,
-      // No run met the end yet: only a read of this input can.
-      ended: None,
       emitter,
       lineage: Lineage::new(),
       #[cfg(feature = "trace")]
@@ -1453,9 +1411,6 @@ where
       // The withheld-head memo, borrowed so a verdict one handle's peek reached is the one the next
       // handle's consume is answered from.
       withheld: &mut self.withheld,
-      // The ended-run memo, borrowed for the same reason: a run one handle's read met the end in is
-      // the one the next handle's read is answered from.
-      ended: &mut self.ended,
       // The lineage memos, the emitter borrow, and the session-point stack, in one cell (see
       // `input_ref::session`): the stack starts empty and stays unallocated until the first
       // `InputRef::begin_point`, so a reference that never opens a session pays a few zeroed

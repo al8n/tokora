@@ -27,7 +27,7 @@ use tokora::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Tok(pub u8);
 
-/// The lexer's one error: a `$`, which no token stands for.
+/// The lexer never fails.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LexErr;
 
@@ -83,8 +83,8 @@ pub fn reserve_lexes(n: usize) {
   });
 }
 
-/// One token for each byte, but `$`, which is a lexer error. With `SKIP`, spaces are skipped and no
-/// token stands for them; without it, each space is a trivia token.
+/// One token for each byte. With `SKIP`, spaces are skipped and no token stands for them; without
+/// it, each space is a trivia token.
 pub struct ByteLexer<'inp, const SKIP: bool> {
   src: &'inp str,
   tok_start: usize,
@@ -159,11 +159,7 @@ impl<'inp, const SKIP: bool> Lexer<'inp> for ByteLexer<'inp, SKIP> {
     self.pos += 1;
     let lexed = (self.tok_start, self.state.0);
     LEXED.with(|log| log.borrow_mut().push(lexed));
-    Some(if byte == b'$' {
-      Err(LexErr)
-    } else {
-      Ok(Tok(byte))
-    })
+    Some(Ok(Tok(byte)))
   }
 
   fn read_frontier(&self) -> ReadFrontier<usize> {
@@ -376,12 +372,6 @@ pub type BareCacheIr<'inp, 'c, const SKIP: bool> =
 /// The input a closure over [`VerboseCtx`] is handed.
 pub type VerboseIr<'inp, 'c, const SKIP: bool> =
   InputRef<'inp, 'c, ByteLexer<'inp, SKIP>, VerboseCtx<'inp, SKIP>>;
-/// An accepting emitter over a cache of no capacity.
-pub type VerboseBareCacheCtx<'inp, const SKIP: bool> =
-  ParserContext<'inp, ByteLexer<'inp, SKIP>, Verbose<Fail>, ()>;
-/// The input a closure over [`VerboseBareCacheCtx`] is handed.
-pub type VerboseBareCacheIr<'inp, 'c, const SKIP: bool> =
-  InputRef<'inp, 'c, ByteLexer<'inp, SKIP>, VerboseBareCacheCtx<'inp, SKIP>>;
 
 // ── The operand parser ────────────────────────────────────────────────────────────────────────
 

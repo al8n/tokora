@@ -65,9 +65,6 @@
 //!   false: afterwards it either matches the lex being asked about, and is the answer a re-lex
 //!   would give, or it matches nothing. The one lineage fact it rests on — the dedup watermark its
 //!   run's lexer-error reports raised — is part of its key rather than a reason to restore it.
-//!   The ended-run memo is the second, of the same kind: it records that lexing from one offset
-//!   under one regime meets the end of the source having crossed only lexer errors, so that a
-//!   second read from there is given the first's answer instead of lexing the errors again.
 //! - **Witness / instrumentation** — cells that do not affect scanning at all, and are therefore
 //!   never restored: the debug-only, process-unique cross-input identity a checkpoint is stamped
 //!   with (see [`Witness`](super::Witness); its atomic id source keeps it behind the debug +
@@ -142,7 +139,6 @@
 //! | `resource_trips` (how many budget trips) | `Input` (borrowed through `InputRef`) | **monotone session fact** | **nothing** — it only counts up, and there is no writer that lowers it. A rollback rewinds *input progress*; it cannot un-exceed a budget, so restoring this cell would erase a stop that has already been decided. Sites that need a *per-attempt* answer snapshot it and compare rather than reading it absolutely |
 //! | `scanner_trips` (how many scanner trips) | `Input` (borrowed through `InputRef`) | **monotone session fact** | **nothing** — the same class and the same argument as the cell above, for the other budget. It is the row that makes the `poison_boundary` row *safe*: a trip's **position** is a lineage memo and comes back with a restore, so no comparison of that memo can witness a trip across a rollback — at one level or at ten. The *fact* of the trip is recorded here instead, where nothing reaches it, which is why the recovery gate judges a scanner stop on this and reads the boundary only as the narrower standing-stop reading |
 //! | `withheld` (the withheld-head memo) | `Input` (borrowed through `InputRef`) | **keyed memo** | **nothing** — it records what lexing from one offset under one regime does to this source, and its key carries all of that: the offset, the regime id, the source length and, when the run crossed lexer errors, the dedup watermark their reports raised. A restore cannot make it false, so afterwards it either matches a lex and gives the answer re-lexing would, or matches nothing. Written by `InputRef::remember_withheld`, read by `InputRef::lex_within_boundary` |
-//! | `ended` (the ended-run memo) | `Input` (borrowed through `InputRef`) | **keyed memo** | **nothing** — for the reason the row above gives: it records what lexing from one offset under one regime does to this source, that it meets the end having crossed only lexer errors, and its key carries the offset, the regime id, the source length and the dedup watermark those errors' reports raised. Written by `InputRef::remember_ended`, read by `InputRef::ended_covers` |
 //! | `witness` (input identity) | `Input` | witness | nothing (identity is fixed for the input's life) |
 //! | `depth` (trace nesting) | `Input` | instrumentation | nothing (trace events are out of band) |
 
@@ -271,12 +267,6 @@ pub(crate) fn census<'inp, L, Ctx, Lang, Cmpl>(
     //   `remember_withheld` from the peek fill and the scanner, read by `lex_within_boundary`. Not
     //   in `Checkpoint`.
     withheld: _,
-    // — KEYED MEMO: restore does NOT touch it, for the reason `withheld` gives. It records that
-    //   lexing from one offset under one regime meets the end of this source having crossed only
-    //   lexer errors, under the offset, the regime id, the source length and the dedup watermark
-    //   their reports raised. Written by `remember_ended` from the peek fill and the scanner, read
-    //   by `ended_covers`. Not in `Checkpoint`.
-    ended: _,
     // — GROUND TRUTH, and the aggregate's anchor: the emission log itself, bound at construction
     //   and owned for the input's whole life. Restore truncates it to the saved mark — the same
     //   action as when it was borrowed per handle. What changed is that the two watermarks above
@@ -345,9 +335,6 @@ pub(crate) fn census<'inp, L, Ctx, Lang, Cmpl>(
     // — KEYED MEMO (borrowed): written by `remember_withheld`, read by `lex_within_boundary`, never
     //   restored. Same class as the `Input` field above it.
     withheld: _,
-    // — KEYED MEMO (borrowed): written by `remember_ended`, read by `ended_covers`, never
-    //   restored. Same class as the `Input` field above it.
-    ended: _,
     // — WORLD FACT, as a read-only `Copy` snapshot: no mutator, and the handle's borrow of the
     //   input locks out the seal, so it is CONSTANT for this handle's life.
     finality: _,

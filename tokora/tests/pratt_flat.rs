@@ -8,7 +8,7 @@ mod flat_fixture;
 mod flat_items;
 
 use tokora::{
-  Emitter, InputRef, Parse, ParseContext, Parser, ParserContext, SimpleSpan, TryParseInput,
+  Emitter, InputRef, Parse, ParseContext, Parser, ParserContext, SimpleSpan,
   emitter::{Fatal, Verbose},
   error::MaybeTerminal,
   input::TokenBudget,
@@ -18,7 +18,7 @@ use tokora::{
 
 use flat_fixture::{
   BareCacheIr, ByteLexer, Expr, Fail, FatalCtx, FatalIr, Landing, Mode, Operand, Peeking, Skip,
-  TABLE, Tok, VerboseBareCacheIr, VerboseIr, forget_lexes, landing, lexes,
+  TABLE, Tok, VerboseIr, forget_lexes, landing, lexes,
 };
 use flat_items::{Item, Items};
 
@@ -126,55 +126,6 @@ fn budgeted<const SKIP: bool, O>(
   .expect("the cell catches every error it expects")
 }
 
-/// Runs `f` over `src` with an accepting emitter, the default cache, and a budget of `budget`
-/// items.
-fn accepting<const SKIP: bool, O>(
-  src: &str,
-  budget: usize,
-  f: impl FnMut(&mut VerboseIr<'_, '_, SKIP>) -> Result<O, Fail>,
-) -> O {
-  Parser::with_context(
-    ParserContext::new(Verbose::new()).with_token_budget(TokenBudget::with_limitation(budget)),
-  )
-  .apply(f)
-  .parse_str(src)
-  .expect("the cell catches every error it expects")
-}
-
-/// Runs `f` over `src` with an accepting emitter, a cache of no capacity, and a budget of
-/// `budget` items.
-fn accepting_uncached<const SKIP: bool, O>(
-  src: &str,
-  budget: usize,
-  f: impl FnMut(&mut VerboseBareCacheIr<'_, '_, SKIP>) -> Result<O, Fail>,
-) -> O {
-  Parser::with_context(
-    ParserContext::new(Verbose::new()).with_token_budget(TokenBudget::with_limitation(budget)),
-  )
-  .apply(f)
-  .parse_str(src)
-  .expect("the cell catches every error it expects")
-}
-
-/// One expression behind `operand`, checked or bare, its items told to no one.
-fn parse_with<'inp, const SKIP: bool, Ctx, P>(
-  input: &mut InputRef<'inp, '_, ByteLexer<'inp, SKIP>, Ctx>,
-  operand: P,
-  bare: bool,
-) -> Result<(), Fail>
-where
-  Ctx: ParseContext<'inp, ByteLexer<'inp, SKIP>>,
-  Ctx::Emitter: Emitter<'inp, ByteLexer<'inp, SKIP>, Error = Fail>,
-  P: TryParseInput<'inp, ByteLexer<'inp, SKIP>, String, Ctx>,
-{
-  let mut items = Items::default();
-  if bare {
-    flat(TABLE, operand).bare().parse_into(input, &mut items)
-  } else {
-    flat(TABLE, operand).parse_into(input, &mut items)
-  }
-}
-
 fn operand(text: &str) -> Item {
   Item::Operand(String::from(text))
 }
@@ -247,28 +198,6 @@ fn a_head_the_operand_parser_peeked_at_is_lexed_once() {
       (Ok(()), vec![Item::Prefix(b'-', 0, 40), operand("1")], 2),
       "bare: {bare}"
     );
-  }
-}
-
-/// A read that met the end of the input after a lexer error is not made again. Over `$`, a lone
-/// lexer error the emitter accepts, within a budget of one item, the missing operand is
-/// `UnexpectedEoLhs` at 0 and recoverable, never the budget's terminal stop: behind an operand
-/// parser that tries and one that peeks, under the default cache and one of no capacity, in both
-/// modes.
-#[test]
-fn an_end_of_input_after_a_lexer_error_is_not_read_again() {
-  let missing = Err(Fail::EoLhs {
-    at: 0,
-    terminal: false,
-  });
-  for bare in [false, true] {
-    let tried = accepting::<true, _>("$", 1, |input| Ok(parse_with(input, Operand::STRICT, bare)));
-    let peeked = accepting::<true, _>("$", 1, |input| Ok(parse_with(input, Peeking, bare)));
-    let uncached =
-      accepting_uncached::<true, _>("$", 1, |input| Ok(parse_with(input, Operand::STRICT, bare)));
-    for (case, got) in [("tries", tried), ("peeks", peeked), ("no cache", uncached)] {
-      assert_eq!(got, missing, "{case}, bare: {bare}");
-    }
   }
 }
 
