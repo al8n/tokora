@@ -101,23 +101,25 @@ pub trait Container<T> {
 /// - **A `push` or a `pop` that unwinds leaves the items as they were.** A push that unwinds has
 ///   not taken its item, and a pop that unwinds has not removed one. A reader counts the items by
 ///   what these two return, and an unwind returns nothing.
-/// - **A clone is an independent copy.** It holds the same items, has the same
-///   [`max_capacity`](Container::max_capacity) and compares equal to the original, and a push or
-///   a pop on either never touches the other. A reader's own clone copies its count and its cap
-///   beside the stack's clone, so the two stacks must hold the same items, refuse at the same
-///   bound, and stay apart.
-/// - **Reads and a refused push change nothing observable, equality included.**
-///   [`last`](Container::last), [`len`](Container::len) and
+/// - **A clone is an independent copy.** It holds the same items and has the same
+///   [`max_capacity`](Container::max_capacity), and a push or a pop on either never touches the
+///   other. It compares equal to the original whenever the original compares equal to itself,
+///   which a stack holding `f64::NAN` does not: Rust's `PartialEq` does not promise `x == x`. A
+///   reader's own clone copies its count and its cap beside the stack's clone, so the two stacks
+///   must hold the same items, refuse at the same bound, and stay apart.
+/// - **Reads and a refused push change nothing that this trait, [`Container`] or `PartialEq`
+///   observes.** [`last`](Container::last), [`len`](Container::len) and
 ///   [`max_capacity`](Container::max_capacity) leave the stack as it was, and so do
 ///   [`last_mut`](Self::last_mut), but for what is written through it, and a push that is refused.
-///   A stack that counts these for its own instruments keeps the counters out of its `PartialEq`.
-///   A reader promises that a read and a refusal leave it equal to a clone taken before them, and
-///   it reads the top, or tries a push, before it refuses.
-/// - **Its `Clone`, `PartialEq` and `Debug`, where it has them, only read it.** They change
-///   nothing, and none of them panics on a stack that keeps these obligations, unless the items'
-///   own code does. A reader derives its own three from them and states its refusal promise in
-///   its equality, so a comparison or a clone that moved the stack, or that panicked on it, would
-///   take that promise with it.
+///   A stack that counts these for its own instruments keeps the counters out of all three. A
+///   reader promises that a read and a refusal modify nothing, and it reads the top, or tries a
+///   push, before it refuses.
+/// - **Its `Clone`, `PartialEq` and `Debug`, where it has them, only read it.** Like the reads
+///   above, they change nothing that this trait, `Container` or `PartialEq` observes. Its
+///   `PartialEq` and `Debug` never panic on a stack that keeps these obligations unless the items'
+///   own code does, and its `Clone` may panic only as growing may, on a capacity overflow or an
+///   allocation failure while it makes room for the copy, as `std`'s collections do. A reader
+///   derives its own three from them, and its own `Clone` inherits exactly that.
 ///
 /// It relies on nothing else: not on [`first`](Container::first) or
 /// [`is_empty`](Container::is_empty), which it never calls, and not on a `Default`, since it
@@ -144,9 +146,12 @@ pub trait Container<T> {
 /// - Each read takes `&self` and holds no interior mutability, `last_mut` only hands out the
 ///   reference, and a refused push returns before it writes anything.
 /// - Each `Clone`, `PartialEq` and `Debug` takes `&self`, and reads the items by their length and
-///   their slices, with no arithmetic that a valid stack can overflow. heapless's `Deque` is not
-///   among them for this reason: its own equality computes a wrapped length, which overflows at a
-///   capacity of `usize::MAX`. `&mut U` has no `Clone`, and its `PartialEq` and `Debug` are `U`'s.
+///   their slices, with no arithmetic that a valid stack can overflow. A fixed one's `Clone`
+///   allocates nothing. One that grows allocates its copy as its collection does, and a collection
+///   may round that allocation up, as `SmallVec` does, so its clone can overflow a capacity its
+///   pushes never reached; that is the growing the obligation allows. heapless's `Deque` is not
+///   among them, since its own equality computes a wrapped length that overflows at a capacity of
+///   `usize::MAX`. `&mut U` has no `Clone`, and its `PartialEq` and `Debug` are `U`'s.
 ///
 /// `&mut U` answers as `U` does for each of the others.
 ///

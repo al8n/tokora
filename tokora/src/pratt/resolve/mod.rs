@@ -46,10 +46,14 @@ use crate::container::Stack;
 /// # Refusals
 ///
 /// Every event either takes its item or refuses it, and **a refusal hands the item back and
-/// changes nothing**: the machine after it equals the machine before it, over a storage that keeps
-/// the obligations below. [`PrattRefused`] carries the item and one [`PrattRefusal`]. Nothing in
-/// the machine panics on a caller's slip; it panics only when its storage breaks [`Stack`]'s
-/// obligations, with a message that names `Stack`.
+/// modifies nothing**: the machine is left exactly as it was, and its storage unchanged in
+/// everything `Stack`, `Container` and `PartialEq` observe. Before it refuses, the machine writes
+/// nothing of its own, and of its storage it only reads, or tries a push that the storage
+/// refuses, which by [`Stack`]'s obligations change nothing those three observe. So a clone taken
+/// before the call compares equal to the machine after it whenever everything the machine holds
+/// compares equal to itself (`x == x`), which `f64::NAN` does not. [`PrattRefused`] carries the
+/// item and one [`PrattRefusal`]. Nothing in the machine panics on a caller's slip; it panics only
+/// when its storage breaks `Stack`'s obligations, with a message that names `Stack`.
 ///
 /// # Its storage
 ///
@@ -77,12 +81,15 @@ use crate::container::Stack;
 /// - `len` counts the frames, and [`with_stack`](Self::with_stack) reads it once;
 /// - a refusal hands the frame back, and only a stack that cannot hold the frame refuses it;
 /// - a `push` or a `pop` that unwinds leaves the frames as they were;
-/// - a clone is an independent copy with the same items and the same `max_capacity`, which
-///   compares equal, and which the machine's own `Clone` relies on;
-/// - reads and a refused push change nothing observable, equality included, which every refusal,
-///   [`offer`](Self::offer) and the reads of [`poll`](Self::poll) rely on;
-/// - its `Clone`, `PartialEq` and `Debug` only read it, and do not panic on a stack that keeps
-///   these, which the machine's own `Clone`, `PartialEq` and `Debug` rely on.
+/// - a clone is an independent copy with the same items and the same `max_capacity`, equal to the
+///   original whenever the original equals itself, which the machine's own `Clone` relies on;
+/// - reads and a refused push change nothing that `Stack`, `Container` or `PartialEq` observes,
+///   which every refusal, [`offer`](Self::offer) and the reads of [`poll`](Self::poll) rely on to
+///   modify nothing;
+/// - its `Clone`, `PartialEq` and `Debug` only read it. Its `PartialEq` and `Debug` never panic on
+///   a stack that keeps these unless the frames' own code does, and its `Clone` only as growing
+///   may, on a capacity overflow or an allocation failure. The machine's own three inherit exactly
+///   that.
 ///
 /// It relies on nothing of `S::default`, since [`new`](Self::new) empties what that returns. With
 /// a storage that breaks one of them, an answer may be wrong, or a panic that names `Stack`, but it
@@ -415,8 +422,11 @@ pub enum PrattPending<Pre, LeftAssoc, RightAssoc, NeitherAssoc, Power = i64> {
 
 /// An event a machine did not take: the item, handed back, and why.
 ///
-/// A refusal changes nothing. The machine after it equals the machine before it, over a storage
-/// that keeps [`Stack`]'s obligations, and the item is the one that was fed.
+/// A refusal modifies nothing: the machine is left exactly as it was, and over a storage that
+/// keeps [`Stack`]'s obligations, its storage is unchanged in everything `Stack`, `Container` and
+/// `PartialEq` observe. The item is the one that was fed. So a clone of the machine taken before
+/// the call compares equal to it afterwards whenever everything the machine holds compares equal to
+/// itself (`x == x`), which `f64::NAN` does not.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrattRefused<T> {
   why: PrattRefusal,
@@ -594,7 +604,7 @@ where
   /// What is wanted next.
   ///
   /// [`Term`](PrattPoll::Term), [`Operator`](PrattPoll::Operator) and
-  /// [`Reducing`](PrattPoll::Reducing) are reads, and change nothing. [`Reduce`](PrattPoll::Reduce)
+  /// [`Reducing`](PrattPoll::Reducing) are reads, and modify nothing. [`Reduce`](PrattPoll::Reduce)
   /// hands out the one reduction that is owed, innermost first, and the next answer is `Reducing`
   /// until its value comes back. [`Done`](PrattPoll::Done) hands out the value and resets: the
   /// machine is then as [`reset`](Self::reset) leaves it, nothing pending and no latch, with the
@@ -609,8 +619,8 @@ where
     }
   }
 
-  /// Whether the innermost sub-expression takes an operator at its right-hand position. It changes
-  /// nothing.
+  /// Whether the innermost sub-expression takes an operator at its right-hand position. It modifies
+  /// nothing: it reads the machine's own state and the frame on top of its storage.
   ///
   /// `rhs` is what [`PrattToken::try_pratt_rhs`](crate::token::PrattToken::try_pratt_rhs) answers.
   /// The innermost sub-expression admits an operator at `q` when it is:
@@ -832,7 +842,7 @@ where
 
   /// Abandons the pending operator, and hands it back: the machine's half of recovery, for when an
   /// operator's operand never comes. Taken in the [`Term`](PrattPoll::Term) phase with an operator
-  /// pending; otherwise it answers `None` and changes nothing.
+  /// pending; otherwise it answers `None` and modifies nothing.
   ///
   /// A prefix operator comes back as [`PrattPending::Prefix`], and the phase is still `Term`, one
   /// sub-expression out. An infix operator comes back as [`PrattPending::Infix`]: its left operand
