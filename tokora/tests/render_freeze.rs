@@ -39,12 +39,12 @@
 use std::format;
 
 use tokora::SimpleSpan;
-#[cfg(feature = "pratt")]
-use tokora::error::NonAssociativeChain;
 use tokora::error::{
   FullContainer, RecursionLimitReached, TooFew, TooMany, Unclosed, UnexpectedEot,
 };
 use tokora::error::{MissingToken, SeparatedError, SeparatorPosition, UnexpectedToken};
+#[cfg(feature = "pratt")]
+use tokora::error::{NonAssociativeChain, PrattStackFull};
 use tokora::punct::Paren;
 use tokora::state::{RecursionLimiter, RecursionTracker};
 use tokora::utils::CowStr;
@@ -221,6 +221,16 @@ fn display_renders_are_frozen() {
     format!("{trip}"),
     "recursion limit reached at 15: depth 9, maximum 8"
   );
+
+  // The full expression stack: committed consumption after the operator that could not be
+  // stacked, and the bound that refused it.
+  #[cfg(feature = "pratt")]
+  let full: PrattStackFull = PrattStackFull::of(12, 32);
+  #[cfg(feature = "pratt")]
+  assert_eq!(
+    format!("{full}"),
+    "expression operator stack is full at 12: capacity 32"
+  );
 }
 
 // ── Debug ───────────────────────────────────────────────────────────────────
@@ -282,6 +292,14 @@ fn debug_renders_are_frozen() {
     format!("{trip:?}"),
     "RecursionLimitReached { at: 15, exceeded: RecursionLimitExceeded(RecursionLimiter { max: 8, \
      current: 9 }), _lang: PhantomData<()> }"
+  );
+
+  #[cfg(feature = "pratt")]
+  let full: PrattStackFull = PrattStackFull::of(12, 32);
+  #[cfg(feature = "pratt")]
+  assert_eq!(
+    format!("{full:?}"),
+    "PrattStackFull { at: 12, capacity: 32, _lang: PhantomData<()> }"
   );
 }
 
@@ -349,5 +367,11 @@ fn the_freeze_can_fail() {
     format!("{}", RecursionLimitReached::<usize>::of(15, exceeded(8, 9))),
     format!("{}", RecursionLimitReached::<usize>::of(15, exceeded(4, 5))),
     "the tracker's report must reach Display, and not only the offset in front of it"
+  );
+  #[cfg(feature = "pratt")]
+  assert_ne!(
+    format!("{}", PrattStackFull::<usize>::of(12, 32)),
+    format!("{}", PrattStackFull::<usize>::of(12, 8)),
+    "the bound that refused must reach Display, and not only the offset in front of it"
   );
 }

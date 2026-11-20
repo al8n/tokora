@@ -28,8 +28,14 @@
 /// left at `false` — `()` included — no longer settles the question by itself. The third has a
 /// stricter caller: the session gate does not consult the verdict, it *requires* it.
 ///
-/// No other value in this crate **reports itself** terminal. The trait's only other implementations
-/// here are
+/// One more value **reports itself** terminal:
+#[cfg_attr(
+  feature = "pratt",
+  doc = " [`PrattStackFull`](crate::error::PrattStackFull),"
+)]
+#[cfg_attr(not(feature = "pratt"), doc = " `PrattStackFull`, with `pratt`,")]
+/// the refusal of a flat expression driver's full stack, answers `true` for every value, so an arm
+/// holding one delegates. The trait's only other implementations here are
 #[cfg_attr(
   feature = "pratt",
   doc = " [`NonAssociativeChain`](crate::error::NonAssociativeChain)"

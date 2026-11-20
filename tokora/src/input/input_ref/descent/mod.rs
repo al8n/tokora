@@ -358,11 +358,12 @@ where
   /// the caller, which is what keeps the documented ordering — decrement first, latch second,
   /// grammar code after — true for both spellings even if that conversion panics.
   ///
-  /// This is the **one writer** of the session's resource-trip counter, which is what makes
-  /// "grammar code cannot lower the latch" a property of the module rather than of discipline:
-  /// the cell is `pub(super)`, no method hands out a mutable route to it, and both Pratt engines
-  /// — typed and token — reach the budget only through here, so both inherit the latch by
-  /// construction rather than by each remembering to set it.
+  /// Its trip arm counts the trip through [`count_resource_trip`](Self::count_resource_trip), the
+  /// **one writer** of the session's resource-trip counter, which is what makes "grammar code
+  /// cannot lower the latch" a property of the module rather than of discipline: the cell is
+  /// `pub(super)`, no method hands out a mutable route to it, and both Pratt engines — typed and
+  /// token — reach the budget only through here, so both inherit the latch by construction rather
+  /// than by each remembering to set it.
   #[inline(always)]
   fn raise_level(
     &mut self,
@@ -380,29 +381,39 @@ where
       // LATCH, before the caller's `From` and before the offset read below — a bump of a counter
       // the caller cannot reach, so a conversion that panics, or a recoverer that swallows the
       // converted value, cannot leave the session claiming its budget was never exceeded. The
-      // decrement above and this store are the two halves of one fact: the depth is what is live
+      // decrement above and this count are the two halves of one fact: the depth is what is live
       // now, this is what happened.
-      //
-      // Counting rather than latching a `bool` is what makes the reading attempt-relative: a
-      // consulting site compares the value against the one its attempt started with, and a second
-      // trip after a caught first one must not compare equal to it.
-      //
-      // SATURATING on a `u64` cell, and this used to be `wrapping_add` on a `usize` one. The
-      // argument for wrapping was that an inequality needs consecutive values to differ, which it
-      // gives — but the reading also needs the value never to RETURN to a baseline after a
-      // positive number of trips, and wrapping is the one behaviour that guarantees it does. At
-      // `usize` width that aliased after 2^32 refusals on a 32-bit target, which is a loop rather
-      // than a lifetime once a zero recursion limit makes every call of this function a trip.
-      // Saturating alone then made the mirror mistake — the verdict's fail-closed disjunct fires
-      // at the ceiling whether or not anything tripped — so the width is what carries the repair
-      // and the disjunct only covers a point no program reaches. See
-      // `crate::input::TRIP_COUNTER_EXHAUSTED` for both ceilings and the measured cost.
-      *self.resource_trips = self.resource_trips.saturating_add(1);
+      self.count_resource_trip();
       // Committed consumption, not the cache-front cursor: the same metric the pratt drivers'
       // stall exits report, so the offset does not move with how much lookahead is buffered.
       return Err(RecursionLimitReached::of(self.span().end(), exceeded));
     }
     Ok(Descent { input: self })
+  }
+
+  /// Counts one **resource trip** on the session: the one writer of the counter
+  /// [`trip_snapshot`](Self::trip_snapshot) reads.
+  ///
+  /// It only raises the count, and it is crate-private, so no route outside the crate reaches it.
+  /// [`raise_level`](Self::raise_level)'s trip arm calls it before it builds anything a grammar can
+  /// see.
+  #[inline(always)]
+  pub(crate) fn count_resource_trip(&mut self) {
+    // Counting rather than latching a `bool` is what makes the reading attempt-relative: a
+    // consulting site compares the value against the one its attempt started with, and a second
+    // trip after a caught first one must not compare equal to it.
+    //
+    // SATURATING on a `u64` cell, and this used to be `wrapping_add` on a `usize` one. The
+    // argument for wrapping was that an inequality needs consecutive values to differ, which it
+    // gives — but the reading also needs the value never to RETURN to a baseline after a positive
+    // number of trips, and wrapping is the one behaviour that guarantees it does. At `usize` width
+    // that aliased after 2^32 refusals on a 32-bit target, which is a loop rather than a lifetime
+    // once a zero recursion limit makes every descent a trip. Saturating alone then made the
+    // mirror mistake — the verdict's fail-closed disjunct fires at the ceiling whether or not
+    // anything tripped — so the width is what carries the repair and the disjunct only covers a
+    // point no program reaches. See `crate::input::TRIP_COUNTER_EXHAUSTED` for both ceilings and
+    // the measured cost.
+    *self.resource_trips = self.resource_trips.saturating_add(1);
   }
 
   /// Snapshots the session's **resource-trip counter** — how many times a resource budget has been

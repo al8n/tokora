@@ -901,6 +901,28 @@ ERROR_SUBJECTS = {
             "offset_ref": "&usize",
         },
     },
+    # The flat drivers' full-stack error, minted by the diff that adds every item on it. It is
+    # `Copy` with a public constructor, as the two above are, and `of` takes the offset and the
+    # bound that refused. `capacity` is the one accessor neither of the other two declares.
+    #
+    # `of`, `offset`, `offset_ref` and `map_offset` are declared by all three types, so which owner
+    # `surface_diff.py` records for them on a run is the alphabetically last that this diff ADDS
+    # them to — the reason given above for keeping an entry for every owner.
+    "PrattStackFull": {
+        "ty": "PrattStackFull<usize, ()>",
+        "path": "PrattStackFull::<usize, ()>",
+        "imports": "use tokora::error::PrattStackFull;\n",
+        "build": (
+            "  let subject: PrattStackFull<usize, ()> = PrattStackFull::of(12usize, 32);\n"
+        ),
+        "of_setup": "",
+        "of_args": "12usize, 32",
+        "accessors": {
+            "offset": "usize",
+            "offset_ref": "&usize",
+            "capacity": "usize",
+        },
+    },
 }
 
 
