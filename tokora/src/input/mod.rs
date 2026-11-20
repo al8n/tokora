@@ -470,10 +470,10 @@ impl<E, C> InputContext<E, C> {
   /// The recursion budget defaults to [`RecursionLimiter::PARSE_DEFAULT_DEPTH`], protection on —
   /// the figure tokora's own parser wiring requests explicitly, NOT
   /// [`RecursionLimiter::new`]'s own (unrelated) general-purpose default of 500 — and is
-  /// changed with [`with_recursion_limiter`](Self::with_recursion_limiter). That constant is 32
-  /// in every build — no feature moves it, deliberately, because this cell is what unsegmented
-  /// hand-written descent reads — so it is named here rather than written out; why it is 32 and
-  /// not 16 is on the constant's own documentation.
+  /// changed with [`with_recursion_limiter`](Self::with_recursion_limiter). That constant is the
+  /// same in every build — no feature moves it, deliberately, because this cell is what
+  /// unsegmented hand-written descent reads — and its value, and the reason for that value, are
+  /// on the constant's own documentation, so neither is written out here.
   ///
   /// The token budget defaults to [`TokenBudget::unlimited`], protection **off**, and is changed
   /// with [`with_token_budget`](Self::with_token_budget). The two defaults differ on purpose: a
@@ -549,46 +549,27 @@ impl<E, C> InputContext<E, C> {
 ///
 /// # Zero-Copy Design
 ///
-/// `Input` doesn't allocate or copy tokens. Instead, it maintains a cursor position
-/// and calls the lexer on demand as the parser consumes tokens. This makes it efficient for
-/// large inputs and streaming scenarios.
+/// `Input` doesn't copy the source: it holds a reference to it and calls the lexer on demand as
+/// the parser consumes tokens, keeping only the tokens the cache retains.
 ///
 /// # State Management
 ///
-/// For stateful lexers (those with non-`()` `Extras`), `Input` maintains the lexer
-/// state and passes it through token-by-token. This allows for context-sensitive lexing
-/// patterns. Because the adapter clones `Extras` each time it polls the lexer, it is best to
-/// keep your state `Copy` or otherwise cheap to clone. If you need heavy state, consider
-/// storing handles (e.g. `Arc`) inside `Extras` so clones stay inexpensive.
+/// The lexer's state, [`Lexer::State`], is held by value in `Input` and handed to a fresh lexer
+/// each time one is built to resume lexing at an offset. `State` requires `Clone`, and the state
+/// is cloned: when a [`Checkpoint`] is saved; when a lexed token enters the cache, which records
+/// the state the lexer was in after it; and when [`InputRef::state`] hands a copy to the caller.
+/// Keep a state cheap to clone: put heavy data behind a handle (such as an `Arc`) inside it. A
+/// state whose `Clone` shares interior mutability, rather than copying it, breaks the `Lexer`
+/// determinism contract.
 ///
 /// # Type Parameters
 ///
-/// - `'inp`: The lifetime of the input source
-/// - `T`: The token type implementing [`Token<'inp>`]
-///
-/// # Examples
-///
-/// ## Stateful Lexing
-///
-/// ```rust,ignore
-/// #[derive(Default, Clone)]
-/// struct LexerState {
-///     brace_count: usize,
-/// }
-///
-/// #[derive(Logos, Debug, Clone, Copy)]
-/// #[logos(extras = LexerState)]
-/// enum MyTokens {
-///     #[token("{", |lex| lex.extras.brace_count += 1)]
-///     LBrace,
-///     #[token("}", |lex| lex.extras.brace_count -= 1)]
-///     RBrace,
-/// }
-///
-/// let input = "{ { } }";
-/// let initial_state = LexerState::default();
-/// let stream = Input::with_state_and_context(input, initial_state, ctx.provide());
-/// ```
+/// - `'inp`: the lifetime of the source the lexer reads.
+/// - `L`: the [`Lexer`], which fixes the source, token, span, offset and state types.
+/// - `Ctx`: the [`ParseContext`] whose emitter and cache this input is bound to; the declared
+///   default is [`DefaultCache`].
+/// - `Lang`: the language marker the context's emitter and cache are keyed on; defaults to `()`.
+/// - `Cmpl`: the [`Completeness`] typestate, [`Complete`] (the default) or [`Partial`].
 pub(crate) struct Input<'inp, L, Ctx = DefaultCache<'inp, L>, Lang: ?Sized = (), Cmpl = Complete>
 where
   L: Lexer<'inp>,
