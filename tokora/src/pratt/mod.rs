@@ -23,10 +23,18 @@ use crate::{
 
 pub use cst::*;
 pub use expr::*;
+pub use resolve::*;
 pub use stack::*;
 mod cst;
 mod expr;
+mod resolve;
 mod stack;
+
+// How a default stack grows on the native stack, a segment at a time, where there is no heap.
+// `allow(dead_code)` outside tests: the loops that grow by segments are adapters', and a build that
+// compiles none of them reaches this module from the machine's tests alone.
+#[cfg_attr(not(test), allow(dead_code))]
+mod segment;
 
 /// PRATT_CENSUS — source-census tests over `include_str!` snapshots. The census greps the
 /// same source bytes in every configuration, so one allocator-enabled run locks it for all of

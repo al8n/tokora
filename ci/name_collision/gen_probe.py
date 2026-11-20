@@ -1464,6 +1464,134 @@ INHERENT_SUBJECTS = {
             "new": ("", "PrattStack<u8>"),
         },
     },
+    # ── The Pratt machine and its vocabulary: four owners minted with their items ──────────────
+    #
+    # `PrattResolver`, `PrattOffer`, `PrattRefusal` and `PrattRefused` are minted by the diff that
+    # adds every inherent item on them, so they take this table's new-owner shape: every call at
+    # the item's real arity, every `used` binding at its real return type. `tokora::pratt` is not a
+    # new module, so a plain `use tokora::pratt::<Owner>;` names the owner in the base-side
+    # diagnostic. Every other type a call or a binding names is spelled by its full path, so the
+    # owner's import is the only one a row adds, and it is used.
+    #
+    # Every item here is inherent, and each sits at the consumer's step or an earlier one: `self`
+    # items at the by-value step, `&self` items at `&T`, `&mut self` items at `&mut T`, where an
+    # inherent item outranks the consumer's trait item. So tokora's item takes the call and the
+    # head side reads `witness=0`. The other new types, `PrattPoll`, `PrattReduction`, the three
+    # reductions, `PrattPending` and `PrattFrame`, declare no inherent item that reaches these
+    # tables: the reductions' `into_components` routes to `PrattRefused`, below.
+    #
+    # WHICH names reach which owner: `surface_diff.py` records the alphabetically LAST owner of a
+    # name among those the diff adds it to. `new` routes to `PrattStack` (above); `is_reduce`,
+    # `is_decline` and `is_chain`, which `PrattOffer` and `PrattRefusal` both derive, route to
+    # `PrattRefusal`; `into_components`, declared by the three reductions and by `PrattRefused`,
+    # routes to `PrattRefused`. Each shared name is written into every table that declares it but
+    # the reductions', for the reason `ERROR_SUBJECTS` gives.
+    #
+    # `PrattResolver<u8, u8, u8, u8, u8, u8>` names `Post` as `u8` rather than its default
+    # `Infallible`, so that `handle_postfix` has an operator a probe can build; `Power` and `S` are
+    # their defaults, `i64` and `DefaultPrattStack<PrattFrame<u8, u8, u8, u8, u8>>`.
+    "PrattResolver": {
+        "imports": "use tokora::pratt::PrattResolver;\n",
+        "fixture": "",
+        "ty": "PrattResolver<u8, u8, u8, u8, u8, u8>",
+        "setup": "",
+        "build": (
+            "  let mut subject: PrattResolver<u8, u8, u8, u8, u8, u8> = PrattResolver::new();\n"
+        ),
+        "calls": {
+            "min_precedence": ("0", "PrattResolver<u8, u8, u8, u8, u8, u8>"),
+            "max_depth": ("4", "PrattResolver<u8, u8, u8, u8, u8, u8>"),
+            "into_stack": (
+                "",
+                "tokora::pratt::DefaultPrattStack<tokora::pratt::PrattFrame<u8, u8, u8, u8, u8>>",
+            ),
+            "reset": ("", "()"),
+            "depth": ("", "usize"),
+            "capacity": ("", "usize"),
+            "poll": ("", "tokora::pratt::PrattPoll<u8, u8, u8, u8, u8, u8>"),
+            "offer": ("&tokora::pratt::PrattRHS::End", "tokora::pratt::PrattOffer"),
+            "handle_prefix": (
+                "tokora::pratt::Precedenced::new(1u8, 1)",
+                "Result<(), tokora::pratt::PrattRefused<tokora::pratt::Precedenced<u8, i64>>>",
+            ),
+            "handle_operand": ("1u8", "Result<(), tokora::pratt::PrattRefused<u8>>"),
+            "handle_infix": (
+                "tokora::pratt::Precedenced::new(tokora::pratt::PrattInfix::Left(1u8), 1)",
+                "Result<(), tokora::pratt::PrattRefused<"
+                "tokora::pratt::Precedenced<tokora::pratt::PrattInfix<u8, u8, u8>, i64>>>",
+            ),
+            "handle_postfix": (
+                "tokora::pratt::Precedenced::new(1u8, 1)",
+                "Result<(), tokora::pratt::PrattRefused<tokora::pratt::Precedenced<u8, i64>>>",
+            ),
+            "handle_reduced": ("1u8", "Result<(), tokora::pratt::PrattRefused<u8>>"),
+            "close": ("", "Result<(), tokora::pratt::PrattRefusal>"),
+            "finish": ("", "Result<(), tokora::pratt::PrattRefusal>"),
+            "retract": ("", "Option<tokora::pratt::PrattPending<u8, u8, u8, u8>>"),
+        },
+        "assoc_calls": {
+            "new": ("", "PrattResolver<u8, u8, u8, u8, u8, u8>"),
+            "with_stack": (
+                "tokora::pratt::DefaultPrattStack::new()",
+                "PrattResolver<u8, u8, u8, u8, u8, u8>",
+            ),
+        },
+    },
+    # `PrattOffer` and `PrattRefusal` derive derive_more's `IsVariant`, so each gains one inherent
+    # `const fn is_<variant>(&self) -> bool` for each variant. Both are unit-only enums a consumer
+    # can name a variant of: `PrattRefusal` is `#[non_exhaustive]`, which forbids an exhaustive
+    # match outside the crate and not the construction of a variant.
+    "PrattOffer": {
+        "imports": "use tokora::pratt::PrattOffer;\n",
+        "fixture": "",
+        "ty": "PrattOffer",
+        "setup": "",
+        "build": "  let mut subject: PrattOffer = PrattOffer::Take;\n",
+        "calls": {
+            "is_take": ("", "bool"),
+            "is_reduce": ("", "bool"),
+            "is_decline": ("", "bool"),
+            "is_chain": ("", "bool"),
+        },
+        "assoc_calls": {},
+    },
+    "PrattRefusal": {
+        "imports": "use tokora::pratt::PrattRefusal;\n",
+        "fixture": "",
+        "ty": "PrattRefusal",
+        "setup": "",
+        "build": "  let mut subject: PrattRefusal = PrattRefusal::Full;\n",
+        "calls": {
+            "is_misplaced": ("", "bool"),
+            "is_reduce": ("", "bool"),
+            "is_decline": ("", "bool"),
+            "is_chain": ("", "bool"),
+            "is_full": ("", "bool"),
+        },
+        "assoc_calls": {},
+    },
+    # `PrattRefused` has no public constructor: only a machine makes one. So the subject is REACHED,
+    # as `ParseState`'s is: a fresh machine is handed a reduced value in its `Term` phase, which it
+    # refuses as misplaced, handing the `u8` back inside the refusal.
+    "PrattRefused": {
+        "imports": "use tokora::pratt::PrattRefused;\n",
+        "fixture": "",
+        "ty": "PrattRefused<u8>",
+        "setup": "",
+        "build": (
+            "  let mut subject: PrattRefused<u8> =\n"
+            "    tokora::pratt::PrattResolver::<u8, u8, u8, u8, u8>::new()\n"
+            "      .handle_reduced(1u8)\n"
+            "      .unwrap_err();\n"
+        ),
+        "calls": {
+            "why": ("", "tokora::pratt::PrattRefusal"),
+            "item": ("", "&u8"),
+            "into_item": ("", "u8"),
+            "into_components": ("", "(tokora::pratt::PrattRefusal, u8)"),
+        },
+        "assoc_calls": {},
+    },
 }
 
 
