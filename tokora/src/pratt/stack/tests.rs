@@ -119,6 +119,35 @@ fn the_default_spills_the_fifth() {
   assert_eq!(stack.last(), Some(&3));
 }
 
+/// Zero-sized items take no memory, so nothing but the length stops them: a stack of `()` that
+/// already holds `usize::MAX` items refuses the next one, before anything moves, where its length
+/// would otherwise overflow.
+///
+/// The state is built directly, with no `usize::MAX` pushes: four units inline, and the rest put
+/// on the heap by one slice copy, which moves no bytes and allocates nothing. `vec![(); n]` would
+/// not do: it clones its element once for each item, in a loop that a debug build and Miri run.
+#[cfg(any(feature = "std", feature = "alloc"))]
+#[test]
+fn a_stack_of_zero_sized_items_refuses_the_push_its_length_cannot_count() {
+  let mut stack = DefaultPrattStack::<()>::new();
+  for _ in 0..4 {
+    assert_eq!(stack.push(()), Ok(()));
+  }
+  stack.spill.extend_from_slice(&[(); usize::MAX - 4]);
+  assert_eq!(stack.len(), usize::MAX);
+  assert_eq!(stack.max_capacity(), usize::MAX);
+
+  assert_eq!(stack.push(()), Err(()));
+  assert_eq!(stack.len(), usize::MAX);
+  assert!(!stack.is_empty());
+
+  assert_eq!(stack.pop(), Some(()));
+  assert_eq!(stack.len(), usize::MAX - 1);
+  assert_eq!(stack.push(()), Ok(()));
+  assert_eq!(stack.len(), usize::MAX);
+  assert_eq!(stack.push(()), Err(()));
+}
+
 /// Without its heap half the stack refuses the push past `N`, hands the item back, and stays a
 /// stack: the refusal changes nothing, and a pop makes room again.
 #[cfg(not(any(feature = "std", feature = "alloc")))]

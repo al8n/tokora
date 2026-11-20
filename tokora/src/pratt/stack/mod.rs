@@ -16,8 +16,9 @@ use std::vec::Vec;
 /// # Past `N`
 ///
 /// - **With `alloc` or `std`**, a push goes to a `Vec` beside the inline array, allocated the first
-///   time one is needed. A push is never refused, and
-///   [`max_capacity`](Container::max_capacity) is `usize::MAX`.
+///   time one is needed, and [`max_capacity`](Container::max_capacity) is `usize::MAX`. A push is
+///   refused only once the stack holds `usize::MAX` items, which only zero-sized items reach: they
+///   take no memory, so nothing else stops them before the length can no longer count them.
 /// - **With neither**, the push is refused and the item handed back, by [`Container`]'s contract,
 ///   and [`max_capacity`](Container::max_capacity) is `N`. Where an expression keeps more pending,
 ///   name a larger `N`: `PrattStack<_, U16>`.
@@ -102,11 +103,19 @@ impl<T: PartialEq, N: ArraySize> PartialEq for PrattStack<T, N> {
 impl<T: Eq, N: ArraySize> Eq for PrattStack<T, N> {}
 
 impl<T, N: ArraySize> Container<T> for PrattStack<T, N> {
-  /// Inline while nothing has spilled and the array has room, and to the heap after that. Never
-  /// refused.
+  /// Inline while nothing has spilled and the array has room, and to the heap after that. Refused
+  /// only once `usize::MAX` items are held, which only zero-sized items reach.
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[inline]
   fn push(&mut self, item: T) -> Result<(), T> {
+    // A length that can no longer count is refused before anything moves. Zero-sized items take no
+    // memory, so the inline array and the heap hold them until their two lengths stop summing in
+    // a `usize`, and `len` would then overflow. Sized items never get there: neither half can hold
+    // more than `isize::MAX` bytes, so the sum stays below `usize::MAX`. For them the test is the
+    // constant `false` and compiles away.
+    if core::mem::size_of::<T>() == 0 && Self::len(self) == usize::MAX {
+      return Err(item);
+    }
     let item = if self.spill.is_empty() {
       match self.inline.push_back(item) {
         None => return Ok(()),
@@ -147,10 +156,13 @@ impl<T, N: ArraySize> Container<T> for PrattStack<T, N> {
 
   #[inline]
   fn len(&self) -> usize {
+    // No overflow: `push` refuses the item that would take the sum past `usize::MAX`, and nothing
+    // else adds an item.
     self.inline.len() + self.spilled().len()
   }
 
-  /// `usize::MAX`: a push is never refused where the crate can allocate.
+  /// `usize::MAX`, the bound a push is refused at where the crate can allocate: only zero-sized
+  /// items reach it.
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[inline]
   fn max_capacity(&self) -> usize {
