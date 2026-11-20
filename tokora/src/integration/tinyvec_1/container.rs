@@ -45,11 +45,24 @@ const _: () = {
   {
     #[inline(always)]
     fn max_capacity(&self) -> usize {
-      A::CAPACITY
+      if A::CAPACITY > u16::MAX as usize {
+        // tinyvec's own capacity, which it clamps to the `u16` the length is stored in.
+        ArrayVec::capacity(self)
+      } else {
+        A::CAPACITY
+      }
     }
 
     #[inline(always)]
     fn push(&mut self, item: T) -> Result<(), T> {
+      // tinyvec stores the length in a `u16`, and `try_push` tests only the backing array: past
+      // `u16::MAX` items it writes the item and then overflows the length, which panics under
+      // overflow checks and wraps to zero without them. So a backing array longer than that is
+      // refused at tinyvec's own clamped `capacity`, before the write. The test is on a constant
+      // first, so an array of an ordinary size keeps the plain path.
+      if A::CAPACITY > u16::MAX as usize && ArrayVec::len(self) >= ArrayVec::capacity(self) {
+        return Err(item);
+      }
       match self.try_push(item) {
         Some(t) => Err(t),
         None => Ok(()),
@@ -92,6 +105,17 @@ const _: () = {
         // as for `Vec` in `container/mod.rs`: only zero-sized items reach `usize::MAX`.
         if core::mem::size_of::<T>() == 0 && TinyVec::len(self) == usize::MAX {
           return Err(item);
+        }
+        // tinyvec's inline push stops at the end of the backing array, not at the `u16` its length
+        // is stored in, so over an array longer than `u16::MAX` it would write the item and
+        // overflow the length instead of moving to the heap. Move first, while every item is still
+        // held, in order. The test is on a constant first, so an array of an ordinary size keeps
+        // the plain path.
+        if A::CAPACITY > u16::MAX as usize
+          && self.is_inline()
+          && TinyVec::len(self) >= TinyVec::capacity(self)
+        {
+          self.move_to_the_heap();
         }
         TinyVec::push(self, item);
         Ok(())

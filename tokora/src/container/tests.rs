@@ -323,3 +323,48 @@ fn a_heapless_deque_wrapped_round_the_ring_counts_its_items() {
   units.push_back(()).unwrap();
   counts_two_down_to_none(units);
 }
+
+// --- tinyvec's `u16` length, over a backing array longer than it can count ---
+
+/// A backing array one slot longer than a `u16` length can count.
+#[cfg(feature = "tinyvec_1")]
+const PAST_U16: usize = u16::MAX as usize + 1;
+
+/// The fixed adapter keeps `u16::MAX` items over a `PAST_U16`-slot array, reports that as its
+/// capacity, and refuses the next one before tinyvec's own push could write it and overflow the
+/// length.
+#[cfg(feature = "tinyvec_1")]
+#[cfg_attr(
+  miri,
+  ignore = "65,536 pushes through safe code: a length bound, and miri interprets every push"
+)]
+#[test]
+fn a_tinyvec_arrayvec_past_its_u16_length_refuses_the_next_item() {
+  let held = u16::MAX as usize;
+  let mut items = std::boxed::Box::new(tinyvec_1::ArrayVec::<[u8; PAST_U16]>::default());
+  assert_eq!(Container::max_capacity(&*items), held);
+  for i in 0..held {
+    assert_eq!(Container::push(&mut *items, i as u8), Ok(()));
+  }
+  assert_eq!(Container::push(&mut *items, 0), Err(0));
+  assert_eq!(Container::len(&*items), held);
+  assert!(items.iter().enumerate().all(|(i, &item)| item == i as u8));
+}
+
+/// The growable adapter moves a full inline vector to the heap before the push that would pass its
+/// `u16` length, so a `TinyVec` over the same array keeps all `PAST_U16` items, in order.
+#[cfg(feature = "tinyvec_1")]
+#[cfg_attr(
+  miri,
+  ignore = "65,536 pushes through safe code: a length bound, and miri interprets every push"
+)]
+#[test]
+fn a_tinyvec_past_its_u16_length_moves_to_the_heap_and_keeps_every_item() {
+  let mut items = std::boxed::Box::new(tinyvec_1::TinyVec::<[u8; PAST_U16]>::default());
+  for i in 0..PAST_U16 {
+    assert_eq!(Container::push(&mut *items, i as u8), Ok(()));
+  }
+  assert!(items.is_heap());
+  assert_eq!(Container::len(&*items), PAST_U16);
+  assert!(items.iter().enumerate().all(|(i, &item)| item == i as u8));
+}
