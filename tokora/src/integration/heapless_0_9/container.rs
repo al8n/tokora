@@ -89,15 +89,8 @@ const _: () = {
     }
   }
 
-  impl<T, const N: usize> Stack<T> for Deque<T, N> {
-    #[inline(always)]
-    fn pop(&mut self) -> Option<T> {
-      Deque::pop_back(self)
-    }
-
-    #[inline(always)]
-    fn last_mut(&mut self) -> Option<&mut T> {
-      Deque::back_mut(self)
-    }
-  }
+  // A `Deque` is a `Container` and no `Stack`. A stack's equality must not panic on a valid
+  // stack, since a reader compares one with its clone, and the deque's own `PartialEq` computes the
+  // same wrapped length `len` avoids above, which overflows at `N = usize::MAX`. heapless's `Vec`
+  // is the fixed-capacity stack, and it compares by its slice.
 };

@@ -117,8 +117,9 @@ pub trait Container<T> {
 /// empties any stack it is handed.
 ///
 /// Every public stack this crate implements `Stack` for keeps all seven: `ArrayDeque`, `Vec`,
-/// `VecDeque`, heapless's `Vec` and `Deque`, `SmallVec`, the Pratt family's `PrattStack`, which is
-/// an `ArrayDeque` with a `Vec` above it, and `&mut U` over any of them.
+/// `VecDeque`, heapless's `Vec`, `SmallVec`, the Pratt family's `PrattStack`, which is an
+/// `ArrayDeque` with a `Vec` above it, and `&mut U` over any of them. heapless's `Deque` is a
+/// `Container` and no `Stack`.
 ///
 /// - Each pushes and pops at its back, and its `last` and `last_mut` are its back.
 /// - Each owns its items, and no other handle reaches them. `&mut U` borrows `U` alone for as long
