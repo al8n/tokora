@@ -470,9 +470,10 @@ impl<E, C> InputContext<E, C> {
   /// The recursion budget defaults to [`RecursionLimiter::PARSE_DEFAULT_DEPTH`], protection on —
   /// the figure tokora's own parser wiring requests explicitly, NOT
   /// [`RecursionLimiter::new`]'s own (unrelated) general-purpose default of 500 — and is
-  /// changed with [`with_recursion_limiter`](Self::with_recursion_limiter). That constant is 16
+  /// changed with [`with_recursion_limiter`](Self::with_recursion_limiter). That constant is 32
   /// in every build — no feature moves it, deliberately, because this cell is what unsegmented
-  /// hand-written descent reads — so it is named here rather than written out.
+  /// hand-written descent reads — so it is named here rather than written out; why it is 32 and
+  /// not 16 is on the constant's own documentation.
   ///
   /// The token budget defaults to [`TokenBudget::unlimited`], protection **off**, and is changed
   /// with [`with_token_budget`](Self::with_token_budget). The two defaults differ on purpose: a
@@ -537,24 +538,26 @@ impl<E, C> InputContext<E, C> {
   }
 }
 
-/// A zero-copy token stream adapter that bridges Logos and Chumsky.
+/// The crate-private input layer under [`InputRef`]: a lexer over one source, advanced token by
+/// token on demand.
 ///
-/// `Input` is the core integration layer between [Logos](https://github.com/maciejhirsz/logos)
-/// lexical analysis and [Chumsky](https://github.com/zesterer/chumsky) parser combinators.
-/// It efficiently wraps a Logos token source and implements all necessary Chumsky input traits,
-/// allowing you to use Chumsky parsers directly on Logos tokens.
+/// `Input` owns what a parse reads and what it can rewind: the source, the lexer state, the
+/// current span, the token cache, and the emitter and recursion/token budgets its
+/// [`ParseContext`] supplies. Parsers never hold it; they are handed an [`InputRef`], which
+/// borrows it mutably for the handle's whole life. Tokens come from any [`Lexer`] — the bundled
+/// Logos adapter is one implementation — and none of this depends on another parsing library.
 ///
 /// # Zero-Copy Design
 ///
 /// `Input` doesn't allocate or copy tokens. Instead, it maintains a cursor position
-/// and calls Logos on-demand as the parser consumes tokens. This makes it efficient for
+/// and calls the lexer on demand as the parser consumes tokens. This makes it efficient for
 /// large inputs and streaming scenarios.
 ///
 /// # State Management
 ///
 /// For stateful lexers (those with non-`()` `Extras`), `Input` maintains the lexer
 /// state and passes it through token-by-token. This allows for context-sensitive lexing
-/// patterns. Because the adapter clones `Extras` each time it polls Logos, it is best to
+/// patterns. Because the adapter clones `Extras` each time it polls the lexer, it is best to
 /// keep your state `Copy` or otherwise cheap to clone. If you need heavy state, consider
 /// storing handles (e.g. `Arc`) inside `Extras` so clones stay inexpensive.
 ///
@@ -563,40 +566,7 @@ impl<E, C> InputContext<E, C> {
 /// - `'inp`: The lifetime of the input source
 /// - `T`: The token type implementing [`Token<'inp>`]
 ///
-/// # Implemented Traits
-///
-/// This type implements all core Chumsky input traits:
-/// - [`Input`](chumsky::input::Input) - Basic input stream functionality
-/// - [`ValueInput`](chumsky::input::ValueInput) - Token-by-token consumption
-/// - [`SliceInput`](chumsky::input::SliceInput) - Slice extraction from source
-/// - [`ExactSizeInput`](chumsky::input::ExactSizeInput) - Known input length
-///
 /// # Examples
-///
-/// ## Basic Usage
-///
-/// ```rust,ignore
-/// use tokora::{Token, Input, TokenExt};
-/// use logos::Logos;
-/// use chumsky::prelude::*;
-///
-/// #[derive(Logos, Debug, Clone, Copy, PartialEq)]
-/// #[logos(skip r"[ \t\n]+")]
-/// enum MyTokens {
-///     #[regex(r"[0-9]+")]
-///     Number,
-///     #[token("+")]
-///     Plus,
-/// }
-///
-/// // Create a token stream from input
-/// let input = "42 + 13";
-/// let stream = MyToken::lexer(input); // Returns Input<'_, MyToken>
-///
-/// // Use with Chumsky parsers
-/// let parser = any().repeated().collect::<Vec<_>>();
-/// let tokens = parser.parse(stream).into_result();
-/// ```
 ///
 /// ## Stateful Lexing
 ///
