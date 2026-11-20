@@ -1186,6 +1186,11 @@ pub fn mini_cst() -> Cst<'static, Mini<'static>, Silent<PErr>> {
 # operand parser declines: the probe calls each item once, and what a parse then does is not what
 # it measures.
 #
+# The operand parser is generic over its context, and spells its error as the context's. Written
+# for `PCtx` with the error spelled `PErr`, it is E0053 on the head side: `TryParseInput` puts its
+# `Ctx: ParseContext` bound on the method, so checking the impl assumes `PCtx: ParseContext`, and
+# that assumption keeps `PCtx`'s emitter from normalizing to `Silent<PErr>`.
+#
 # `PrattStackFull` is new with the machine, so the base side cannot resolve it either. That is a
 # second unresolved name on a side whose verdict is already that the owner is unresolved, which
 # `run.sh` reads from the owner's own diagnostic.
@@ -1204,11 +1209,14 @@ impl<'a> tokora::token::PrattToken<'a, PExpr, i64> for Tok {
 
 pub struct POperand;
 
-impl<'inp> TryParseInput<'inp, PLexer<'inp>, i64, PCtx<'inp>> for POperand {
+impl<'inp, Ctx> TryParseInput<'inp, PLexer<'inp>, i64, Ctx> for POperand
+where
+  Ctx: ParseContext<'inp, PLexer<'inp>>,
+{
   fn try_parse_input(
     &mut self,
-    _inp: &mut InputRef<'inp, '_, PLexer<'inp>, PCtx<'inp>>,
-  ) -> Result<tokora::ParseAttempt<i64>, PErr> {
+    _inp: &mut InputRef<'inp, '_, PLexer<'inp>, Ctx>,
+  ) -> Result<tokora::ParseAttempt<i64>, <Ctx::Emitter as Emitter<'inp, PLexer<'inp>>>::Error> {
     Ok(tokora::ParseAttempt::Decline)
   }
 }
