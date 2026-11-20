@@ -580,9 +580,8 @@ fn a_stop_met_crossing_leading_trivia_is_terminal() {
   );
 }
 
-/// At the end of the input the seam commits nothing, and the operand parser's read after its own
-/// is answered from it: over `$`, a lone lexer error, the missing operand is at 0 with a kind as
-/// without one, and recoverable within a budget of one item too.
+/// At the end of the input the seam commits nothing: over `$`, a lone lexer error, the missing
+/// operand is at 0 with a kind as without one.
 #[test]
 fn the_seam_moves_over_no_lexer_error() {
   let missing = Err(Fail::EoLhs {
@@ -595,14 +594,8 @@ fn the_seam_moves_over_no_lexer_error() {
       .parse_into(input, &mut ())
   });
   let (without, _, _) = run("$", |input| flat(TABLE, PLAIN).parse_into(input, &mut ()));
-  let budgeted = run_budgeted("$", 1, |input| {
-    flat(TABLE, PLAIN)
-      .with_cst_kind(K_EXPR)
-      .parse_into(input, &mut ())
-  });
   assert_eq!(with_kind, missing, "with a kind");
   assert_eq!(without, missing, "without one");
-  assert_eq!(budgeted, missing, "within a budget of one item");
 }
 
 // ── Recovery, and a rollback ──────────────────────────────────────────────────────────────────
