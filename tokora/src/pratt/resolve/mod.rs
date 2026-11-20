@@ -15,7 +15,7 @@ use crate::container::Stack;
 
 /// A Sans-I/O machine that resolves precedence with an explicit stack. With no allocator, its
 /// default storage holds four pending operators and refuses the fifth, where the typed driver
-/// holds 32.
+/// holds 31 at most.
 ///
 /// It is the whole protocol of one expression in one value. Feed it the expression's items through
 /// the `handle_*` events, and [`poll`](Self::poll) says what it wants next: a term, an operator, a
@@ -26,9 +26,9 @@ use crate::container::Stack;
 ///
 /// It owns nothing of a parse: no input, no lexer, no position, and no token type in its bounds.
 /// The values and the operator payloads are the caller's, unbounded, and each comes back intact in
-/// a reduction or from [`retract`](Self::retract). It borrows nothing between calls, so a caller
-/// with no recursion of its own can park one in a work list while it resolves an expression nested
-/// in an operand.
+/// a reduction or from [`retract`](Self::retract). It borrows nothing between calls but a storage
+/// it is lent, so a caller with no recursion of its own can park one in a work list while it
+/// resolves an expression nested in an operand.
 ///
 /// # The loop
 ///
@@ -38,7 +38,7 @@ use crate::container::Stack;
 /// | [`Operator`](PrattPoll::Operator) | It has a value, and an operator or an ending is wanted | [`offer`](Self::offer), then [`handle_infix`](Self::handle_infix) or [`handle_postfix`](Self::handle_postfix). Or [`close`](Self::close), or [`finish`](Self::finish) |
 /// | [`Reduce`](PrattPoll::Reduce) | One reduction is owed, and this is it | Perform it, and hand its value back with [`handle_reduced`](Self::handle_reduced) |
 /// | [`Reducing`](PrattPoll::Reducing) | A reduction is out, and its value has not come back | [`handle_reduced`](Self::handle_reduced) |
-/// | [`Done`](PrattPoll::Done) | The expression is complete | Keep the value. The machine is as new |
+/// | [`Done`](PrattPoll::Done) | The expression is complete | Keep the value. The machine is as [`reset`](Self::reset) leaves it |
 ///
 /// The machine never reduces in a loop of its own. After `handle_reduced` the caller polls again,
 /// and the answer is `Operator`, the next reduction a `finish` owes, or `Done`.
@@ -46,14 +46,20 @@ use crate::container::Stack;
 /// # Refusals
 ///
 /// Every event either takes its item or refuses it, and **a refusal hands the item back and
-/// modifies nothing**: the machine is left exactly as it was, and its storage unchanged in
-/// everything `Stack`, `Container` and `PartialEq` observe. Before it refuses, the machine writes
-/// nothing of its own, and of its storage it only reads, or tries a push that the storage
-/// refuses, which by [`Stack`]'s obligations change nothing those three observe. So a clone taken
-/// before the call compares equal to the machine after it whenever everything the machine holds
-/// compares equal to itself (`x == x`), which `f64::NAN` does not. [`PrattRefused`] carries the
-/// item and one [`PrattRefusal`]. Nothing in the machine panics on a caller's slip; it panics only
-/// when its storage breaks `Stack`'s obligations, with a message that names `Stack`.
+/// modifies nothing**: the machine's own state is as it was when the call returns, and its storage
+/// unchanged in everything `Stack`, `Container` and `PartialEq` observe. A refusal writes nothing
+/// of the machine's own but what it puts back: when its storage refuses the frame,
+/// [`handle_infix`](Self::handle_infix) has moved the value into it, and restores it in the
+/// [`Operator`](PrattPoll::Operator) phase it was taken from. Of its storage it only reads, or
+/// tries a push that the storage refuses, which by [`Stack`]'s obligations change nothing those
+/// three observe. The item, and the values, payloads and powers the machine holds, are unchanged
+/// given a `Power` whose comparisons change nothing a caller observes: of their code, a refusal
+/// runs those comparisons alone, and a lawful power may still cache its rank in a `OnceCell` as it
+/// compares. So, with such a `Power`, a clone taken before the call compares equal to the machine
+/// after it whenever everything the machine holds equals both itself and its own clone (`x == x`,
+/// `x.clone() == x`), which `f64::NAN` does not. [`PrattRefused`] carries the item and one
+/// [`PrattRefusal`]. Nothing in the machine panics on a caller's slip; it panics only when its
+/// storage breaks `Stack`'s obligations, with a message that names `Stack`.
 ///
 /// # Its storage
 ///
@@ -88,8 +94,9 @@ use crate::container::Stack;
 ///   modify nothing;
 /// - its `Clone`, `PartialEq` and `Debug` only read it. Its `PartialEq` and `Debug` never panic on
 ///   a stack that keeps these unless the frames' own code does, and its `Clone` only as growing
-///   may, on a capacity overflow or an allocation failure. The machine's own three inherit exactly
-///   that.
+///   may, on a capacity overflow or an allocation failure, or where a frame's own `Clone` does.
+///   The machine's own three inherit exactly that, with the code of the value, the payloads and
+///   the powers it holds beside the frames'.
 ///
 /// It relies on nothing of `S::default`, since [`new`](Self::new) empties what that returns. With
 /// a storage that breaks one of them, an answer may be wrong, or a panic that names `Stack`, but it
@@ -422,11 +429,13 @@ pub enum PrattPending<Pre, LeftAssoc, RightAssoc, NeitherAssoc, Power = i64> {
 
 /// An event a machine did not take: the item, handed back, and why.
 ///
-/// A refusal modifies nothing: the machine is left exactly as it was, and over a storage that
-/// keeps [`Stack`]'s obligations, its storage is unchanged in everything `Stack`, `Container` and
-/// `PartialEq` observe. The item is the one that was fed. So a clone of the machine taken before
-/// the call compares equal to it afterwards whenever everything the machine holds compares equal to
-/// itself (`x == x`), which `f64::NAN` does not.
+/// A refusal modifies nothing: the machine's own state is as it was when the call returns, and
+/// over a storage that keeps [`Stack`]'s obligations, its storage is unchanged in everything
+/// `Stack`, `Container` and `PartialEq` observe. The item is the one that was fed. It, and what the
+/// machine holds, are unchanged given a `Power` whose comparisons change nothing a caller
+/// observes, and a clone of the machine taken before the call then compares equal to it afterwards
+/// whenever everything the machine holds equals both itself and its own clone (`x == x`,
+/// `x.clone() == x`), which `f64::NAN` does not.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrattRefused<T> {
   why: PrattRefusal,
@@ -524,9 +533,11 @@ where
   /// never answers `None` cannot hang it, and one that reports fewer items than it holds keeps the
   /// rest below everything the machine pushes, where the machine never pops.
   ///
-  /// A storage the caller supplies is that caller's memory budget, and it is never grown: the
-  /// machine answers [`Full`](PrattRefusal::Full) when it is full. `&mut S` is a storage too, so a
-  /// caller that wants no allocation after the first keeps one and lends it to each machine.
+  /// A storage the caller supplies follows its own growth policy: the machine answers
+  /// [`Full`](PrattRefusal::Full) when a fixed one is full, and one that grows, a lent `Vec` among
+  /// them, grows past what was reserved. `&mut S` is a storage too, so a caller that wants no
+  /// allocation after the first reserves one, reads its capacity back, and lends it to each
+  /// machine with [`max_depth`](Self::max_depth) set to that capacity.
   pub fn with_stack(mut stack: S) -> Self {
     for _ in 0..stack.len() {
       if stack.pop().is_none() {
@@ -550,6 +561,11 @@ where
 
   /// Caps the stack at `max_depth` pending operators, whatever the storage could hold: the push
   /// past it is refused with [`Full`](PrattRefusal::Full).
+  ///
+  /// The cap governs the pushes after it is set. Lowered below a live machine's depth, it drops
+  /// nothing, and refuses every push until the depth falls below it; until then
+  /// [`depth`](Self::depth) may exceed [`capacity`](Self::capacity), so the room left is
+  /// `capacity().saturating_sub(depth())`.
   ///
   /// It bounds the stack's memory, and not the depth of the value the reductions build: a
   /// left-associative chain keeps one operator pending however long it is, and reduces to a value
@@ -619,8 +635,10 @@ where
     }
   }
 
-  /// Whether the innermost sub-expression takes an operator at its right-hand position. It modifies
-  /// nothing: it reads the machine's own state and the frame on top of its storage.
+  /// Whether the innermost sub-expression takes an operator at its right-hand position. It writes
+  /// nothing: it reads the machine's own state and the frame on top of its storage, and compares
+  /// powers. So it modifies nothing given a `Power` whose comparisons change nothing a caller
+  /// observes.
   ///
   /// `rhs` is what [`PrattToken::try_pratt_rhs`](crate::token::PrattToken::try_pratt_rhs) answers.
   /// The innermost sub-expression admits an operator at `q` when it is:

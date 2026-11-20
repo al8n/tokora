@@ -117,9 +117,10 @@ pub trait Container<T> {
 /// - **Its `Clone`, `PartialEq` and `Debug`, where it has them, only read it.** Like the reads
 ///   above, they change nothing that this trait, `Container` or `PartialEq` observes. Its
 ///   `PartialEq` and `Debug` never panic on a stack that keeps these obligations unless the items'
-///   own code does, and its `Clone` may panic only as growing may, on a capacity overflow or an
-///   allocation failure while it makes room for the copy, as `std`'s collections do. A reader
-///   derives its own three from them, and its own `Clone` inherits exactly that.
+///   own code does, and its `Clone` may panic only where an item's own `Clone` does, or as growing
+///   may, on a capacity overflow or an allocation failure while it makes room for the copy, as
+///   `std`'s collections do. A reader derives its own three from them, and its own `Clone` inherits
+///   exactly that.
 ///
 /// It relies on nothing else: not on [`first`](Container::first) or
 /// [`is_empty`](Container::is_empty), which it never calls, and not on a `Default`, since it
