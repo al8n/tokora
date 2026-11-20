@@ -163,11 +163,11 @@ pub enum PrattLHS<Op, Pre, Power = i64> {
 
 /// An infix operator for Pratt parsing, which can be left-associative, right-associative, or non-associative with its precedence level.
 #[derive(Debug, Clone, Copy)]
-pub enum PrattInfix<L, R, N> {
+pub enum PrattInfix<LeftAssoc, RightAssoc, NeitherAssoc> {
   /// A left-associative infix operator with its precedence level and operator type.
-  Left(L),
+  Left(LeftAssoc),
   /// A right-associative infix operator with its precedence level and operator type.
-  Right(R),
+  Right(RightAssoc),
   /// A non-associative infix operator with its precedence level and operator type.
   ///
   /// **Non-associative in the conventional sense: chaining is a syntax error.** After a frame
@@ -178,16 +178,16 @@ pub enum PrattInfix<L, R, N> {
   /// by a postfix fold. The contract is per-operator rather than whole-chain fixity resolution:
   /// `a == b < c` (this variant, then `Left` at the same power) is rejected, while `a < b == c` is
   /// accepted — see the associativity table in the pratt reference.
-  Neither(N),
+  Neither(NeitherAssoc),
 }
 
 /// A right-hand side for Pratt parsing: an infix operator with its precedence level and
 /// associativity, a zero-token infix continuation, a postfix operator with its precedence level,
 /// or the end of the expression.
 #[derive(Debug, Clone, Copy)]
-pub enum PrattRHS<L, R, N, Post, Power = i64> {
+pub enum PrattRHS<LeftAssoc, RightAssoc, NeitherAssoc, Post, Power = i64> {
   /// An infix operator with its precedence level and associativity.
-  Infix(Precedenced<PrattInfix<L, R, N>, Power>),
+  Infix(Precedenced<PrattInfix<LeftAssoc, RightAssoc, NeitherAssoc>, Power>),
   /// A **zero-token** infix continuation: the expression continues here, and the operator that
   /// continues it is spelled with no token at all.
   ///
@@ -275,7 +275,7 @@ pub enum PrattRHS<L, R, N, Post, Power = i64> {
   /// report of this enum can drive and which
   /// [`InputRef::descend`](crate::InputRef::descend)'s shared budget bounds the same way it bounds
   /// a channel that simply calls itself.
-  Adjacent(Precedenced<L, Power>),
+  Adjacent(Precedenced<LeftAssoc, Power>),
   /// Postfix operator with its precedence level and operator type.
   Postfix(Precedenced<Post, Power>),
   /// The expression does not continue at this position: the next token is not an infix or
@@ -577,8 +577,8 @@ pub trait PrattFoldInfix<
     Cmpl: Completeness;
 }
 
-impl<'inp, P, Power, LO, RO, NO, L, O, Ctx, Lang: ?Sized>
-  PrattFoldInfix<'inp, Power, LO, RO, NO, L, O, Ctx, Lang> for P
+impl<'inp, P, Power, LeftAssoc, RightAssoc, NeitherAssoc, L, O, Ctx, Lang: ?Sized>
+  PrattFoldInfix<'inp, Power, LeftAssoc, RightAssoc, NeitherAssoc, L, O, Ctx, Lang> for P
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L, Lang>,
@@ -586,7 +586,7 @@ where
     &mut InputRef<'inp, '_, L, Ctx, Lang>,
     O,
     O,
-    Precedenced<PrattInfix<LO, RO, NO>, Power>,
+    Precedenced<PrattInfix<LeftAssoc, RightAssoc, NeitherAssoc>, Power>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>,
 {
   #[inline(always)]
@@ -595,7 +595,7 @@ where
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
     left: O,
     right: O,
-    operator: Precedenced<PrattInfix<LO, RO, NO>, Power>,
+    operator: Precedenced<PrattInfix<LeftAssoc, RightAssoc, NeitherAssoc>, Power>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     L: Lexer<'inp>,

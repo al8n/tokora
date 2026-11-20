@@ -370,10 +370,14 @@ enum PrattLHS<Op, Pre, Power = i64> {          // left edge of a (sub-)expressio
     Operand(Op),                                //   a value
     Prefix(Precedenced<Pre, Power>),            //   a prefix operator + its power
 }
-enum PrattInfix<L, R, N> { Left(L), Right(R), Neither(N) }   // associativity + operator
-enum PrattRHS<L, R, N, Post, Power = i64> {     // what follows an operand
-    Infix(Precedenced<PrattInfix<L, R, N>, Power>),
-    Adjacent(Precedenced<L, Power>),            //   an infix spelled with NO token
+enum PrattInfix<LeftAssoc, RightAssoc, NeitherAssoc> {   // associativity + operator
+    Left(LeftAssoc),
+    Right(RightAssoc),
+    Neither(NeitherAssoc),
+}
+enum PrattRHS<LeftAssoc, RightAssoc, NeitherAssoc, Post, Power = i64> {   // what follows an operand
+    Infix(Precedenced<PrattInfix<LeftAssoc, RightAssoc, NeitherAssoc>, Power>),
+    Adjacent(Precedenced<LeftAssoc, Power>),    //   an infix spelled with NO token
     Postfix(Precedenced<Post, Power>),
     End,                                        //   the expression stops here
 }
@@ -636,7 +640,7 @@ whole crate — see the [combinator reference](super::ref_combinators)). The res
 ```text
 pratt(parse_lhs, parse_rhs, fold_prefix, fold_infix, fold_postfix) -> Pratt<…, Lang>
 // parse_lhs: any parser producing PrattLHS<O, PreOp, Power>
-// parse_rhs: any parser producing PrattRHS<L, R, N, PostOp, Power>
+// parse_rhs: any parser producing PrattRHS<LeftAssoc, RightAssoc, NeitherAssoc, PostOp, Power>
 ```
 
 `parse_lhs` and `parse_rhs` are ordinary parsers whose output is a classification: any
@@ -661,9 +665,9 @@ postfix `[` reads an index and its `]`); the operator is a [`Precedenced`](crate
 and comes **last**. Each returns your node type `O`.
 
 ```text
-fn fold_prefix (&mut InputRef, operand: O,           operator: Precedenced<PreOp, Power>)              -> Result<O, Error>
-fn fold_infix  (&mut InputRef, left: O,   right: O,  operator: Precedenced<PrattInfix<L,R,N>, Power>) -> Result<O, Error>
-fn fold_postfix(&mut InputRef, operand: O,           operator: Precedenced<PostOp, Power>)            -> Result<O, Error>
+fn fold_prefix (&mut InputRef, operand: O,           operator: Precedenced<PreOp, Power>)                                           -> Result<O, Error>
+fn fold_infix  (&mut InputRef, left: O,   right: O,  operator: Precedenced<PrattInfix<LeftAssoc, RightAssoc, NeitherAssoc>, Power>) -> Result<O, Error>
+fn fold_postfix(&mut InputRef, operand: O,           operator: Precedenced<PostOp, Power>)                                          -> Result<O, Error>
 ```
 
 ### End to end
