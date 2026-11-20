@@ -85,6 +85,10 @@ use crate::container::Stack;
 /// before it drops anything, and a step whose value an unwind takes leaves the
 /// [`Term`](PrattPoll::Term) phase, where that sub-expression starts over.
 ///
+/// Both rest on an obligation of the storage's own, as [`Stack`] writes it: a push or a pop that
+/// unwinds leaves the frames as they were. With a storage that breaks it, a later answer can be a
+/// panic that names `Stack`, but never undefined behaviour.
+///
 /// # Example
 ///
 /// `1 + 2 * 3`, fed by hand, with each reduction evaluated as it is handed out:

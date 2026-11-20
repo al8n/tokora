@@ -914,6 +914,87 @@ fn a_destructor_that_unwinds_in_with_stack_leaves_the_storage_holding_what_was_n
   assert!(m.into_stack().is_empty());
 }
 
+/// A storage that keeps `Stack`'s obligation for an unwind: once armed, its next `push` or `pop`
+/// panics before it touches what it holds.
+#[derive(Default)]
+struct Flaky {
+  frames: ArrayDeque<Frame, U8>,
+  push_unwinds: bool,
+  pop_unwinds: bool,
+}
+
+impl Container<Frame> for Flaky {
+  fn push(&mut self, item: Frame) -> Result<(), Frame> {
+    if core::mem::take(&mut self.push_unwinds) {
+      panic!("a push unwinds before it takes its frame");
+    }
+    Container::push(&mut self.frames, item)
+  }
+
+  fn first(&self) -> Option<&Frame> {
+    self.frames.front()
+  }
+
+  fn last(&self) -> Option<&Frame> {
+    self.frames.back()
+  }
+
+  fn len(&self) -> usize {
+    self.frames.len()
+  }
+
+  fn max_capacity(&self) -> usize {
+    8
+  }
+}
+
+impl Stack<Frame> for Flaky {
+  fn pop(&mut self) -> Option<Frame> {
+    if core::mem::take(&mut self.pop_unwinds) {
+      panic!("a pop unwinds before it gives a frame up");
+    }
+    self.frames.pop_back()
+  }
+
+  fn last_mut(&mut self) -> Option<&mut Frame> {
+    self.frames.back_mut()
+  }
+}
+
+/// Over a storage whose `push` and `pop` unwind before they change what it holds, as `Stack`
+/// requires, the count stays what the storage holds through every unwind: out of `handle_prefix`,
+/// `retract`, a reduction's `poll` and `reset`. The next `reset` then empties both.
+#[test]
+fn a_storage_that_unwinds_before_it_changes_keeps_the_count_true() {
+  use host::panic::{AssertUnwindSafe, catch_unwind};
+
+  let mut m: Machine<Flaky> = PrattResolver::with_stack(Flaky::default());
+  m.handle_prefix(prefix(0, 1)).unwrap();
+  m.handle_prefix(prefix(1, 1)).unwrap();
+
+  m.stack.push_unwinds = true;
+  assert!(catch_unwind(AssertUnwindSafe(|| m.handle_prefix(prefix(2, 1)))).is_err());
+  assert_eq!((m.depth(), m.stack.frames.len()), (2, 2));
+
+  m.stack.pop_unwinds = true;
+  assert!(catch_unwind(AssertUnwindSafe(|| m.retract())).is_err());
+  assert_eq!((m.depth(), m.stack.frames.len()), (2, 2));
+
+  m.handle_operand(5).unwrap();
+  m.close().unwrap();
+  m.stack.pop_unwinds = true;
+  assert!(catch_unwind(AssertUnwindSafe(|| m.poll())).is_err());
+  assert_eq!((m.depth(), m.stack.frames.len()), (2, 2));
+
+  m.stack.pop_unwinds = true;
+  assert!(catch_unwind(AssertUnwindSafe(|| m.reset())).is_err());
+  assert_eq!((m.depth(), m.stack.frames.len()), (2, 2));
+
+  m.reset();
+  assert_eq!((m.depth(), m.stack.frames.len()), (0, 0));
+  assert_eq!(m.poll(), PrattPoll::Term);
+}
+
 #[test]
 fn into_parts_and_from_parts_give_the_same_machine_back_in_every_phase() {
   for (phase, m) in in_each_phase() {

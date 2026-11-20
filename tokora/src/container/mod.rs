@@ -89,6 +89,15 @@ pub trait Container<T> {
 ///   cannot hold, and [`max_capacity`](Container::max_capacity) is the bound it refuses at. A
 ///   stack that grows may panic while growing, before that bound, as `push` documents; that is not
 ///   a refusal.
+/// - **A `push` or a `pop` that unwinds leaves the items as they were.** A push that unwinds has
+///   not taken its item, and a pop that unwinds has not removed one. A reader counts the items by
+///   what these two return, and an unwind returns nothing, so a change that an unwind hides is a
+///   count the reader can no longer keep.
+///
+/// Every stack this crate implements keeps that last obligation. None of their pushes or pops runs
+/// code of the item's. A push into a fixed stack and every pop cannot unwind at all, and a stack
+/// that grows, `Vec`, `VecDeque`, `SmallVec`, and the Pratt family's `PrattStack` where the crate
+/// can allocate, unwinds only while it grows, before the item is placed.
 ///
 /// Breaking them is a logic error. What a reader of the stack does then is unspecified, a panic
 /// or a wrong result, but it is never undefined behaviour: the crate reads a `Stack` through
