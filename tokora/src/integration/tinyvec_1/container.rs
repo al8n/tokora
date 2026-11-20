@@ -45,22 +45,22 @@ const _: () = {
   {
     #[inline(always)]
     fn max_capacity(&self) -> usize {
-      if A::CAPACITY > u16::MAX as usize {
-        // tinyvec's own capacity, which it clamps to the `u16` the length is stored in.
-        ArrayVec::capacity(self)
-      } else {
-        A::CAPACITY
-      }
+      // The length is stored in a `u16`, so no more than `u16::MAX` items fit, whatever the
+      // array's size. The clamp is this crate's own rather than tinyvec's `capacity`: the manifest
+      // admits any tinyvec 1.x, and the bound must not rest on which one a build resolves. A
+      // constant, so an array of an ordinary size reports `A::CAPACITY` as before.
+      A::CAPACITY.min(u16::MAX as usize)
     }
 
     #[inline(always)]
     fn push(&mut self, item: T) -> Result<(), T> {
       // tinyvec stores the length in a `u16`, and `try_push` tests only the backing array: past
       // `u16::MAX` items it writes the item and then overflows the length, which panics under
-      // overflow checks and wraps to zero without them. So a backing array longer than that is
-      // refused at tinyvec's own clamped `capacity`, before the write. The test is on a constant
-      // first, so an array of an ordinary size keeps the plain path.
-      if A::CAPACITY > u16::MAX as usize && ArrayVec::len(self) >= ArrayVec::capacity(self) {
+      // overflow checks and wraps to zero without them. So over a backing array longer than that,
+      // the length is compared with `u16::MAX` here, before the write, with no trust in tinyvec's
+      // `capacity`. The test is on a constant first, so an array of an ordinary size keeps the
+      // plain path.
+      if A::CAPACITY > u16::MAX as usize && ArrayVec::len(self) >= u16::MAX as usize {
         return Err(item);
       }
       match self.try_push(item) {
@@ -109,11 +109,12 @@ const _: () = {
         // tinyvec's inline push stops at the end of the backing array, not at the `u16` its length
         // is stored in, so over an array longer than `u16::MAX` it would write the item and
         // overflow the length instead of moving to the heap. Move first, while every item is still
-        // held, in order. The test is on a constant first, so an array of an ordinary size keeps
-        // the plain path.
+        // held, in order, with the inline length compared with `u16::MAX` here rather than with
+        // tinyvec's `capacity`, as `ArrayVec`'s impl above does. The test is on a constant first,
+        // so an array of an ordinary size keeps the plain path.
         if A::CAPACITY > u16::MAX as usize
           && self.is_inline()
-          && TinyVec::len(self) >= TinyVec::capacity(self)
+          && TinyVec::len(self) >= u16::MAX as usize
         {
           self.move_to_the_heap();
         }
