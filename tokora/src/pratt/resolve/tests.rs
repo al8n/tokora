@@ -9,7 +9,7 @@
 
 extern crate std as host;
 
-use core::fmt::Debug;
+use core::{cell::Cell, fmt::Debug};
 
 use hybrid_arraydeque::{
   ArrayDeque, ArraySize,
@@ -799,7 +799,7 @@ fn with_stack_empties_its_storage_by_a_length_read_once() {
 }
 
 /// A value whose destructor unwinds once it is armed.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 struct Bomb(bool);
 
 impl Drop for Bomb {
@@ -843,6 +843,55 @@ fn a_destructor_that_unwinds_in_reset_leaves_the_count_and_the_storage_in_agreem
   m.reset();
   assert_eq!(m.depth(), 0);
   assert!(m.stack.is_empty());
+}
+
+/// A value that counts its drops.
+#[derive(Debug, PartialEq)]
+struct Tally<'d>(&'d Cell<u32>);
+
+impl Drop for Tally<'_> {
+  fn drop(&mut self) {
+    self.0.set(self.0.get() + 1);
+  }
+}
+
+/// A prefix operator whose payload's destructor unwinds, pending under `close` and under `finish`
+/// when `reset` drops it. Once the unwind is caught no reduction is owed: the owed value was dropped
+/// on the way, and the machine answers as a fresh one does.
+#[test]
+fn a_reset_that_unwinds_leaves_no_reduction_owed() {
+  type Owing<'d> = PrattResolver<
+    Tally<'d>,
+    Bomb,
+    u8,
+    u8,
+    u8,
+    u8,
+    i8,
+    ArrayDeque<PrattFrame<Tally<'d>, Bomb, u8, u8, u8, i8>, U8>,
+  >;
+  for finishing in [false, true] {
+    let drops = Cell::new(0);
+    let fresh: Owing<'_> = PrattResolver::with_stack(ArrayDeque::new());
+    let mut m: Owing<'_> = PrattResolver::with_stack(ArrayDeque::new());
+    m.handle_prefix(Precedenced::new(Bomb(true), 5)).unwrap();
+    m.handle_operand(Tally(&drops)).unwrap();
+    if finishing {
+      m.finish().unwrap();
+    } else {
+      m.close().unwrap();
+    }
+
+    let caught = host::panic::catch_unwind(host::panic::AssertUnwindSafe(|| m.reset()));
+    assert!(caught.is_err());
+    assert_eq!(
+      drops.get(),
+      1,
+      "the owed value is dropped, and not left owed"
+    );
+    assert_eq!(m.poll(), PrattPoll::Term);
+    assert_eq!(m, fresh);
+  }
 }
 
 /// `with_stack` gives each item up before it is dropped: when a destructor unwinds, the storage

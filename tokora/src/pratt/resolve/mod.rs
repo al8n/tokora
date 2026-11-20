@@ -74,11 +74,16 @@ use crate::container::Stack;
 ///   [`new`](Self::new) and [`with_stack`](Self::with_stack);
 /// - the methods of its storage;
 /// - the destructors of `V`, of the operator payloads and of `Power`, when [`reset`](Self::reset),
-///   [`with_stack`](Self::with_stack) or the machine's own drop lets go of a frame or a value.
+///   [`with_stack`](Self::with_stack), [`into_stack`](Self::into_stack) or the machine's own drop
+///   lets go of a frame or a value; and `Power`'s alone where a latch or the floor is overwritten,
+///   and where a reduction or a [`retract`](Self::retract) lets go of a frame's own latch.
 ///
 /// An unwind out of any of them leaves the machine's count and its storage in agreement: a push
 /// raises the count only once the storage has taken the frame, and a pop lowers it as soon as the
-/// storage gives the frame up, before the frame or a value in it is dropped.
+/// storage gives the frame up, before the frame or a value in it is dropped. It also leaves a phase
+/// that claims no frame the machine has let go of: [`reset`](Self::reset) installs the new phase
+/// before it drops anything, and a step whose value an unwind takes leaves the
+/// [`Term`](PrattPoll::Term) phase, where that sub-expression starts over.
 ///
 /// # Example
 ///
@@ -529,14 +534,19 @@ where
   /// Drops everything pending, and the value and the latches with it. The floor, the cap and the
   /// storage stay, so a kept machine serves the next expression with the storage it has.
   ///
-  /// It pops its own count of frames, one at a time: a frame's destructor that unwinds leaves the
-  /// count and the storage in agreement, and the next `reset` goes on from there.
+  /// The machine is as new before any caller code runs: the phase and the root's latch are taken
+  /// out first, and dropped after the frames. Then it pops its own count of frames, one at a time,
+  /// lowering the count before each is dropped. So a destructor that unwinds leaves the count and
+  /// the storage in agreement and no reduction owed, the value and the latch it took out are
+  /// dropped on the way, and the next `reset` goes on from there.
   pub fn reset(&mut self) {
+    let phase = core::mem::replace(&mut self.state.phase, Phase::Term);
+    let root_latch = self.state.root_latch.take();
     while self.state.depth > 0 {
       drop(self.pop_frame());
     }
-    self.state.root_latch = None;
-    self.state.phase = Phase::Term;
+    drop(root_latch);
+    drop(phase);
   }
 
   /// How many operators are waiting for an operand: the machine's own count.
@@ -871,8 +881,9 @@ where
   /// The reduction of the operator on top, whose operand is `right`.
   ///
   /// Reached from an `Owed::Close` or `Owed::Finish` alone, and each is made only with an operator
-  /// pending, by `end` and by `handle_reduced`. No event pops while one is owed, since every event
-  /// but `poll` is refused in that phase.
+  /// pending, by `end` and by `handle_reduced`. Nothing pops while one is owed: every event but
+  /// `poll` is refused in that phase, and `reset` takes the phase out before it pops, so not even an
+  /// unwind out of it leaves one owed over frames it has let go of.
   #[inline]
   fn reduce_top(
     &mut self,
