@@ -86,7 +86,7 @@ impl<'inp, L, Ctx, Lang: ?Sized> Seam<'inp, L, Ctx, Lang, Complete> for NoCst {
   }
 }
 
-impl<'inp, L, Ctx, Lang: ?Sized> FlatCst<'inp, L, Ctx, Lang> for NoCst {}
+impl<L, Ctx, Lang: ?Sized> FlatCst<'_, L, Ctx, Lang> for NoCst {}
 
 /// The seam [`with_cst_kind`](super::Flat::with_cst_kind) configures: one node of one kind around
 /// every expression.
