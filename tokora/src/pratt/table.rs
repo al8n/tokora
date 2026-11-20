@@ -191,7 +191,7 @@ where
       // and the head is not classified after it.
       let trips = input.trip_snapshot();
       if let ParseAttempt::Accept(operand) = self.operand.try_parse_input(input)? {
-        break Ok(PrattLHS::Operand(operand));
+        break Some(PrattLHS::Operand(operand));
       }
       if input.tripped_during_attempt(trips) {
         return Err(
@@ -212,11 +212,11 @@ where
       match head {
         Some((LhsHead::Trivia, _)) => {}
         Some((LhsHead::Prefix(power), operator)) => {
-          break Ok(PrattLHS::Prefix(Precedenced::new(operator, power)));
+          break Some(PrattLHS::Prefix(Precedenced::new(operator, power)));
         }
-        None => {
-          break Err(UnexpectedEoLhs::<L::Offset, Lang>::eolhs_of(input.span().end()).into());
-        }
+        // No term. Its error is built only once the check below has found no trip, so that no
+        // conversion of the caller's runs for an error the channel does not return.
+        None => break None,
       }
     };
     if input.scanner_tripped_during_attempt(scans) {
@@ -226,7 +226,7 @@ where
           .into(),
       );
     }
-    reported
+    reported.ok_or_else(|| UnexpectedEoLhs::<L::Offset, Lang>::eolhs_of(input.span().end()).into())
   }
 }
 
