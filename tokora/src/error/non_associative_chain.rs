@@ -3,9 +3,11 @@ use core::marker::PhantomData;
 /// A non-associative operator appeared a second time at its own binding power in one chain:
 /// `a == b == c` where `==` is [`PrattInfix::Neither`](crate::pratt::PrattInfix::Neither).
 ///
-/// Both Pratt engines raise this, on the same trigger, with the same restored posture: the
-/// deciding read is handed back — the offending operator is left on the input, unconsumed — and
-/// the error is **returned**, never emitted.
+/// Three engines raise this, on the same trigger, with the same posture: the typed driver, the
+/// token-level driver, and the flat driver's
+/// [`parse_into`](crate::pratt::Flat::parse_into) in its [`Checked`](crate::pratt::Checked) mode.
+/// The deciding read is handed back — the offending operator is left on the input, unconsumed —
+/// and the error is **returned**, never emitted.
 ///
 /// # Why an error rather than an ending
 ///
@@ -80,6 +82,14 @@ use core::marker::PhantomData;
 /// cycle found it. Both therefore report the same number on any input both can parse, and the
 /// numbers agree because the two engines answer the same question, not because two mechanisms
 /// happen to line up.
+///
+/// **The flat driver reads it as the token engine does.** Its machine's offer answers that the
+/// operator at the head repeats the chain inside the read's closure, which declines the token, and
+/// the driver reads `span().end()` with the operator staged. It has committed every trivia token
+/// it crossed before it classified the operator, so where only trivia tokens stand between the
+/// last operand and the operator, nothing is handed back between them, and its offset is the
+/// operator's head: 8 in the second row above, where the typed engine reports 5. In the other three
+/// rows it reports what the typed engine does.
 ///
 /// # Which recovery paths resume at the offset, and which do not
 ///

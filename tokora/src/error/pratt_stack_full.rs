@@ -14,6 +14,12 @@ use core::marker::PhantomData;
 /// the law [`RecursionLimitReached`](crate::error::RecursionLimitReached) carries for the recursion
 /// budget, read through the same [`MaybeTerminal`](crate::error::MaybeTerminal) gate.
 ///
+/// The stop does not rest on the grammar's error type either. The driver that returns this counts
+/// the trip on the input session before it builds the value, as
+/// [`InputRef::descend`](crate::InputRef::descend) does for the recursion budget, and the three
+/// recovery combinators read that count beside the trait. So a grammar whose error discards this
+/// value, `()` included, loses the offset and the bound and still re-raises.
+///
 /// # Its two numbers
 ///
 /// - [`offset`](Self::offset) is committed consumption,
