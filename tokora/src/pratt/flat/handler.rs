@@ -23,28 +23,29 @@ use super::super::{PrattInfix, Precedenced};
 ///   what a failed parse leaves in a handler is the handler's own to discard.
 ///
 /// Implemented for `()`, which keeps nothing, and for `&mut H`.
-pub trait PrattHandler<'inp, Power, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete> {
+///
+/// The lexer, context and completeness bounds are the trait's own, and no method repeats them, so
+/// that an implementation for a concrete lexer can spell the operator's token as that lexer's
+/// token type.
+pub trait PrattHandler<'inp, Power, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complete>
+where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
+{
   /// A prefix operator, committed: its token, at its power.
   fn on_prefix(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     operator: Precedenced<Spanned<L::Token, L::Span>, Power>,
-  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>,
-    Cmpl: Completeness;
+  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>;
 
   /// An operand, as the operand parser accepted it.
   fn on_operand(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     operand: O,
-  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>,
-    Cmpl: Completeness;
+  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>;
 
   /// An infix operator, committed: its token in its associativity, at its power.
   fn on_infix(
@@ -58,39 +59,30 @@ pub trait PrattHandler<'inp, Power, L, O, Ctx, Lang: ?Sized = (), Cmpl = Complet
       >,
       Power,
     >,
-  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>,
-    Cmpl: Completeness;
+  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>;
 
   /// A postfix operator, committed: its token, at its power.
   fn on_postfix(
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     operator: Precedenced<Spanned<L::Token, L::Span>, Power>,
-  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>,
-    Cmpl: Completeness;
+  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>;
 }
 
 /// Keeps nothing.
 impl<'inp, Power, L, O, Ctx, Lang: ?Sized, Cmpl> PrattHandler<'inp, Power, L, O, Ctx, Lang, Cmpl>
   for ()
+where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
 {
   #[inline(always)]
   fn on_prefix(
     &mut self,
     _input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     _operator: Precedenced<Spanned<L::Token, L::Span>, Power>,
-  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>,
-    Cmpl: Completeness,
-  {
+  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     Ok(())
   }
 
@@ -99,12 +91,7 @@ impl<'inp, Power, L, O, Ctx, Lang: ?Sized, Cmpl> PrattHandler<'inp, Power, L, O,
     &mut self,
     _input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     _operand: O,
-  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>,
-    Cmpl: Completeness,
-  {
+  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     Ok(())
   }
 
@@ -120,12 +107,7 @@ impl<'inp, Power, L, O, Ctx, Lang: ?Sized, Cmpl> PrattHandler<'inp, Power, L, O,
       >,
       Power,
     >,
-  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>,
-    Cmpl: Completeness,
-  {
+  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     Ok(())
   }
 
@@ -134,12 +116,7 @@ impl<'inp, Power, L, O, Ctx, Lang: ?Sized, Cmpl> PrattHandler<'inp, Power, L, O,
     &mut self,
     _input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     _operator: Precedenced<Spanned<L::Token, L::Span>, Power>,
-  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>,
-    Cmpl: Completeness,
-  {
+  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     Ok(())
   }
 }
@@ -148,6 +125,9 @@ impl<'inp, Power, L, O, Ctx, Lang: ?Sized, Cmpl> PrattHandler<'inp, Power, L, O,
 impl<'inp, Power, L, O, Ctx, Lang: ?Sized, Cmpl, H> PrattHandler<'inp, Power, L, O, Ctx, Lang, Cmpl>
   for &mut H
 where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
   H: PrattHandler<'inp, Power, L, O, Ctx, Lang, Cmpl> + ?Sized,
 {
   #[inline(always)]
@@ -155,12 +135,7 @@ where
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     operator: Precedenced<Spanned<L::Token, L::Span>, Power>,
-  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>,
-    Cmpl: Completeness,
-  {
+  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     (**self).on_prefix(input, operator)
   }
 
@@ -169,12 +144,7 @@ where
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     operand: O,
-  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>,
-    Cmpl: Completeness,
-  {
+  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     (**self).on_operand(input, operand)
   }
 
@@ -190,12 +160,7 @@ where
       >,
       Power,
     >,
-  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>,
-    Cmpl: Completeness,
-  {
+  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     (**self).on_infix(input, operator)
   }
 
@@ -204,12 +169,7 @@ where
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
     operator: Precedenced<Spanned<L::Token, L::Span>, Power>,
-  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-  where
-    L: Lexer<'inp>,
-    Ctx: ParseContext<'inp, L, Lang>,
-    Cmpl: Completeness,
-  {
+  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     (**self).on_postfix(input, operator)
   }
 }
