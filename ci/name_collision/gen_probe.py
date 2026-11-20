@@ -753,6 +753,33 @@ TRAITS = {
         "scope": None,
         "fixture": FROM_COMPONENTS_FIXTURE,
     },
+    # ── `Stack` — a NEW trait in a PRE-EXISTING module ──────────────────────────────────────
+    #
+    # `container::Stack` is minted by the diff that adds its two items, `pop` and `last_mut`.
+    # Its module is not new, so `scope` takes the `TrackerExt` shape: a glob over
+    # `tokora::container`, which resolves on the base ref too, where it brings in `Container`
+    # alone. A named `use tokora::container::Stack;` would not resolve there, and every row
+    # would score INCONCL.
+    #
+    # The subject is tokora's own `ArrayDeque<u8, U4>`, reached through `tokora::utils`. tokora
+    # implements `Stack` for it in every tier, in `container/mod.rs` beside its `Container`
+    # impl, and it declares no inherent `pop` or `last_mut` of its own, so no item the base ref
+    # already has can take the call. `recvr` is spliced into `{recvr}.{name}()` as a fresh
+    # temporary, which a `&mut self` method may borrow for its one statement.
+    #
+    # READ THE `TrackerExt` HEADER ABOVE BEFORE READING A VERDICT HERE. Both items take
+    # `&mut self` and nothing else, so `trait_method`'s three consumer spellings, `self` and
+    # `&self`, are strictly earlier picks, the consumer wins on both sides, and every row
+    # agrees. #225's ruling applies, and `no_collision.txt` carries the pick analysis.
+    #
+    # `self_ty` stays absent: neither item is receiver-less, so no `trait_assoc_fn` row can
+    # arise.
+    "Stack": {
+        "recvr": "tokora::utils::ArrayDeque::<u8, tokora::utils::typenum::U4>::new()",
+        "self_ty": None,
+        "scope": "use tokora::container::*;",
+        "fixture": None,
+    },
 }
 
 
@@ -1395,6 +1422,26 @@ INHERENT_SUBJECTS = {
             "new": ("10, 8", "BudgetExhausted"),
         },
     },
+    # `PrattStack` is minted by the same diff as its one inherent item, `new`, so it takes this
+    # table's new-owner shape. `tokora::pratt` is not a new module, so a plain
+    # `use tokora::pratt::PrattStack;` names the owner in the base-side diagnostic, as
+    # `TokenBudget`'s import does. The probe's feature point carries `combinators`, which turns
+    # `pratt` on.
+    #
+    # `new()` takes no argument, and a path call prefers the inherent item over the consumer's
+    # trait item. `PrattStack<u8>` names the type at its default `N`. The type declares no
+    # receiver method: what it can do is `Container`'s and `Stack`'s, both trait items.
+    "PrattStack": {
+        "imports": "use tokora::pratt::PrattStack;\n",
+        "fixture": "",
+        "ty": "PrattStack<u8>",
+        "setup": "",
+        "build": "  let mut subject: PrattStack<u8> = PrattStack::new();\n",
+        "calls": {},
+        "assoc_calls": {
+            "new": ("", "PrattStack<u8>"),
+        },
+    },
 }
 
 
@@ -2013,6 +2060,11 @@ def trait_method(name, owner, spelling):
         "spanned_trimmed": "",
         "sliced_trimmed": "",
         "located_trimmed": "",
+        # `container::Stack`'s two. Each takes `&mut self` and nothing else — read
+        # `container/mod.rs` — so this is the empty-argument shape `clear` and `take_probe`
+        # ride, and #225's foreknown-vacuous one: see `TRAITS["Stack"]`.
+        "pop": "",
+        "last_mut": "",
     }.get(name)
     if args is None:
         # The pointer matters more than the refusal. An author who lands here reads "add a

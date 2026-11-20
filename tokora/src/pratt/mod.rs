@@ -23,8 +23,10 @@ use crate::{
 
 pub use cst::*;
 pub use expr::*;
+pub use stack::*;
 mod cst;
 mod expr;
+mod stack;
 
 /// PRATT_CENSUS — source-census tests over `include_str!` snapshots. The census greps the
 /// same source bytes in every configuration, so one allocator-enabled run locks it for all of

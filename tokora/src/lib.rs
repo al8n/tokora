@@ -117,12 +117,16 @@ pub mod syntax;
 /// - Message and knowledge types for error reporting
 pub mod utils;
 
-/// Container trait for accumulating parsed results.
+/// Container traits for accumulating parsed results.
 ///
 /// Defines the [`Container`](container::Container) trait for types that can accumulate
 /// parsing results. Implemented for `Vec` and `VecDeque` (with `alloc`), the fixed-capacity
-/// `ArrayDeque`, and `Option`, which holds one; the `smallvec`, `heapless` and `tinyvec`
-/// features add their vectors. Parsers collect multiple elements into any of them.
+/// `ArrayDeque`, and `Option`, which holds one; the `smallvec` (with `alloc` or `std`),
+/// `heapless` and `tinyvec` features add their vectors. Parsers collect multiple elements into
+/// any of them.
+///
+/// [`Stack`](container::Stack) is a `Container` that also gives back the item pushed last. The
+/// types above are stacks too, but for `Option` and tinyvec's vectors.
 pub mod container;
 
 /// Atomically composable error handling and reporting.

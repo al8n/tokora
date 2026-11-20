@@ -193,3 +193,50 @@ fn ignored_push_discards() {
   assert!(Container::<i32>::last(&c).is_none());
   assert_eq!(Container::<i32>::max_capacity(&c), usize::MAX);
 }
+
+// --- Stack tests ---
+
+/// Holds one stack to the obligations `Stack` writes down: `pop` is the item pushed last and not
+/// yet popped, `last` and `last_mut` are that same item, and `len` counts what is still held.
+fn drive_stack<S: Stack<i32>>(mut stack: S) {
+  assert_eq!(stack.pop(), None);
+  assert!(stack.last_mut().is_none());
+  stack.push(1).unwrap();
+  stack.push(2).unwrap();
+  stack.push(3).unwrap();
+  assert_eq!(stack.len(), 3);
+  assert_eq!(stack.last(), Some(&3));
+  *stack.last_mut().unwrap() = 30;
+  assert_eq!(stack.last(), Some(&30));
+  assert_eq!(stack.pop(), Some(30));
+  assert_eq!(stack.len(), 2);
+  stack.push(4).unwrap();
+  assert_eq!(stack.pop(), Some(4));
+  assert_eq!(stack.pop(), Some(2));
+  assert_eq!(stack.pop(), Some(1));
+  assert_eq!(stack.pop(), None);
+  assert!(stack.is_empty());
+}
+
+#[test]
+fn vec_is_a_stack() {
+  drive_stack(Vec::new());
+}
+
+#[test]
+fn vecdeque_is_a_stack() {
+  drive_stack(std::collections::VecDeque::new());
+}
+
+#[test]
+fn hybrid_arraydeque_is_a_stack() {
+  use hybrid_arraydeque::typenum::U4;
+  drive_stack(ArrayDeque::<i32, U4>::new());
+}
+
+#[test]
+fn ref_mut_stack_delegates() {
+  let mut inner: Vec<i32> = Vec::new();
+  drive_stack(&mut inner);
+  assert!(inner.is_empty());
+}

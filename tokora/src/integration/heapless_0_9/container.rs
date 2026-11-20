@@ -1,4 +1,4 @@
-use crate::container::Container;
+use crate::container::{Container, Stack};
 
 const _: () = {
   use heapless_0_9::{Deque, LenType, Vec};
@@ -38,6 +38,21 @@ const _: () = {
     }
   }
 
+  impl<T, LenT, const N: usize> Stack<T> for Vec<T, N, LenT>
+  where
+    LenT: LenType,
+  {
+    #[inline(always)]
+    fn pop(&mut self) -> Option<T> {
+      Vec::pop(self)
+    }
+
+    #[inline(always)]
+    fn last_mut(&mut self) -> Option<&mut T> {
+      self.as_mut_slice().last_mut()
+    }
+  }
+
   impl<T, const N: usize> Container<T> for Deque<T, N> {
     #[inline(always)]
     fn max_capacity(&self) -> usize {
@@ -67,6 +82,18 @@ const _: () = {
     #[inline(always)]
     fn is_empty(&self) -> bool {
       Deque::is_empty(self)
+    }
+  }
+
+  impl<T, const N: usize> Stack<T> for Deque<T, N> {
+    #[inline(always)]
+    fn pop(&mut self) -> Option<T> {
+      Deque::pop_back(self)
+    }
+
+    #[inline(always)]
+    fn last_mut(&mut self) -> Option<&mut T> {
+      Deque::back_mut(self)
     }
   }
 };

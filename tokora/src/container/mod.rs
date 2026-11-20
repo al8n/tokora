@@ -52,6 +52,32 @@ pub trait Container<T> {
   fn max_capacity(&self) -> usize;
 }
 
+/// A [`Container`] that is also a stack: it gives back what was pushed last.
+///
+/// # Its obligations
+///
+/// `Stack` is implementable outside this crate, so what a reader of one may rely on is written
+/// here, as [`Container`] writes its own:
+///
+/// - [`pop`](Self::pop) removes and returns the item pushed last and not yet popped, and answers
+///   `None` only when every item pushed has been popped.
+/// - [`last`](Container::last) and [`last_mut`](Self::last_mut) are that same item.
+/// - [`len`](Container::len) counts the items pushed and not yet popped.
+/// - [`push`](Container::push) keeps [`Container`]'s contract: it refuses only what the stack
+///   cannot hold, and [`max_capacity`](Container::max_capacity) is the bound it refuses at.
+///
+/// Breaking them is a logic error. What a reader of the stack does then is unspecified, a panic
+/// or a wrong result, but it is never undefined behaviour: the crate reads a `Stack` through
+/// safe code alone.
+pub trait Stack<T>: Container<T> {
+  /// Removes the item pushed last and not yet popped, and returns it, or `None` when the stack is
+  /// empty.
+  fn pop(&mut self) -> Option<T>;
+
+  /// The item [`pop`](Self::pop) would return, mutably, or `None` when the stack is empty.
+  fn last_mut(&mut self) -> Option<&mut T>;
+}
+
 impl<T, U> Container<T> for &mut U
 where
   U: Container<T>,
@@ -79,6 +105,21 @@ where
   #[inline(always)]
   fn len(&self) -> usize {
     U::len(self)
+  }
+}
+
+impl<T, U> Stack<T> for &mut U
+where
+  U: Stack<T>,
+{
+  #[inline(always)]
+  fn pop(&mut self) -> Option<T> {
+    U::pop(self)
+  }
+
+  #[inline(always)]
+  fn last_mut(&mut self) -> Option<&mut T> {
+    U::last_mut(self)
   }
 }
 
@@ -182,6 +223,21 @@ where
   }
 }
 
+impl<T, N> Stack<T> for ArrayDeque<T, N>
+where
+  N: ArraySize,
+{
+  #[inline(always)]
+  fn pop(&mut self) -> Option<T> {
+    ArrayDeque::pop_back(self)
+  }
+
+  #[inline(always)]
+  fn last_mut(&mut self) -> Option<&mut T> {
+    ArrayDeque::back_mut(self)
+  }
+}
+
 #[cfg(any(feature = "std", feature = "alloc"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
 const _: () = {
@@ -215,6 +271,18 @@ const _: () = {
     }
   }
 
+  impl<T> Stack<T> for Vec<T> {
+    #[inline(always)]
+    fn pop(&mut self) -> Option<T> {
+      Vec::pop(self)
+    }
+
+    #[inline(always)]
+    fn last_mut(&mut self) -> Option<&mut T> {
+      self.as_mut_slice().last_mut()
+    }
+  }
+
   impl<T> Container<T> for VecDeque<T> {
     #[inline(always)]
     fn max_capacity(&self) -> usize {
@@ -240,6 +308,18 @@ const _: () = {
     #[inline(always)]
     fn len(&self) -> usize {
       VecDeque::len(self)
+    }
+  }
+
+  impl<T> Stack<T> for VecDeque<T> {
+    #[inline(always)]
+    fn pop(&mut self) -> Option<T> {
+      VecDeque::pop_back(self)
+    }
+
+    #[inline(always)]
+    fn last_mut(&mut self) -> Option<&mut T> {
+      VecDeque::back_mut(self)
     }
   }
 };

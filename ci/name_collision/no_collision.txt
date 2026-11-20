@@ -463,3 +463,39 @@ status/same_pick
 is_valid/same_pick
 is_error/same_pick
 is_missing/same_pick
+
+# ── `container::Stack` — `pop` and `last_mut`, both `&mut self`, on a NEW trait ────────────
+#
+# tokora's items are `fn pop(&mut self) -> Option<T>` and `fn last_mut(&mut self) -> Option<&mut
+# T>`, both `&mut self` and nothing else. The `trait_method` template's consumer is `impl<T>
+# ConsumerComb for T`, so it supplies a candidate at every pick, and its three spellings declare
+# `self` (`same_pick`) or `&self` (`later_pick_used`, `later_pick_discarded`). The subject,
+# `ArrayDeque<u8, U4>`, derefs to nothing, so there is one step and three picks: by value, `&`,
+# then `&mut`. The consumer's item sits at the first or the second, and tokora's at the third. The
+# earlier pick wins on both sides and tokora's item is never a candidate: the `TrackerExt` and
+# `ErrorContainer::clear` shape exactly, and #225's foreknown-vacuous class. The consumer that would
+# genuinely compete declares `&mut self`, collides at the same pick, is E0034-loud, and
+# `trait_method` cannot generate it.
+#
+# `Stack` is new and `tokora::container` is not, so the probe reaches the trait through
+# `use tokora::container::*;`, which on the base ref brings in `Container` alone. The base side
+# therefore compiles and runs the consumer's item, for the receiver-kind reason above and no
+# other.
+#
+# No control exists for this entry, for the reason the `TrackerExt` entry gives: both items are
+# `&mut self`, so no sibling spelling sits at a matching pick, and the one other trait `pop` in the
+# crate, `ErrorContainer::pop`, is `&mut self` too and is not in the probe's scope.
+#
+# `recvr` is trusted, not verified: tokora implements `Stack` for `ArrayDeque<T, N>` in every
+# tier, in `container/mod.rs` beside its `Container` impl, and `ArrayDeque` declares no inherent
+# `pop` or `last_mut` that could take the call instead.
+#
+# Read these six as "the `self`/`&self` consumer keeps its call", never as "`pop` and `last_mut`
+# cannot be stolen". A consumer's own `&mut self` `pop` or `last_mut` on a container meets
+# tokora's at its pick and is refused with E0034, wherever both traits are in scope.
+pop/same_pick
+pop/later_pick_used
+pop/later_pick_discarded
+last_mut/same_pick
+last_mut/later_pick_used
+last_mut/later_pick_discarded
