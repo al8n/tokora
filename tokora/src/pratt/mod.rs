@@ -25,10 +25,12 @@ pub use cst::*;
 pub use expr::*;
 pub use resolve::*;
 pub use stack::*;
+pub use table::*;
 mod cst;
 mod expr;
 mod resolve;
 mod stack;
+mod table;
 
 // How a default stack grows on the native stack, a segment at a time, where there is no heap.
 // `allow(dead_code)` outside tests: the loops that grow by segments are adapters', and a build that
