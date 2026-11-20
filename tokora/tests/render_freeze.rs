@@ -39,9 +39,10 @@
 use std::format;
 
 use tokora::SimpleSpan;
+#[cfg(feature = "pratt")]
+use tokora::error::NonAssociativeChain;
 use tokora::error::{
-  FullContainer, NonAssociativeChain, RecursionLimitReached, TooFew, TooMany, Unclosed,
-  UnexpectedEot,
+  FullContainer, RecursionLimitReached, TooFew, TooMany, Unclosed, UnexpectedEot,
 };
 use tokora::error::{MissingToken, SeparatedError, SeparatorPosition, UnexpectedToken};
 use tokora::punct::Paren;
@@ -204,7 +205,9 @@ fn display_renders_are_frozen() {
   // `1 ; 2 ; 3` the operator starts at 6, not 5 — while `offset()` was pinned in four suites and
   // every one of them stayed green. That is the argument for a freeze per *type* rather than per
   // accessor: a carrier nobody pinned is a carrier whose text can say anything.
+  #[cfg(feature = "pratt")]
   let chain: NonAssociativeChain = NonAssociativeChain::of(5);
+  #[cfg(feature = "pratt")]
   assert_eq!(
     format!("{chain}"),
     "non-associative operator cannot be chained at its own power; input handed back at 5, at or \
@@ -266,7 +269,9 @@ fn debug_renders_are_frozen() {
   // The two pratt carriers, both derived. These are the one rendered surface on either type that
   // could not have mislabelled the offset: a derived `Debug` prints the field's declared name, so
   // the label is `at`, and `at`'s own doc is what defines it.
+  #[cfg(feature = "pratt")]
   let chain: NonAssociativeChain = NonAssociativeChain::of(5);
+  #[cfg(feature = "pratt")]
   assert_eq!(
     format!("{chain:?}"),
     "NonAssociativeChain { at: 5, _lang: PhantomData<()> }"
@@ -333,6 +338,7 @@ fn the_freeze_can_fail() {
 
   // The offset on the two pratt carriers. Both renders are built from a single field, so a pin
   // that could not see that field move would be pinning a constant.
+  #[cfg(feature = "pratt")]
   assert_ne!(
     format!("{}", NonAssociativeChain::<usize>::of(5)),
     format!("{}", NonAssociativeChain::<usize>::of(6)),

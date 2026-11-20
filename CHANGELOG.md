@@ -214,6 +214,16 @@ crate. **The remedy is UFCS**: `MyExt::fold(maybe, ..)` pins your method by name
   got its allocator tier only through `smallvec` loses the tier as well, and everything `alloc`
   gates with it. Name `alloc` beside the feature, or keep `std`, which `default` carries.
 
+- **The Pratt-only errors are behind `pratt`.** `error::NonAssociativeChain`, the two
+  end-of-expression aliases `error::UnexpectedEoLhs` and `error::UnexpectedEoRhs`, their hints
+  `error::PrattLhsHint` and `error::PrattRhsHint`, and the four constructors that build the two,
+  `UnexpectedEnd::{eolhs, eolhs_of, eorhs, eorhs_of}`, exist only with the `pratt` feature, as the
+  Pratt drivers and the `PrattEmitter` channel that report them already did. A build with `pratt`
+  on sees no difference, and `default` and `combinators` turn it on. A crate that names one of them
+  with `pratt` off, in a `From` impl on its error type say, gates that item on `pratt` or turns the
+  feature on. `error::RecursionLimitReached` stays ungated: it is the general recursion budget's
+  error, raised by `InputRef::descend` for any recursive grammar.
+
 ## 0.13.2 (2026-11-15)
 
 <a id="0.13.2-source-breaking-additions-that-can-change-behaviour-with-no-diagnostic-at-the-call-site"></a>

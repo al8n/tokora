@@ -29,9 +29,14 @@
 /// stricter caller: the session gate does not consult the verdict, it *requires* it.
 ///
 /// No other value in this crate **reports itself** terminal. The trait's only other implementations
-/// here are [`NonAssociativeChain`](crate::error::NonAssociativeChain) and `()`, and both keep the
-/// `false` default deliberately — the first is malformed input, which recovery *may* spend; the
-/// second stores nothing at all.
+/// here are
+#[cfg_attr(
+  feature = "pratt",
+  doc = " [`NonAssociativeChain`](crate::error::NonAssociativeChain)"
+)]
+#[cfg_attr(not(feature = "pratt"), doc = " `NonAssociativeChain`, with `pratt`,")]
+/// and `()`, and both keep the `false` default deliberately — the first is malformed input, which
+/// recovery *may* spend; the second stores nothing at all.
 ///
 /// # This list is what the crate knows it produces, not a proof of closure
 ///
@@ -205,7 +210,14 @@
 /// Malformed input is the one case where `false` is affirmatively right, and you can always
 /// recognize it: you built the value from a construct the **grammar** rejected, not from a limit the
 /// **runtime** refused. That is exactly why
-/// [`NonAssociativeChain`](crate::error::NonAssociativeChain) answers `false`.
+#[cfg_attr(
+  feature = "pratt",
+  doc = " [`NonAssociativeChain`](crate::error::NonAssociativeChain) answers `false`."
+)]
+#[cfg_attr(
+  not(feature = "pratt"),
+  doc = " `NonAssociativeChain` answers `false`."
+)]
 ///
 /// ```
 /// use tokora::{
