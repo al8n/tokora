@@ -298,3 +298,28 @@ fn a_full_tinyvec_of_units_refuses_the_next_push() {
   assert_eq!(Container::push(&mut units, ()), Ok(()));
   assert_eq!(Container::len(&units), usize::MAX);
 }
+
+/// Reads a stack of two zero-sized items down to empty, its length at each step.
+fn counts_two_down_to_none<S: Stack<()>>(mut stack: S) {
+  assert_eq!(stack.len(), 2);
+  assert!(!stack.is_empty());
+  assert_eq!(stack.pop(), Some(()));
+  assert_eq!(stack.len(), 1);
+  assert_eq!(stack.pop(), Some(()));
+  assert_eq!(stack.len(), 0);
+  assert!(stack.is_empty());
+}
+
+/// A heapless `Deque` whose items wrap round the end of its ring. With `N` at `usize::MAX`, which
+/// zero-sized items allow, the deque's own `len` overflows computing `back + N - front`; the
+/// adapter's length is the sum of the two halves of the ring, which is at most `N`.
+#[cfg(feature = "heapless_0_9")]
+#[test]
+fn a_heapless_deque_wrapped_round_the_ring_counts_its_items() {
+  let mut units = heapless_0_9::Deque::<(), { usize::MAX }>::new();
+  // One at the front moves `front` to the last slot of the ring, one at the back moves `back` to
+  // the second: the two items now straddle the wrap.
+  units.push_front(()).unwrap();
+  units.push_back(()).unwrap();
+  counts_two_down_to_none(units);
+}

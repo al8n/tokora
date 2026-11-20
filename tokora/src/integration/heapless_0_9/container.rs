@@ -76,7 +76,11 @@ const _: () = {
 
     #[inline(always)]
     fn len(&self) -> usize {
-      Deque::len(self)
+      // The two halves of the ring, summed. They are disjoint runs of the buffer, so the sum is
+      // at most `N`. `Deque::len` computes a wrapped length as `back + N - front` instead, and
+      // that overflows when `N` is near `usize::MAX`, which a deque of zero-sized items can be.
+      let (front, back) = self.as_slices();
+      front.len() + back.len()
     }
 
     #[inline(always)]
