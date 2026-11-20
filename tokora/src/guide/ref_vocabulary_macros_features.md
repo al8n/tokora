@@ -602,7 +602,7 @@ CAS-free fallback.
 
 | Feature | Enables | Implies | no_std posture |
 |---------|---------|---------|----------------|
-| `smallvec` / `smallvec_1` | `SmallVec` accumulator | `smallvec_1` → `dep:smallvec_1`, **`alloc`** | requires `alloc` |
+| `smallvec` / `smallvec_1` | `SmallVec` accumulator | `smallvec_1` → `dep:smallvec_1` | needs `alloc` or `std` beside it |
 | `heapless` / `heapless_0_9` | `heapless::Vec` accumulator (fixed capacity) | `heapless_0_9` → `dep:heapless_0_9` | no_std-clean |
 | `tinyvec` / `tinyvec_1` | `TinyVec` / `ArrayVec` accumulator | `tinyvec_1` → `dep:tinyvec_1` (gains `alloc` under `alloc`) | no_std-clean |
 
@@ -621,7 +621,8 @@ CAS-free fallback.
 
 The base crate is `no-std` / `no-std::no-alloc` (its Cargo categories): drop `default` for core-only
 parsing, add `alloc` for the allocator tier, or keep `std`. Features that **force `std`**: `rowan_0_17`
-(so its `rowan` alias), `stacker`, `trace`, `fuzz`. Features that **force `alloc`**: `conformance`,
-`smallvec`. Every other feature adds no tier floor of its own — a third-party backend compiles
-wherever that crate's own `default-features = false` build does, which this table does not
-independently re-verify.
+(so its `rowan` alias), `stacker`, `trace`, `fuzz`. The feature that **forces `alloc`**:
+`conformance`. Every other feature adds no tier floor of its own. `smallvec` is the one backend
+that needs a tier it does not turn on: a `SmallVec` spills to the heap, so its impls compile only
+with `alloc` or `std`. Every other third-party backend compiles wherever that crate's own
+`default-features = false` build does, which this table does not independently re-verify.

@@ -22,8 +22,13 @@ mod heapless_0_9;
 #[cfg_attr(docsrs, doc(cfg(feature = "hipstr_0_8")))]
 mod hipstr_0_8;
 
-#[cfg(feature = "smallvec_1")]
-#[cfg_attr(docsrs, doc(cfg(feature = "smallvec_1")))]
+// `smallvec_1` turns on the dependency and no tier, and every `SmallVec` spills to the heap, so
+// the impls need `std` or `alloc` beside the feature.
+#[cfg(all(feature = "smallvec_1", any(feature = "std", feature = "alloc")))]
+#[cfg_attr(
+  docsrs,
+  doc(cfg(all(feature = "smallvec_1", any(feature = "std", feature = "alloc"))))
+)]
 mod smallvec_1;
 
 #[cfg(feature = "smol-bytes_0_1")]
