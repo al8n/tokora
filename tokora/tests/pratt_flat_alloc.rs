@@ -1,6 +1,16 @@
-#![cfg(all(feature = "std", feature = "combinators", feature = "logos_0_16"))]
+#![cfg(all(
+  feature = "std",
+  feature = "combinators",
+  feature = "logos_0_16",
+  not(feature = "trace")
+))]
 
 //! What the flat driver's `parse_into` allocates, by a counting allocator this suite has to itself.
+//!
+//! It is compiled without `trace`. That opt-in debugging feature's hooks fire at every
+//! instrumented read of the input, with or without a `traced` wrapper, and each formats and writes
+//! a line, so a parse under it allocates at every read by design. Without `trace` the suite runs in
+//! the `test (valve-off)` job, `cargo test -p tokora --features logos,std`, and in the Miri shards.
 //!
 //! A checked driver keeps its first four pending operators inline, and allocates nothing while no
 //! more than four are pending. A bare driver keeps no stack and never allocates. A kept checked
