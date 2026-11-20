@@ -2,12 +2,13 @@
 //!
 //! The two channels are the typed side of the comparison the flat driver is tested by, so they
 //! share no helper with the flat loop. What both are given is the token's `PrattToken`
-//! implementation, `InputRef::try_expect_map_or_stop`, and the errors' constructors.
+//! implementation, the input's own reads, and the errors' constructors.
 
 use core::{fmt, marker::PhantomData};
 
 use crate::{
   Emitter, InputRef, Lexer, ParseAttempt, ParseContext, ParseInput, Token as _, TryParseInput,
+  cache::Cache as _,
   error::{UnexpectedEoLhs, UnexpectedEoRhs, UnexpectedEot},
   span::{Span as _, Spanned},
   token::PrattToken,
@@ -179,6 +180,12 @@ where
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   > {
     loop {
+      // The head the operand parser inspects and declines is the one the read below takes. Where
+      // the cache can hold no token, a peek's head is dropped with its window, so the head is
+      // read first and parked, to be lexed once; a stop met there is terminal.
+      if input.cache().is_empty() && input.cache().remaining() == 0 {
+        input.try_expect_map_or_stop(|_| None::<()>)?;
+      }
       if let ParseAttempt::Accept(operand) = self.operand.try_parse_input(input)? {
         return Ok(PrattLHS::Operand(operand));
       }
