@@ -18,8 +18,8 @@ use tokora::{
 };
 
 use flat_fixture::{
-  ByteLexer, Fail, FatalIr, Landing, LimitedIr, Operand, Rolling, TABLE, Tok, TwoDigits, VerboseIr,
-  fold_infix, fold_postfix, fold_prefix, landing,
+  ByteLexer, Fail, FatalIr, Landing, LimitedIr, Lookahead, Operand, Rekeying, Rolling, TABLE, Tok,
+  TwoDigits, VerboseIr, fold_infix, fold_postfix, fold_prefix, landing,
 };
 
 /// What the left-hand-side channel reported.
@@ -178,6 +178,55 @@ fn a_stop_a_rollback_erased_is_still_the_terminal_error() {
     got,
     Err(Fail::Eot {
       at: 0,
+      terminal: true
+    })
+  );
+}
+
+/// A trip after a re-key is still the channel's terminal error: over `42`, an operand parser
+/// installs a lexer-side limit of one token, trips on `2` inside an attempt, and rolls back to a
+/// point after the re-key.
+#[test]
+fn a_trip_after_a_re_key_is_still_the_terminal_error() {
+  let got = Parser::with_context(ParserContext::new(Fatal::new()))
+    .apply(|input: &mut LimitedIr<'_, '_>| {
+      let reported: Reported<PrattLHS<String, Spanned<Tok, SimpleSpan>, u8>> =
+        TABLE.lhs(Rekeying).parse_input(input);
+      Ok(reported.map(|_| ()))
+    })
+    .parse_str("42")
+    .expect("the parse's own error is caught");
+  assert_eq!(
+    got,
+    Err(Fail::Eot {
+      at: 0,
+      terminal: true
+    })
+  );
+}
+
+/// An operand the channel reports is a decision too, since the channel cannot know where the
+/// typed driver will end. Over `1.2` within a budget of two items, the operand parser takes `1`,
+/// peeks two, caches `.` and trips on `2`, and accepts: the typed driver over the two channels
+/// ends in the terminal stop at 1, and not with `1`.
+#[test]
+fn an_operand_accepted_over_a_stop_is_the_terminal_error() {
+  let got = within::<true, _>("1.2", 2, |input| {
+    Ok(
+      pratt(
+        TABLE.lhs(Lookahead),
+        TABLE.rhs(),
+        fold_prefix,
+        fold_infix,
+        fold_postfix,
+      )
+      .parse_input(input),
+    )
+  });
+  assert_eq!(
+    got,
+    Err(Fail::Eot {
+      at: 1,
       terminal: true
     })
   );

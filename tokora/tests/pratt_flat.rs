@@ -20,7 +20,7 @@ use tokora::{
 
 use flat_fixture::{
   BareCacheIr, ByteLexer, Expr, Fail, FatalCtx, FatalIr, Landing, LimitedIr, Mode, Operand,
-  Rolling, Skip, TABLE, Tok, TwoDigits, VerboseIr, forget_lexes, landing, lexes,
+  Rekeying, Rolling, Skip, TABLE, Tok, TwoDigits, VerboseIr, forget_lexes, landing, lexes,
 };
 use flat_items::{Item, Items};
 
@@ -550,6 +550,57 @@ fn a_stop_a_rollback_erased_is_still_the_terminal_error() {
       .expect("the parse's own error is caught");
     assert_eq!(got, stop, "bare: {bare}");
   }
+}
+
+/// A trip after a re-key is still a trip. Over `42`, an operand parser installs a lexer-side limit
+/// of one token, reads both digits inside an attempt, trips on `2`, and rolls back to a point after
+/// the new limit. The regime changed only before the trip, and recovering by re-keying is the
+/// caller's: the refusal is terminal, in both modes.
+#[test]
+fn a_trip_after_a_re_key_is_still_the_terminal_error() {
+  let stop = Err(Fail::Eot {
+    at: 0,
+    terminal: true,
+  });
+  for bare in [false, true] {
+    let got = Parser::with_context(ParserContext::new(Fatal::new()))
+      .apply(|input: &mut LimitedIr<'_, '_>| {
+        Ok(if bare {
+          flat(TABLE, Rekeying).bare().parse_into(input, &mut ())
+        } else {
+          flat(TABLE, Rekeying).parse_into(input, &mut ())
+        })
+      })
+      .parse_str("42")
+      .expect("the parse's own error is caught");
+    assert_eq!(got, stop, "bare: {bare}");
+  }
+}
+
+/// Recovering from a stop is the caller's, once the expression has ended. Under a lexer-side limit
+/// of one token, an expression over `12` trips inside its operand parser's attempt and ends in the
+/// terminal stop. The caller then installs a wider limit, and the same expression parses.
+#[test]
+fn the_caller_recovers_from_a_stop_by_re_keying() {
+  let got = Parser::with_context(ParserContext::new(Fatal::new()))
+    .apply(|input: &mut LimitedIr<'_, '_>| {
+      let first = flat(TABLE, Rolling).parse_into(input, &mut ());
+      input.set_state(TokenLimiter::with_limitation(8));
+      let second = flat(TABLE, Rolling).parse_into(input, &mut ());
+      Ok((first, second))
+    })
+    .parse_with_state("12", TokenLimiter::with_limitation(1))
+    .expect("the parse's own error is caught");
+  assert_eq!(
+    got,
+    (
+      Err(Fail::Eot {
+        at: 0,
+        terminal: true
+      }),
+      Ok(())
+    )
+  );
 }
 
 // ── The handler's contract ────────────────────────────────────────────────────────────────────

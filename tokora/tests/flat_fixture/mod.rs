@@ -574,6 +574,47 @@ where
   }
 }
 
+/// Installs a lexer-side limit of one token, then reads two digits as [`Rolling`] does: an operand
+/// parser that re-keys the lexer before it trips, and rolls back to a point after the re-key.
+#[derive(Debug, Clone, Copy)]
+pub struct Rekeying;
+
+impl<'inp, Ctx> TryParseInput<'inp, Limited<'inp>, String, Ctx> for Rekeying
+where
+  Ctx: ParseContext<'inp, Limited<'inp>>,
+{
+  fn try_parse_input(
+    &mut self,
+    input: &mut InputRef<'inp, '_, Limited<'inp>, Ctx>,
+  ) -> Result<ParseAttempt<String>, <Ctx::Emitter as Emitter<'inp, Limited<'inp>>>::Error> {
+    input.set_state(TokenLimiter::with_limitation(1));
+    Rolling.try_parse_input(input)
+  }
+}
+
+/// A digit, after which it peeks two tokens ahead and accepts whatever the window shows: an operand
+/// parser that accepts over a stop its lookahead met.
+#[derive(Debug, Clone, Copy)]
+pub struct Lookahead;
+
+impl<'inp, const SKIP: bool, Ctx> TryParseInput<'inp, ByteLexer<'inp, SKIP>, String, Ctx>
+  for Lookahead
+where
+  Ctx: ParseContext<'inp, ByteLexer<'inp, SKIP>>,
+{
+  fn try_parse_input(
+    &mut self,
+    input: &mut InputRef<'inp, '_, ByteLexer<'inp, SKIP>, Ctx>,
+  ) -> Result<ParseAttempt<String>, <Ctx::Emitter as Emitter<'inp, ByteLexer<'inp, SKIP>>>::Error>
+  {
+    let Some(tok) = input.try_expect(|tok| tok.data().0.is_ascii_digit())? else {
+      return Ok(ParseAttempt::Decline);
+    };
+    let _ = input.peek::<U2>()?;
+    Ok(ParseAttempt::Accept(char::from(tok.data().0).to_string()))
+  }
+}
+
 // ── The typed driver's folds ──────────────────────────────────────────────────────────────────
 
 /// An operator token with its span, as the drivers hand one over.

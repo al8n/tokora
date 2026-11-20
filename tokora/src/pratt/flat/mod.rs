@@ -11,7 +11,7 @@ use core::marker::PhantomData;
 use crate::{
   Emitter, InputRef, Lexer, ParseAttempt, ParseContext, Token as _, TryParseInput,
   error::{NonAssociativeChain, PrattStackFull, UnexpectedEoLhs, UnexpectedEoRhs, UnexpectedEot},
-  input::{Completeness, ScannerOutcome, SurfaceIncomplete},
+  input::{Completeness, SurfaceIncomplete},
   span::Span as _,
   token::PrattToken,
 };
@@ -344,18 +344,17 @@ impl<Expr: ?Sized, Power, Operand, L, O, Ctx, Lang: ?Sized, Cst, Mode>
       + From<NonAssociativeChain<L::Offset, Lang>>
       + From<PrattStackFull<L::Offset, Lang>>,
   {
-    // The scanner as the expression begins: its trip count, the committed end and the lexer regime,
-    // taken once, as the collection drivers take their baseline for the absences they conclude.
-    // User code runs between here and each point at which the loop ends or refuses: the operand
-    // parser, and a handler that reads on. A stop it met is still on the trip counter, which no
-    // rollback reaches, even where the input no longer shows it, so the one point the expression
-    // reaches asks first, and answers the stop. A trip followed by a new lexer regime is the
-    // documented recovery, and no stop.
+    // The scanner's trip count as the expression begins, taken once, as the collection drivers take
+    // the baseline for the absences they conclude. User code runs between here and each point at
+    // which the loop ends or refuses: the operand parser, and a handler that reads on. Any trip
+    // since is on the counter, which no rollback reaches, so the one such point the expression
+    // reaches asks first, and a trip makes it terminal, whatever followed it: a rollback that took
+    // the stop off the input, or a new lexer regime. Recovering by re-keying is the caller's, once
+    // the expression has ended.
     //
-    // Its cost: here, a `u64`, the counter's address, one offset and the regime. At the one point
-    // where the expression ends or refuses, a nonce compare and a `u64` compare where nothing
-    // tripped. Nothing on the path that goes on.
-    let scans = input.scanner_attempt();
+    // Its cost: here, a `u64` and the counter's address. At the one point where the expression
+    // ends or refuses, a nonce compare and a `u64` compare. Nothing on the path that goes on.
+    let scans = input.scanner_trip_snapshot();
     loop {
       // A term. The operand parser is asked first, and a token it declines is staged.
       if let ParseAttempt::Accept(value) = operand.try_parse_input(input)? {
@@ -380,11 +379,11 @@ impl<Expr: ?Sized, Power, Operand, L, O, Ctx, Lang: ?Sized, Cst, Mode>
             }
             handler.on_prefix(input, Precedenced::new(operator, power))?;
           }
-          // No term. A stop since the expression began answers for it, since the operand parser
+          // No term. A trip since the expression began answers for it, since the operand parser
           // may have declined only because the input was cut short. Otherwise the mode knows
           // whether an infix operator waits for it.
           None => {
-            if stopped(input.scanner_outcome(scans)) {
+            if input.scanner_tripped_during_attempt(scans) {
               return Err(scanner_stop(input));
             }
             let at = input.span().end();
@@ -450,10 +449,11 @@ impl<Expr: ?Sized, Power, Operand, L, O, Ctx, Lang: ?Sized, Cst, Mode>
             run.postfix(&power);
             handler.on_postfix(input, Precedenced::new(operator, power))?;
           }
-          // The token is staged, or there is none. A stop since the expression began answers for
-          // every ending: a handler that read on may have left the head it stopped behind.
+          // The token is staged, or there is none. A trip since the expression began answers for
+          // every ending: a handler or an operand parser that read on may have left the head it
+          // stopped behind.
           None => {
-            if stopped(input.scanner_outcome(scans)) {
+            if input.scanner_tripped_during_attempt(scans) {
               return Err(scanner_stop(input));
             }
             return match ending {
@@ -499,13 +499,6 @@ enum Ending {
   Chain,
   /// The mode took a zero-token operator, which has no token to tell.
   Adjacent,
-}
-
-/// Whether the scanner stopped since the baseline, read off the trip counter, which no rollback
-/// reaches: any trip, but one after which the lexer regime was replaced.
-#[inline(always)]
-fn stopped(outcome: ScannerOutcome) -> bool {
-  !matches!(outcome, ScannerOutcome::NoTrip | ScannerOutcome::ReKeyed)
 }
 
 /// The scanner's stop, as the terminal end of input where the input stands.
