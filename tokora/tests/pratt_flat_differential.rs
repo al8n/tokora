@@ -105,7 +105,7 @@ fn mutated(rng: &mut Rng) -> Vec<u8> {
 /// The source of `tokens` and a terminator, with up to `spaces` spaces before each token.
 fn write(rng: &mut Rng, tokens: &[u8], spaces: usize) -> String {
   let mut src = String::new();
-  for &byte in tokens.iter().chain(&[b';']) {
+  for &byte in tokens.iter().chain(b";") {
     for _ in 0..rng.below(spaces + 1) {
       src.push(' ');
     }
