@@ -46,9 +46,10 @@ use crate::container::Stack;
 /// # Refusals
 ///
 /// Every event either takes its item or refuses it, and **a refusal hands the item back and
-/// changes nothing**: the machine after it equals the machine before it. [`PrattRefused`] carries
-/// the item and one [`PrattRefusal`]. Nothing in the machine panics on a caller's slip; it panics
-/// only when its storage breaks [`Stack`]'s obligations, with a message that names `Stack`.
+/// changes nothing**: the machine after it equals the machine before it, over a storage that keeps
+/// the obligations below. [`PrattRefused`] carries the item and one [`PrattRefusal`]. Nothing in
+/// the machine panics on a caller's slip; it panics only when its storage breaks [`Stack`]'s
+/// obligations, with a message that names `Stack`.
 ///
 /// # Its storage
 ///
@@ -66,6 +67,25 @@ use crate::container::Stack;
 /// [`max_depth`](Self::max_depth) caps it, and a push is refused when the count has reached the cap
 /// or when the storage itself refuses the frame.
 ///
+/// # What it relies on of its storage
+///
+/// Every guarantee on this page holds over a storage that keeps [`Stack`]'s obligations, which are
+/// the whole of what the machine relies on of `S`. `Stack` gives the reason for each:
+///
+/// - last in, first out;
+/// - only its own `push` and `pop` add or remove frames;
+/// - `len` counts the frames, and [`with_stack`](Self::with_stack) reads it once;
+/// - a refusal hands the frame back, and only a stack that cannot hold the frame refuses it;
+/// - a `push` or a `pop` that unwinds leaves the frames as they were;
+/// - a clone is an independent copy that compares equal, which the machine's own `Clone` relies
+///   on;
+/// - reads and a refused push change nothing observable, equality included, which every refusal,
+///   [`offer`](Self::offer) and the reads of [`poll`](Self::poll) rely on.
+///
+/// It relies on nothing of `S::default`, since [`new`](Self::new) empties what that returns. With
+/// a storage that breaks one of them, an answer may be wrong, or a panic that names `Stack`, but it
+/// is never undefined behaviour.
+///
 /// # The caller code it runs
 ///
 /// It runs no reducer, no handler and no closure. The caller code it does run is this, and no more:
@@ -76,7 +96,8 @@ use crate::container::Stack;
 /// - the destructors of `V`, of the operator payloads and of `Power`, when [`reset`](Self::reset),
 ///   [`with_stack`](Self::with_stack), [`into_stack`](Self::into_stack) or the machine's own drop
 ///   lets go of a frame or a value; and `Power`'s alone where a latch or the floor is overwritten,
-///   and where a reduction or a [`retract`](Self::retract) lets go of a frame's own latch.
+///   and where a reduction or a [`retract`](Self::retract) lets go of a frame's own latch;
+/// - in its derived `Clone`, `PartialEq` and `Debug`, those traits of `S` and of each parameter.
 ///
 /// An unwind out of any of them leaves the machine's count and its storage in agreement: a push
 /// raises the count only once the storage has taken the frame, and a pop lowers it as soon as the
@@ -85,9 +106,8 @@ use crate::container::Stack;
 /// before it drops anything, and a step whose value an unwind takes leaves the
 /// [`Term`](PrattPoll::Term) phase, where that sub-expression starts over.
 ///
-/// Both rest on an obligation of the storage's own, as [`Stack`] writes it: a push or a pop that
-/// unwinds leaves the frames as they were. With a storage that breaks it, a later answer can be a
-/// panic that names `Stack`, but never undefined behaviour.
+/// Both rest on the storage's obligation for an unwind, among those above: a push or a pop that
+/// unwinds leaves the frames as they were.
 ///
 /// # Example
 ///
@@ -393,8 +413,8 @@ pub enum PrattPending<Pre, LeftAssoc, RightAssoc, NeitherAssoc, Power = i64> {
 
 /// An event a machine did not take: the item, handed back, and why.
 ///
-/// A refusal changes nothing. The machine after it equals the machine before it, and the item is
-/// the one that was fed.
+/// A refusal changes nothing. The machine after it equals the machine before it, over a storage
+/// that keeps [`Stack`]'s obligations, and the item is the one that was fed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrattRefused<T> {
   why: PrattRefusal,

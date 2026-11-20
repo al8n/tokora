@@ -79,25 +79,62 @@ pub trait Container<T> {
 /// # Its obligations
 ///
 /// `Stack` is implementable outside this crate, so what a reader of one may rely on is written
-/// here, as [`Container`] writes its own:
+/// here, as [`Container`] writes its own. This crate's reader is the Pratt family's machine,
+/// `PrattResolver`, which keeps its pending operators on the stack it is given. The list is the
+/// whole of what it relies on, and each item ends with what for:
 ///
-/// - [`pop`](Self::pop) removes and returns the item pushed last and not yet popped, and answers
-///   `None` only when every item pushed has been popped.
-/// - [`last`](Container::last) and [`last_mut`](Self::last_mut) are that same item.
-/// - [`len`](Container::len) counts the items pushed and not yet popped.
-/// - [`push`](Container::push) keeps [`Container`]'s contract: it refuses only what the stack
-///   cannot hold, and [`max_capacity`](Container::max_capacity) is the bound it refuses at. A
-///   stack that grows may panic while growing, before that bound, as `push` documents; that is not
-///   a refusal.
+/// - **Last in, first out.** [`pop`](Self::pop) removes and returns the item pushed last and not
+///   yet popped, and answers `None` only when every item pushed has been popped.
+///   [`last`](Container::last) and [`last_mut`](Self::last_mut) are that same item. The item on
+///   top is the one a reader offers against, reduces, or writes through.
+/// - **Only its own `push` and `pop` add or remove items.** Nothing else does: not another handle
+///   to the same items, and not a clone. A reader counts what it pushed and popped, and pops by
+///   that count.
+/// - **[`len`](Container::len) counts the items pushed and not yet popped.** A reader that is
+///   handed a stack empties it by its length, read once, so an item `len` leaves out stays below
+///   everything that reader pushes.
+/// - **A refusal hands the item back.** [`push`](Container::push) keeps [`Container`]'s contract:
+///   it takes the item, or refuses it and hands that same item back. It refuses only what the
+///   stack cannot hold, and [`max_capacity`](Container::max_capacity) is the bound it refuses at.
+///   A stack that grows may panic while growing, before that bound, as `push` documents; that is
+///   not a refusal. A reader reports a refusal as full, with the refused item handed back as fed.
 /// - **A `push` or a `pop` that unwinds leaves the items as they were.** A push that unwinds has
 ///   not taken its item, and a pop that unwinds has not removed one. A reader counts the items by
-///   what these two return, and an unwind returns nothing, so a change that an unwind hides is a
-///   count the reader can no longer keep.
+///   what these two return, and an unwind returns nothing.
+/// - **A clone is an independent copy.** It holds the same items and compares equal to the
+///   original, and a push or a pop on either never touches the other. A reader's own clone copies
+///   its count beside the stack's clone, so the two counts must describe two stacks.
+/// - **Reads and a refused push change nothing observable, equality included.**
+///   [`last`](Container::last), [`len`](Container::len) and
+///   [`max_capacity`](Container::max_capacity) leave the stack as it was, and so do
+///   [`last_mut`](Self::last_mut), but for what is written through it, and a push that is refused.
+///   A stack that counts these for its own instruments keeps the counters out of its `PartialEq`.
+///   A reader promises that a read and a refusal leave it equal to a clone taken before them, and
+///   it reads the top, or tries a push, before it refuses.
 ///
-/// Every stack this crate implements keeps that last obligation. None of their pushes or pops runs
-/// code of the item's. A push into a fixed stack and every pop cannot unwind at all, and a stack
-/// that grows, `Vec`, `VecDeque`, `SmallVec`, and the Pratt family's `PrattStack` where the crate
-/// can allocate, unwinds only while it grows, before the item is placed.
+/// It relies on nothing else: not on [`first`](Container::first) or
+/// [`is_empty`](Container::is_empty), which it never calls, and not on a `Default`, since it
+/// empties any stack it is handed.
+///
+/// Every public stack this crate implements `Stack` for keeps all seven: `ArrayDeque`, `Vec`,
+/// `VecDeque`, heapless's `Vec` and `Deque`, `SmallVec`, the Pratt family's `PrattStack`, which is
+/// an `ArrayDeque` with a `Vec` above it, and `&mut U` over any of them.
+///
+/// - Each pushes and pops at its back, and its `last` and `last_mut` are its back.
+/// - Each owns its items, and no other handle reaches them. `&mut U` borrows `U` alone for as long
+///   as a reader holds it.
+/// - Each `len` is its own count of its items.
+/// - A fixed one refuses only when it is full, and one that grows only a zero-sized item at
+///   `usize::MAX`, each before anything moves and with the item handed back.
+/// - None runs code of the item's in a push or a pop. A push into a fixed one and every pop cannot
+///   unwind at all, and one that grows unwinds only while it grows, before the item is placed.
+/// - Each `Clone` clones the items into storage of its own, and each `PartialEq` compares the
+///   items in order. `&mut U` is not `Clone`, so this one does not reach it: a reader over a lent
+///   stack has no clone.
+/// - Each read takes `&self` and holds no interior mutability, `last_mut` only hands out the
+///   reference, and a refused push returns before it writes anything.
+///
+/// `&mut U` answers as `U` does for each of the others.
 ///
 /// Breaking them is a logic error. What a reader of the stack does then is unspecified, a panic
 /// or a wrong result, but it is never undefined behaviour: the crate reads a `Stack` through
