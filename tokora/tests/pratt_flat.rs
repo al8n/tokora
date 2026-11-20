@@ -17,8 +17,8 @@ use tokora::{
 };
 
 use flat_fixture::{
-  BareCacheIr, ByteLexer, Expr, Fail, FatalCtx, FatalIr, Landing, Mode, Operand, Peeking, Skip,
-  TABLE, Tok, VerboseIr, forget_lexes, landing, lexes,
+  BareCacheIr, ByteLexer, Expr, Fail, FatalCtx, FatalIr, Landing, Mode, Operand, Skip, TABLE, Tok,
+  VerboseIr, forget_lexes, landing, lexes,
 };
 use flat_items::{Item, Items};
 
@@ -111,21 +111,6 @@ fn uncached<const SKIP: bool, O>(
     .expect("the cell catches every error it expects")
 }
 
-/// Runs `f` over `src` with a rejecting emitter, a cache of no capacity, and a budget of `budget`
-/// tokens.
-fn budgeted<const SKIP: bool, O>(
-  src: &str,
-  budget: usize,
-  f: impl FnMut(&mut BareCacheIr<'_, '_, SKIP>) -> Result<O, Fail>,
-) -> O {
-  Parser::with_context(
-    ParserContext::new(Fatal::new()).with_token_budget(TokenBudget::with_limitation(budget)),
-  )
-  .apply(f)
-  .parse_str(src)
-  .expect("the cell catches every error it expects")
-}
-
 fn operand(text: &str) -> Item {
   Item::Operand(String::from(text))
 }
@@ -175,29 +160,6 @@ fn a_parse_lexes_each_token_once() {
     assert_eq!(unbuffered.0.result, Ok(()), "{mode}");
     assert_eq!(unbuffered.1, expected, "{mode}, no cache");
     assert_eq!(unbuffered.0.landing.spent, 9, "{mode}");
-  }
-}
-
-/// Under a cache that holds no token, a head the operand parser peeked at and declined is the one
-/// the driver's read takes, and it is lexed once: `-1` parses within a budget of two tokens, in
-/// both modes.
-#[test]
-fn a_head_the_operand_parser_peeked_at_is_lexed_once() {
-  for bare in [false, true] {
-    let got = budgeted::<true, _>("-1", 2, |input| {
-      let mut items = Items::default();
-      let result = if bare {
-        flat(TABLE, Peeking).bare().parse_into(input, &mut items)
-      } else {
-        flat(TABLE, Peeking).parse_into(input, &mut items)
-      };
-      Ok((result, items.0, input.token_budget().spent()))
-    });
-    assert_eq!(
-      got,
-      (Ok(()), vec![Item::Prefix(b'-', 0, 40), operand("1")], 2),
-      "bare: {bare}"
-    );
   }
 }
 

@@ -9,7 +9,6 @@ use core::marker::PhantomData;
 
 use crate::{
   Emitter, InputRef, Lexer, ParseAttempt, ParseContext, Token as _, TryParseInput,
-  cache::Cache as _,
   error::{NonAssociativeChain, PrattStackFull, UnexpectedEoLhs, UnexpectedEoRhs, UnexpectedEot},
   input::{Completeness, SurfaceIncomplete},
   span::Span as _,
@@ -341,15 +340,7 @@ impl<Expr: ?Sized, Power, Operand, L, O, Ctx, Lang: ?Sized, Cst, Mode>
       + From<PrattStackFull<L::Offset, Lang>>,
   {
     loop {
-      // A term. The operand parser is asked first, and the head it inspects and declines is the
-      // one the read below takes. A cache that can hold a token keeps whatever head the operand
-      // parser's read lexed. One that can hold none keeps only a declined `try_expect`'s, and a
-      // peek's is dropped with its window, so there the head is read first, and parked: the
-      // operand parser then inspects it in place, by any read, and it is lexed once. A stop met
-      // by that read is terminal, before the operand parser could take it for a decline.
-      if input.cache().is_empty() && input.cache().remaining() == 0 {
-        input.try_expect_map_or_stop(|_| None::<()>)?;
-      }
+      // A term. The operand parser is asked first, and a token it declines is staged.
       if let ParseAttempt::Accept(value) = operand.try_parse_input(input)? {
         run.operand();
         handler.on_operand(input, value)?;

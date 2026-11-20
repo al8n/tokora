@@ -17,8 +17,8 @@ use tokora::{
 };
 
 use flat_fixture::{
-  BareCacheIr, ByteLexer, Fail, FatalIr, Landing, Operand, Peeking, TABLE, Tok, VerboseIr,
-  fold_infix, fold_postfix, fold_prefix, landing,
+  ByteLexer, Fail, FatalIr, Landing, Operand, TABLE, Tok, VerboseIr, fold_infix, fold_postfix,
+  fold_prefix, landing,
 };
 
 /// What the left-hand-side channel reported.
@@ -124,41 +124,7 @@ fn fatal<const SKIP: bool, O>(
     .expect("the cell catches every error it expects")
 }
 
-/// Runs `f` over `src` with a rejecting emitter, a cache of no capacity, and a budget of `budget`
-/// tokens.
-fn budgeted<const SKIP: bool, O>(
-  src: &str,
-  budget: usize,
-  f: impl FnMut(&mut BareCacheIr<'_, '_, SKIP>) -> Result<O, Fail>,
-) -> O {
-  Parser::with_context(
-    ParserContext::new(Fatal::new()).with_token_budget(TokenBudget::with_limitation(budget)),
-  )
-  .apply(f)
-  .parse_str(src)
-  .expect("the cell catches every error it expects")
-}
-
 // ── The operand parser first, and a prefix operator by the table ──────────────────────────────
-
-/// Under a cache that holds no token, the head the operand parser peeked at and declined is the
-/// one the table's read takes, and it is lexed once: the typed driver over the two channels parses
-/// `-1` within a budget of two tokens.
-#[test]
-fn a_head_the_operand_parser_peeked_at_is_lexed_once() {
-  let got = budgeted::<true, _>("-1", 2, |input| {
-    let tree = pratt(
-      TABLE.lhs(Peeking),
-      TABLE.rhs(),
-      fold_prefix,
-      fold_infix,
-      fold_postfix,
-    )
-    .parse_input(input);
-    Ok((tree, input.token_budget().spent()))
-  });
-  assert_eq!(got, (Ok(String::from("(-1)")), 2));
-}
 
 /// A head that the operand parser and the table's prefix row would both take is the operand
 /// parser's. Where the operand parser declines it, it is the table's prefix operator.

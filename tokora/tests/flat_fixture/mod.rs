@@ -422,32 +422,6 @@ where
   }
 }
 
-/// A digit, decided by a peek at the head's kind before anything is read: an operand parser that
-/// inspects the head and declines it without a `try_expect`.
-#[derive(Debug, Clone, Copy)]
-pub struct Peeking;
-
-impl<'inp, const SKIP: bool, Ctx> TryParseInput<'inp, ByteLexer<'inp, SKIP>, String, Ctx>
-  for Peeking
-where
-  Ctx: ParseContext<'inp, ByteLexer<'inp, SKIP>>,
-  <Ctx::Emitter as Emitter<'inp, ByteLexer<'inp, SKIP>>>::Error: From<UnexpectedEot<usize>>,
-{
-  fn try_parse_input(
-    &mut self,
-    input: &mut InputRef<'inp, '_, ByteLexer<'inp, SKIP>, Ctx>,
-  ) -> Result<ParseAttempt<String>, <Ctx::Emitter as Emitter<'inp, ByteLexer<'inp, SKIP>>>::Error>
-  {
-    if !matches!(input.peek_kind()?, Some(kind) if kind.is_ascii_digit()) {
-      return Ok(ParseAttempt::Decline);
-    }
-    Ok(match input.next()? {
-      Some(tok) => ParseAttempt::Accept(char::from(tok.data().0).to_string()),
-      None => ParseAttempt::Decline,
-    })
-  }
-}
-
 // ── The typed driver's folds ──────────────────────────────────────────────────────────────────
 
 /// An operator token with its span, as the drivers hand one over.
