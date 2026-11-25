@@ -31,11 +31,11 @@ use crate::{
 use super::super::segment::Segment;
 use super::{
   super::{
-    DefaultPrattStack, PrattFoldInfix, PrattFoldPostfix, PrattFoldPrefix, PrattFrame, PrattInfix,
-    PrattLHS, PrattOffer, PrattPending, PrattPoll, PrattPower, PrattRHS, PrattReduction,
-    PrattRefusal, PrattResolver, PrattStack, Precedenced, resolve::ResolverState,
+    PrattFoldInfix, PrattFoldPostfix, PrattFoldPrefix, PrattFrame, PrattInfix, PrattLHS,
+    PrattOffer, PrattPending, PrattPoll, PrattPower, PrattRHS, PrattReduction, PrattRefusal,
+    PrattResolver, Precedenced, resolve::ResolverState,
   },
-  Checked, Flat, FlatCst, OperatorHead, TermHead,
+  FlatCst, OperatorHead, TermHead,
   seam::Seam,
   stack_full, terminal_stop,
 };
@@ -62,75 +62,6 @@ type Machine<'inp, L, O, Power, St> =
 /// Everything of the machine but its storage.
 type State<'inp, L, O, Power> =
   ResolverState<O, Tk<'inp, L>, Tk<'inp, L>, Tk<'inp, L>, Tk<'inp, L>, Tk<'inp, L>, Power>;
-
-impl<Expr: ?Sized, Power, Operand, L, O, Ctx, Lang: ?Sized, Cst, B>
-  Flat<Expr, Power, Operand, L, O, Ctx, Lang, Cst, Checked<Power, B>>
-{
-  /// Resolves precedence while parsing, and folds into `O`: the non-recursive counterpart of
-  /// [`pratt`](super::super::pratt()), with its three fold traits.
-  ///
-  /// Each fold is handed the operator's committed token, with its span, so a grammar whose typed
-  /// classifiers hand out `Spanned<Token, Span>` passes the same three folds to both drivers. The
-  /// folds run in the typed driver's order, and each runs with the operator that asked for it left
-  /// on the input. The floor, the cap and the seam set on this driver carry over.
-  ///
-  /// The machine's storage is a field of the driver, emptied when a parse begins and when one
-  /// ends, however it ends, so a driver that is kept reuses it. By default it holds four pending
-  /// operators. Past them, it grows on the heap where the crate can allocate. Where it cannot, it
-  /// grows on the native stack four at a time, up to [`max_depth`](Self::max_depth), or 32 when
-  /// none is set; the operator past that is [`PrattStackFull`](crate::error::PrattStackFull).
-  /// [`with_stack`](FlatFold::with_stack) supplies a storage that is not grown.
-  #[must_use]
-  #[inline]
-  pub fn folding<'inp, FoldPrefix, FoldInfix, FoldPostfix>(
-    self,
-    fold_prefix: FoldPrefix,
-    fold_infix: FoldInfix,
-    fold_postfix: FoldPostfix,
-  ) -> FlatFold<
-    Expr,
-    Power,
-    Operand,
-    FoldPrefix,
-    FoldInfix,
-    FoldPostfix,
-    L,
-    O,
-    Ctx,
-    Lang,
-    Cst,
-    DefaultPrattStack<
-      PrattFrame<
-        O,
-        Spanned<<L as Lexer<'inp>>::Token, <L as Lexer<'inp>>::Span>,
-        Spanned<<L as Lexer<'inp>>::Token, <L as Lexer<'inp>>::Span>,
-        Spanned<<L as Lexer<'inp>>::Token, <L as Lexer<'inp>>::Span>,
-        Spanned<<L as Lexer<'inp>>::Token, <L as Lexer<'inp>>::Span>,
-        Power,
-      >,
-    >,
-  >
-  where
-    L: Lexer<'inp>,
-  {
-    let (floor, cap) = self.mode.into_bounds();
-    FlatFold {
-      operand: self.operand,
-      fold_prefix,
-      fold_infix,
-      fold_postfix,
-      cst: self.cst,
-      floor,
-      cap,
-      stack: PrattStack::new(),
-      #[cfg(any(test, not(any(feature = "std", feature = "alloc"))))]
-      grows: true,
-      #[cfg(test)]
-      growth: Growth::default(),
-      _marker: PhantomData,
-    }
-  }
-}
 
 /// A flat driver that resolves precedence as it parses, and folds into `O`: made by
 /// [`folding`](super::Flat::folding).
@@ -188,6 +119,34 @@ impl<
   S,
 > FlatFold<Expr, Power, Operand, FoldPrefix, FoldInfix, FoldPostfix, L, O, Ctx, Lang, Cst, S>
 {
+  /// The driver [`folding`](super::Flat::folding) makes: its operand parser and folds, the seam,
+  /// the floor and the cap set before it, and the default storage, which grows on the native stack
+  /// where the crate cannot allocate.
+  #[inline]
+  pub(super) fn new(
+    operand: Operand,
+    (fold_prefix, fold_infix, fold_postfix): (FoldPrefix, FoldInfix, FoldPostfix),
+    cst: Cst,
+    (floor, cap): (Power, Option<usize>),
+    stack: S,
+  ) -> Self {
+    Self {
+      operand,
+      fold_prefix,
+      fold_infix,
+      fold_postfix,
+      cst,
+      floor,
+      cap,
+      stack,
+      #[cfg(any(test, not(any(feature = "std", feature = "alloc"))))]
+      grows: true,
+      #[cfg(test)]
+      growth: Growth::default(),
+      _marker: PhantomData,
+    }
+  }
+
   /// Replaces the machine's storage. The driver owns it and lends it to the machine for every
   /// parse, emptying it when a parse begins and when one ends, however it ends: a storage lent as
   /// `&mut` keeps no frame, and so none of the operands they own, past an unwind out of user code,

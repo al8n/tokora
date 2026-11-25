@@ -12,12 +12,13 @@ use crate::{
   Emitter, InputRef, Lexer, ParseAttempt, ParseContext, Token as _, TryParseInput,
   error::{NonAssociativeChain, PrattStackFull, UnexpectedEoLhs, UnexpectedEoRhs, UnexpectedEot},
   input::{Completeness, SurfaceIncomplete},
-  span::Span as _,
+  span::{Span as _, Spanned},
   token::PrattToken,
 };
 
 use super::{
-  NoCst, PrattInfix, PrattLHS, PrattOffer, PrattPower, PrattRHS, PrattTable, Precedenced,
+  DefaultPrattStack, NoCst, PrattFrame, PrattInfix, PrattLHS, PrattOffer, PrattPower, PrattRHS,
+  PrattStack, PrattTable, Precedenced,
 };
 
 pub use fold::FlatFold;
@@ -127,6 +128,62 @@ impl<Expr: ?Sized, Power, Operand, L, O, Ctx, Lang: ?Sized, Cst, B>
       mode: self.mode.with_cap(max_depth),
       _marker: PhantomData,
     }
+  }
+
+  /// Resolves precedence while parsing, and folds into `O`: the non-recursive counterpart of
+  /// [`pratt`](super::pratt()), with its three fold traits.
+  ///
+  /// Each fold is handed the operator's committed token, with its span, so a grammar whose typed
+  /// classifiers hand out `Spanned<Token, Span>` passes the same three folds to both drivers. The
+  /// folds run in the typed driver's order, and each runs with the operator that asked for it left
+  /// on the input. The floor, the cap and the seam set on this driver carry over.
+  ///
+  /// The machine's storage is a field of the driver, emptied when a parse begins and when one
+  /// ends, however it ends, so a driver that is kept reuses it. By default it holds four pending
+  /// operators. Past them, it grows on the heap where the crate can allocate. Where it cannot, it
+  /// grows on the native stack four at a time, up to [`max_depth`](Self::max_depth), or 32 when
+  /// none is set; the operator past that is [`PrattStackFull`](crate::error::PrattStackFull).
+  /// [`with_stack`](FlatFold::with_stack) supplies a storage that is not grown.
+  #[must_use]
+  #[inline]
+  pub fn folding<'inp, FoldPrefix, FoldInfix, FoldPostfix>(
+    self,
+    fold_prefix: FoldPrefix,
+    fold_infix: FoldInfix,
+    fold_postfix: FoldPostfix,
+  ) -> FlatFold<
+    Expr,
+    Power,
+    Operand,
+    FoldPrefix,
+    FoldInfix,
+    FoldPostfix,
+    L,
+    O,
+    Ctx,
+    Lang,
+    Cst,
+    DefaultPrattStack<
+      PrattFrame<
+        O,
+        Spanned<<L as Lexer<'inp>>::Token, <L as Lexer<'inp>>::Span>,
+        Spanned<<L as Lexer<'inp>>::Token, <L as Lexer<'inp>>::Span>,
+        Spanned<<L as Lexer<'inp>>::Token, <L as Lexer<'inp>>::Span>,
+        Spanned<<L as Lexer<'inp>>::Token, <L as Lexer<'inp>>::Span>,
+        Power,
+      >,
+    >,
+  >
+  where
+    L: Lexer<'inp>,
+  {
+    FlatFold::new(
+      self.operand,
+      (fold_prefix, fold_infix, fold_postfix),
+      self.cst,
+      self.mode.into_bounds(),
+      PrattStack::new(),
+    )
   }
 }
 
