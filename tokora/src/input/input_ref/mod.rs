@@ -368,6 +368,11 @@ where
   /// [`publish_scanner_trip`](Self::publish_scanner_trip), the infallible half of recording a
   /// terminal scanner stop, and no handle method exposes a mutable route to the cell.
   pub(super) scanner_trips: &'closure mut u64,
+  /// The **position-write counter**, borrowed from the owning [`Input`](super::Input) — see that
+  /// field for what it counts and why a restore raises it. Its only writer is
+  /// [`install_position`](Self::install_position).
+  #[cfg(feature = "pratt")]
+  pub(super) position_writes: &'closure mut u64,
   /// The **withheld-head memo**, borrowed from the owning [`Input`](super::Input) — see that field
   /// for why a rollback leaves it alone. Written only by `remember_withheld`, read only by
   /// [`lex_within_boundary`](Self::lex_within_boundary).
@@ -2249,6 +2254,12 @@ where
     // ── commit point: two infallible moves, nothing between them ──
     let replaced_span = core::mem::replace(self.span, span);
     let replaced_state = core::mem::replace(self.state, state);
+    // One more write of the position, counted once both halves are in: an integer add, and no
+    // caller code.
+    #[cfg(feature = "pratt")]
+    {
+      *self.position_writes = self.position_writes.wrapping_add(1);
+    }
     (replaced_span, replaced_state, spare)
   }
 

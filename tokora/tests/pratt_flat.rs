@@ -12,7 +12,8 @@ use core::panic::AssertUnwindSafe;
 use std::panic::catch_unwind;
 
 use tokora::{
-  Emitter, InputRef, Lexer, Parse, ParseContext, ParseInput, Parser, ParserContext, SimpleSpan,
+  Emitter, InputRef, Lexer, Parse, ParseAttempt, ParseContext, ParseInput, Parser, ParserContext,
+  SimpleSpan, TryParseInput,
   emitter::{Fatal, Verbose},
   error::MaybeTerminal,
   input::TokenBudget,
@@ -24,8 +25,8 @@ use tokora::{
 
 use flat_fixture::{
   BareCacheIr, ByteLexer, Expr, Fail, FatalCtx, FatalIr, InfixOp, Landing, LimitedIr, Lookahead,
-  Mode, Operand, Rekeying, Rolling, Signed, Skip, TABLE, Tk, Tok, TwoDigits, VerboseIr, fold_infix,
-  fold_prefix, forget_lexes, landing, lexes, read_infix, read_postfix, read_prefix,
+  Marking, Mode, Operand, Rekeying, Rolling, Signed, Skip, TABLE, Tk, Tok, TwoDigits, VerboseIr,
+  fold_infix, fold_prefix, forget_lexes, landing, lexes, read_infix, read_postfix, read_prefix,
 };
 use flat_items::{Item, Items};
 
@@ -1220,4 +1221,87 @@ fn one_folding_driver_serves_three_parses() {
   assert!(unwound.is_err(), "the fold of `!` panicked");
   let parsed = kept("1^2^3;", |input| Ok(driver.parse_input(input)));
   assert_eq!(parsed, Ok(String::from("(1^(2^3))")));
+}
+
+/// A digit, as its own text, over any lexer of the fixture's token.
+#[derive(Debug, Clone, Copy)]
+struct AnyDigit;
+
+impl<'inp, L, Ctx> TryParseInput<'inp, L, String, Ctx> for AnyDigit
+where
+  L: Lexer<'inp, Token = Tok>,
+  Ctx: ParseContext<'inp, L>,
+{
+  fn try_parse_input(
+    &mut self,
+    input: &mut InputRef<'inp, '_, L, Ctx>,
+  ) -> Result<ParseAttempt<String>, <Ctx::Emitter as Emitter<'inp, L>>::Error> {
+    Ok(
+      match input.try_expect(|tok| tok.data().0.is_ascii_digit())? {
+        Some(tok) => ParseAttempt::Accept(char::from(tok.into_data().0).to_string()),
+        None => ParseAttempt::Decline,
+      },
+    )
+  }
+}
+
+/// The input a closure over the marking lexer, with a rejecting emitter, is handed.
+type MarkingIr<'inp, 'c> =
+  InputRef<'inp, 'c, Marking<'inp>, ParserContext<'inp, Marking<'inp>, Fatal<Fail>>>;
+
+/// `-1` folds to `(-1)`, and the fold takes the end marker after its operand, where one is next.
+fn takes_marker(
+  input: &mut MarkingIr<'_, '_>,
+  operand: String,
+  operator: Precedenced<Tk, u8>,
+) -> Result<String, Fail> {
+  let marker = input
+    .try_expect(|tok| tok.data().0 == b'.')?
+    .map_or("", |_| ".");
+  Ok(format!(
+    "({}{operand}{marker})",
+    char::from(operator.into_data().into_data().0)
+  ))
+}
+
+/// `1+2` folds to `(1+2)`, over the marking lexer.
+fn marked_infix(
+  _input: &mut MarkingIr<'_, '_>,
+  left: String,
+  right: String,
+  operator: InfixOp,
+) -> Result<String, Fail> {
+  let (PrattInfix::Left(tok) | PrattInfix::Right(tok) | PrattInfix::Neither(tok)) =
+    operator.into_data();
+  Ok(format!("({left}{}{right})", char::from(tok.into_data().0)))
+}
+
+/// A fold can take the head without moving `span().end()`. The marking lexer ends `1` and the
+/// marker after it at one offset, under two states, and the prefix fold of `-1+2;` takes the
+/// marker. That moved the input, so the head is read again, and `folding` builds the typed
+/// driver's `((-1.)+2)` rather than ending at `(-1.)` with `+2` left.
+#[test]
+fn a_fold_that_takes_a_token_ending_at_the_same_offset_moves_the_input() {
+  for folding in [true, false] {
+    let got = Parser::with_context(ParserContext::new(Fatal::new()))
+      .apply(|input: &mut MarkingIr<'_, '_>| {
+        Ok(if folding {
+          flat(TABLE, AnyDigit)
+            .folding(takes_marker, marked_infix, first)
+            .parse_input(input)
+        } else {
+          pratt(
+            TABLE.lhs(AnyDigit),
+            TABLE.rhs(),
+            takes_marker,
+            marked_infix,
+            first,
+          )
+          .parse_input(input)
+        })
+      })
+      .parse_str("-1+2;")
+      .expect("the parse's own error is caught");
+    assert_eq!(got, Ok(String::from("((-1.)+2)")), "folding: {folding}");
+  }
 }

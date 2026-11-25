@@ -3,9 +3,9 @@
 //!
 //! It runs the flat loop over a machine of the caller's values, and folds each reduction the
 //! machine hands out, one for each poll, with the operator that asked for it left on the input. A
-//! classification of the head stands across a fold while the input has not moved: offered again,
-//! it reads nothing, and a token is committed only on the answer of a fresh read's own offer. After
-//! a fold that moved the input, the head is read again.
+//! classification of the head stands across a fold that wrote no position and re-keyed nothing:
+//! offered again, it reads nothing, and a token is committed only on the answer of a fresh read's
+//! own offer. After a fold that moved the input, the head is read again.
 //!
 //! Where the crate cannot allocate, a default storage grows on the native stack, a segment at a
 //! time. A loop that finds its storage full below the cap goes on in a deeper native frame over a
@@ -710,10 +710,12 @@ where
         // One reduction, folded with the operator that asked for it still on the input.
         PrattPoll::Reduce(reduction) => {
           // The moved pair, read only while a classification stands, which is after every
-          // reduction but a postfix operator's.
+          // reduction but a postfix operator's: how many times the position has been written, and
+          // the regime. Not the committed offset: a fold can take the head without moving it,
+          // where two tokens end at one offset under different lexer states.
           let before = standing
             .as_ref()
-            .map(|_| (input.span().end_ref().clone(), input.regime_generation()));
+            .map(|_| (input.position_writes(), input.regime_generation()));
           let value = match reduction {
             PrattReduction::Prefix(reduction) => {
               let (operand, operator) = reduction.into_components();
@@ -734,10 +736,12 @@ where
               refused.why()
             );
           }
-          // The one key: the offsets compared for equality, and the regimes by `same_regime`, as
-          // the input compares them. Moved, the head is read again.
-          if let Some((at, regime)) = before
-            && (*input.span().end_ref() != at || !same_regime(input.regime_generation(), regime))
+          // The one key. No write of the position and the same regime, by `same_regime`, leave
+          // the span and the lexer state as they were, so the head is the same token by the
+          // lexer's determinism. Anything else is a move, and the head is read again.
+          if let Some((writes, regime)) = before
+            && (input.position_writes() != writes
+              || !same_regime(input.regime_generation(), regime))
           {
             standing = None;
           }

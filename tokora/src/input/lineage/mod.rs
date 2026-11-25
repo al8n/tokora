@@ -259,6 +259,12 @@ pub(crate) fn census<'inp, L, Ctx, Lang, Cmpl>(
     //   `Checkpoint`, and not in `ThroughEntry` either — the sync family's own positional rewind
     //   restores the boundary and deliberately leaves this alone.
     scanner_trips: _,
+    // — MONOTONE SESSION FACT: restore does NOT touch it, and must not. A restore is a write of
+    //   the position, so it counts one more rather than going back: the count says THAT the
+    //   position was written, which a rollback cannot make untrue. Counted up by
+    //   `install_position`; no lowering writer exists. Not in `Checkpoint`.
+    #[cfg(feature = "pratt")]
+      position_writes: _,
     // — KEYED MEMO: restore does NOT touch it, and need not. It records what the deterministic
     //   lexer does from one offset under one regime on this source — an item a non-final input
     //   withholds — and its key holds all of that: the offset, the regime id, the source length,
@@ -332,6 +338,10 @@ pub(crate) fn census<'inp, L, Ctx, Lang, Cmpl>(
     // — MONOTONE SESSION FACT (borrowed): counted up by `publish_scanner_trip`, never lowered
     //   and never restored. Same class as the `Input` field above it.
     scanner_trips: _,
+    // — MONOTONE SESSION FACT (borrowed): counted up by `install_position`, never lowered and
+    //   never restored. Same class as the `Input` field above it.
+    #[cfg(feature = "pratt")]
+      position_writes: _,
     // — KEYED MEMO (borrowed): written by `remember_withheld`, read by `lex_within_boundary`, never
     //   restored. Same class as the `Input` field above it.
     withheld: _,
