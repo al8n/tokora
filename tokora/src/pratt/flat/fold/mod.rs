@@ -19,7 +19,7 @@ use hybrid_arraydeque::{ArraySize, typenum::U4};
 
 use crate::{
   Emitter, InputRef, Lexer, ParseAttempt, ParseContext, ParseInput, Token as _, TryParseInput,
-  container::{Container as _, Stack},
+  container::Stack,
   error::{NonAssociativeChain, PrattStackFull, UnexpectedEoLhs, UnexpectedEoRhs, UnexpectedEot},
   input::{Complete, ScannerTripBaseline, same_regime},
   span::{Span as _, Spanned},
