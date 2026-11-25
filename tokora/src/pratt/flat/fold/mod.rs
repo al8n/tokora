@@ -308,8 +308,12 @@ where
 
 /// What a read of the head decided where it committed nothing.
 enum Answer {
-  /// No operator of the table, `End` or the end of input; an operator below the floor; or an
-  /// operator that waits for a reduction. One sub-expression is closed.
+  /// The read was handed no token at all: the end of input, a tail of lexer errors before it
+  /// included. One sub-expression is closed. The read's closure never answers this: it is what
+  /// the answer is while that closure has not run.
+  End,
+  /// No operator of the table, or `End`; an operator below the floor; or an operator that waits
+  /// for a reduction. One sub-expression is closed.
   Close,
   /// The operator repeats a non-associative chain.
   Chain,
@@ -663,10 +667,8 @@ where
             }
             end = None;
           }
-          let mut answer = Answer::Close;
-          let mut presented = false;
+          let mut answer = Answer::End;
           let head = input.try_expect_map_or_stop(|tok| {
-            presented = true;
             if tok.is_trivia() {
               return Some(OperatorHead::Trivia);
             }
@@ -742,20 +744,18 @@ where
             // The token is staged, or there is none. A trip since the expression began answers
             // for an ending, a reduction and a refusal alike: an operand parser or a fold that
             // read on may have left the head it stopped behind.
-            None => {
-              // The read was handed no token at all: none is to be had from here.
-              if !presented {
+            None => match answer {
+              Answer::End => {
                 end = Some(AtEnd {
                   at: input.span().end_ref().clone(),
                   regime: input.regime_generation(),
                 });
+                close(&mut machine, input, scans)?;
               }
-              match answer {
-                Answer::Close => close(&mut machine, input, scans)?,
-                Answer::Chain => return Err(chain(input, scans)),
-                Answer::Adjacent => return Err(adjacent(input, scans)),
-              }
-            }
+              Answer::Close => close(&mut machine, input, scans)?,
+              Answer::Chain => return Err(chain(input, scans)),
+              Answer::Adjacent => return Err(adjacent(input, scans)),
+            },
           }
         }
 
