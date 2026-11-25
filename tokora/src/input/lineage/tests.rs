@@ -11,7 +11,7 @@ use super::Lineage;
 #[cfg(any(feature = "std", feature = "alloc"))]
 #[should_panic(expected = "checkpoint id space exhausted")]
 fn checkpoint_id_exhaustion_panics() {
-  let mut lineage = Lineage::new();
+  let mut lineage = Lineage::new(0);
   lineage.seed_counters_at_max_for_tests();
   let _ = lineage.open();
 }
@@ -20,7 +20,7 @@ fn checkpoint_id_exhaustion_panics() {
 #[cfg(any(feature = "std", feature = "alloc"))]
 #[should_panic(expected = "savepoint sequence exhausted")]
 fn savepoint_seq_exhaustion_panics() {
-  let mut lineage = Lineage::new();
+  let mut lineage = Lineage::new(0);
   lineage.seed_counters_at_max_for_tests();
   let _ = lineage.next_savepoint_seq();
 }
@@ -28,7 +28,7 @@ fn savepoint_seq_exhaustion_panics() {
 #[test]
 #[should_panic(expected = "cache-push counter exhausted")]
 fn cache_push_exhaustion_panics() {
-  let mut lineage = Lineage::new();
+  let mut lineage = Lineage::new(0);
   lineage.seed_counters_at_max_for_tests();
   lineage.record_cache_push();
 }
@@ -36,7 +36,7 @@ fn cache_push_exhaustion_panics() {
 /// The keep-green direction: none of the three fires on an ordinary history.
 #[test]
 fn ordinary_use_never_trips_a_witness() {
-  let mut lineage = Lineage::new();
+  let mut lineage = Lineage::new(0);
   for _ in 0..1_000 {
     lineage.record_cache_push();
     #[cfg(any(feature = "std", feature = "alloc"))]

@@ -913,3 +913,105 @@ mod against_the_heap_loop {
     assert_eq!((growth.grown, growth.returned), (2, 1));
   }
 }
+
+/// A cache a context hands over holding entries: they count as pushed, so the head the first read
+/// stages has its place in the push order like any other.
+#[cfg(feature = "std")]
+mod over_a_prefilled_cache {
+  use core::cell::Cell;
+  use std::{format, thread_local};
+
+  use hybrid_arraydeque::typenum::U128;
+
+  use super::*;
+  use crate::cache::CachedToken;
+
+  thread_local! {
+    /// The right-hand sides the counting table has classified on this thread.
+    static CLASSIFIED: Cell<usize> = const { Cell::new(0) };
+  }
+
+  /// The suites' table, under a marker whose right-hand classifier counts its calls.
+  struct Counted;
+
+  const COUNTED: PrattTable<Counted, u8> = PrattTable::new();
+
+  impl PrattToken<'_, Counted, u8> for Tok {
+    fn try_pratt_lhs(&self) -> Option<PrattLHS<(), (), u8>> {
+      <Self as PrattToken<'_, Expr, u8>>::try_pratt_lhs(self)
+    }
+
+    fn try_pratt_rhs(&self) -> Option<PrattRHS<(), (), (), (), u8>> {
+      CLASSIFIED.with(|classified| classified.set(classified.get() + 1));
+      <Self as PrattToken<'_, Expr, u8>>::try_pratt_rhs(self)
+    }
+  }
+
+  /// A cache with room for every token of the sources below.
+  type Prefilled = ArrayDeque<CachedToken<Tok, (), SimpleSpan>, U128>;
+  type PrefilledIr<'inp, 'c> = InputRef<'inp, 'c, ByteLexer<'inp, true>, (Fatal<Fail>, Prefilled)>;
+
+  /// A digit, as its value.
+  fn prefilled_digit(input: &mut PrefilledIr<'_, '_>) -> Result<ParseAttempt<u32>, Fail> {
+    Ok(
+      match input.try_expect(|tok| tok.data().0.is_ascii_digit())? {
+        Some(tok) => ParseAttempt::Accept(u32::from(tok.into_data().0 - b'0')),
+        None => ParseAttempt::Decline,
+      },
+    )
+  }
+
+  fn keep(_: &mut PrefilledIr<'_, '_>, operand: u32, _: Precedenced<Op, u8>) -> Result<u32, Fail> {
+    Ok(operand)
+  }
+
+  fn keep_left(
+    _: &mut PrefilledIr<'_, '_>,
+    left: u32,
+    _: u32,
+    _: Precedenced<PrattInfix<Op, Op, Op>, u8>,
+  ) -> Result<u32, Fail> {
+    Ok(left)
+  }
+
+  /// `folding` over N prefix operators, `1` and `x`, every token of which is in the cache the
+  /// input is handed, with folds that read nothing: its value, and the right-hand sides it
+  /// classified.
+  fn over_prefilled(n: usize) -> (Result<u32, Fail>, usize) {
+    let src = format!("{}1x", "-".repeat(n));
+    let mut cache = Prefilled::new();
+    for (at, byte) in src.bytes().enumerate() {
+      let entry = CachedToken::new(Spanned::new(SimpleSpan::new(at, at + 1), Tok(byte)), ());
+      assert!(
+        cache.push_back_mut(entry).is_ok(),
+        "the cache has room for the source"
+      );
+    }
+    let mut input =
+      Input::<ByteLexer<'_, true>, (Fatal<Fail>, Prefilled), ()>::with_state_and_context(
+        src.as_str(),
+        (),
+        InputContext::new(Fatal::<Fail>::new(), cache),
+      );
+    CLASSIFIED.with(|classified| classified.set(0));
+    let result = flat(COUNTED, prefilled_digit)
+      .folding(keep, keep_left, keep)
+      .parse_input(&mut input.as_ref());
+    (result, CLASSIFIED.with(Cell::get))
+  }
+
+  /// The head `x` is an entry the cache arrived holding, and it is classified once, however many
+  /// folds it waits behind. Without a place in the push order it would be classified after every
+  /// fold, N + 1 times.
+  #[test]
+  fn a_head_the_cache_arrived_holding_is_classified_once_across_its_folds() {
+    for n in [16, 64] {
+      let (result, calls) = over_prefilled(n);
+      assert_eq!(result, Ok(1), "{n}");
+      assert!(
+        calls <= 2,
+        "{n} prefix operators over a prefilled cache: {calls} classifications"
+      );
+    }
+  }
+}

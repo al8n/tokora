@@ -525,8 +525,9 @@ where
     }
     match self.cache().len() {
       0 => None,
-      // A count short of the resident entries names none of them: no identity, rather than a
-      // wrong one.
+      // The count is never short of the resident entries: it starts at the entries the cache
+      // arrived holding, and every later entry is counted as it is pushed. Were it short, no
+      // identity, rather than a wrong one.
       held => self
         .session
         .lineage

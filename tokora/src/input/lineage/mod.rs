@@ -378,7 +378,8 @@ pub(crate) struct Lineage {
   /// [`Checkpoint`](super::Checkpoint) captures it at save time and
   /// [`restore`](super::InputRef::restore) uses the difference to drop the entries pushed on
   /// the abandoned continuation. It is correctness state in **every** build, so it is the one
-  /// memo present without an allocator.
+  /// memo present without an allocator. It starts at the entries the cache arrived holding, which
+  /// count as pushed, so that it is never short of the entries resident.
   cache_pushes: u64,
   /// Monotone id source for the token in the parked front slot, bumped by
   /// [`record_park`](Self::record_park) each time the slot takes a token it did not just hand out.
@@ -459,12 +460,13 @@ const CACHE_PUSHES_EXHAUSTED: &str = "cache-push counter exhausted: 2^64 cache p
    witness; a wrap would make it read as a smaller history than actually occurred.";
 
 impl Lineage {
-  /// A fresh set of memos for a new input: an unadvanced cache-push counter and — in allocator
-  /// builds — an empty live-checkpoint stack, an empty pin set, and zeroed counters.
+  /// A fresh set of memos for a new input whose cache arrives holding `resident` entries: a
+  /// cache-push counter that counts them as pushed and — in allocator builds — an empty
+  /// live-checkpoint stack, an empty pin set, and zeroed counters.
   #[inline(always)]
-  pub(crate) fn new() -> Self {
+  pub(crate) fn new(resident: u64) -> Self {
     Self {
-      cache_pushes: 0,
+      cache_pushes: resident,
       #[cfg(feature = "pratt")]
       parks: 0,
       #[cfg(any(feature = "std", feature = "alloc"))]

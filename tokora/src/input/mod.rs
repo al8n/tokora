@@ -1177,6 +1177,10 @@ where
     context: InputContext<Ctx::Emitter, Ctx::Cache>,
   ) -> Self {
     let (emitter, cache, recursion, token_budget) = context.into_components();
+    // A context may hand the cache over holding entries. They count as pushed, so the push count
+    // covers every resident entry from the first read, and the front's place in the push order is
+    // defined for them as for any entry pushed later. Read once, here.
+    let resident = <Ctx::Cache as crate::cache::Cache<'inp, L, Lang>>::len(&cache) as u64;
     // The source-identity handshake. See `Emitter::bound_source`.
     //
     // `bound_source()` is `None` for every emitter that binds no source — 30 of the 31 core
@@ -1249,7 +1253,7 @@ where
       // Nothing withheld yet: only a scan of this input can withhold an item.
       withheld: None,
       emitter,
-      lineage: Lineage::new(),
+      lineage: Lineage::new(resident),
       #[cfg(feature = "trace")]
       depth: 0,
       #[cfg(all(
