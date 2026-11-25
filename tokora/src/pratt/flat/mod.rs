@@ -1,4 +1,5 @@
-//! The flat expression driver: one loop over the machine, with no recursion of its own.
+//! The flat expression driver: one loop over the machine, which recurses only where the crate
+//! cannot allocate, to grow a default storage.
 //!
 //! Its loop reads `prefix* operand postfix* (infix prefix* operand postfix*)*`. Every head it reads,
 //! it reads with `InputRef::try_expect_map_or_stop`, and the mode's admission runs inside that
@@ -39,9 +40,11 @@ mod tests;
 
 /// Creates a flat expression driver over `table`, with `operand` as its operand parser.
 ///
-/// The driver is one loop over the machine, with no recursion of its own, so it enters no level of
-/// the input's recursion budget. A grammar that re-enters an expression, through its operand
-/// parser or its handler, bounds that recursion itself.
+/// The driver is one loop over the machine, so it enters no level of the input's recursion budget.
+/// With an allocator it does not recurse. With none, `folding` over its default storage recurses on
+/// the native stack once for each four pending operators, so the depth of that recursion is at most
+/// a quarter of the bound. A grammar that re-enters an expression, through its operand parser or
+/// its handler, bounds that recursion itself.
 #[inline]
 pub fn flat<'inp, Expr, Power, Operand, L, O, Ctx, Lang>(
   table: PrattTable<Expr, Power>,
@@ -121,6 +124,11 @@ impl<Expr: ?Sized, Power, Operand, L, O, Ctx, Lang: ?Sized, Cst, B>
   ///
   /// [`PrattStackFull`](crate::error::PrattStackFull) reports the bound that refused.
   ///
+  /// With an allocator, [`folding`](Self::folding) over its default storage has no default bound on
+  /// depth: `max_depth(n)` sets one. The typed driver's recursion budget held the depth of a value
+  /// built along a right-associative chain or a prefix run to 31 at most, and nothing does here
+  /// until a cap is set. A caller that drops or walks its value by recursion sets one.
+  ///
   /// The driver is then [`Bounded`], whatever the value, and has no [`bare`](Self::bare).
   #[must_use]
   #[inline]
@@ -136,7 +144,7 @@ impl<Expr: ?Sized, Power, Operand, L, O, Ctx, Lang: ?Sized, Cst, B>
     }
   }
 
-  /// Resolves precedence while parsing, and folds into `O`: the non-recursive counterpart of
+  /// Resolves precedence while parsing, and folds into `O`: the flat counterpart of
   /// [`pratt`](super::pratt()), with its three fold traits.
   ///
   /// Each fold is handed the operator's committed token, with its span, so a grammar whose typed
@@ -145,10 +153,13 @@ impl<Expr: ?Sized, Power, Operand, L, O, Ctx, Lang: ?Sized, Cst, B>
   /// on the input. The floor, the cap and the seam set on this driver carry over.
   ///
   /// The machine's storage is a field of the driver, emptied when a parse begins and when one
-  /// ends, however it ends, so a driver that is kept reuses it. By default it holds four pending
-  /// operators. Past them, it grows on the heap where the crate can allocate. Where it cannot, it
-  /// grows on the native stack four at a time, up to [`max_depth`](Self::max_depth), or 32 when
-  /// none is set; the operator past that is [`PrattStackFull`](crate::error::PrattStackFull).
+  /// ends, however it ends, so a driver that is kept reuses it. It keeps the room its deepest parse
+  /// needed until the `FlatFold` is dropped. By default it holds four pending operators. Past them,
+  /// it grows on the heap where the crate can allocate. Where it cannot, it grows on the native
+  /// stack four at a time, up to [`max_depth`](Self::max_depth), or 32 when none is set; the
+  /// operator past that is [`PrattStackFull`](crate::error::PrattStackFull). With an allocator,
+  /// `folding` has no default bound on depth: [`max_depth`](Self::max_depth) sets one, where the
+  /// typed driver's recursion budget held a chain to 31 levels at most.
   /// [`with_stack`](FlatFold::with_stack) supplies a storage that is not grown.
   #[must_use]
   #[inline]

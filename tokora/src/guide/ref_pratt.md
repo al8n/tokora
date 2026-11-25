@@ -854,9 +854,10 @@ assert_eq!(Parser::with_parser(parse_expr_cst).parse_str("1 + 2 * 3").unwrap(), 
 ## Flat driver
 
 [`flat`](crate::pratt::flat) makes a [`Flat`](crate::pratt::Flat): one loop over the machine,
-[`PrattResolver`](crate::pratt::PrattResolver), with no recursion of its own, so it enters no level
-of the recursion budget. A [`PrattTable`](crate::pratt::PrattTable) reads the token's own
-[`PrattToken`](crate::token::PrattToken) rows, and the operand parser, any
+[`PrattResolver`](crate::pratt::PrattResolver), so it enters no level of the recursion budget. With
+an allocator it has no recursion of its own; with none, `folding` over its default storage recurses
+once for each four pending operators. A [`PrattTable`](crate::pratt::PrattTable) reads the token's
+own [`PrattToken`](crate::token::PrattToken) rows, and the operand parser, any
 [`TryParseInput`](crate::TryParseInput), is asked first at every term, so the left-hand rows need
 only the prefix operators. [Chapter 5](super::ch05_pratt) works a calculator on it.
 

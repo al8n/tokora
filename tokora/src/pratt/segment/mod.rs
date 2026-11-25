@@ -6,9 +6,10 @@
 //! machine knows that it exists. Its `push` refuses once its own `K` frames are in use, and its
 //! `pop` takes from its own. Its `last` and `last_mut` reach the frame on top of what is below
 //! when it holds none, which breaks one of `Stack`'s written obligations on purpose: with its own
-//! frames gone it answers `pop` with `None` and `last` with the frame below. The one thing that
-//! crosses that link is the latch a reduction writes on the frame now on top, when that reduction
-//! emptied the segment.
+//! frames gone it answers `pop` with `None` and `last` with the frame below. Two things cross that
+//! link: the latch a reduction writes on the frame now on top, when that reduction emptied the
+//! segment, and a read of that frame, where the loop feeds an infix operator again on a new, empty
+//! segment and the machine reads the top frame for its offer before it pushes.
 //!
 //! The loop that runs a machine over a segment keeps two rules, which the segment cannot keep for
 //! it:
@@ -16,12 +17,14 @@
 //! - **Growing.** When a push is refused below the machine's cap, the loop makes the next segment
 //!   over this one in a deeper native frame, re-seats the machine on it through `into_parts` and
 //!   `from_parts`, and feeds the event again, which the empty segment takes.
-//! - **Returning.** Once its segment is [`drained`](Segment::drained), its own frames gone with
-//!   frames below, the loop returns to the frame below before the machine next reads its stack,
-//!   and that frame re-seats the machine on its own segment, which is as it was left: full. So no
-//!   frame is ever popped through a link, every segment below the deepest is full, and wherever
-//!   the loop reads its stack the native stack holds `ceil(depth / K)` segments: a long expression
-//!   that is not deep cannot grow it.
+//! - **Returning.** Once its own frames are gone with frames below, the loop returns to the frame
+//!   below before the machine next reads its stack. The loop tests that as
+//!   `UPPER && machine.storage().is_empty()`, where `UPPER` marks a segment that has frames below;
+//!   [`drained`](Segment::drained) is the same test on the segment alone. The frame below
+//!   re-seats the machine on its own segment, which is as it was left: full. So no frame is ever
+//!   popped through a link, every segment below the deepest is full, and wherever the loop reads
+//!   its stack the native stack holds `ceil(depth / K)` segments: a long expression that is not
+//!   deep cannot grow it.
 //!
 //! A segment reports its own `K` as its [`max_capacity`](Container::max_capacity), as `Container`
 //! asks of a storage that refuses there, while the machine's count spans every segment. So the
@@ -81,8 +84,8 @@ impl<'below, T, K: ArraySize> Segment<'below, T, K> {
     }
   }
 
-  /// Whether the loop on this segment returns to the frame below: its own frames are gone, and
-  /// frames remain below.
+  /// Whether its own frames are gone, and frames remain below. The loop that runs a machine over a
+  /// segment spells this test `UPPER && machine.storage().is_empty()`.
   #[inline]
   pub(crate) fn drained(&self) -> bool {
     self.own.is_empty() && self.below.is_some()

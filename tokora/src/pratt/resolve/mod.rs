@@ -120,7 +120,9 @@ use crate::container::Stack;
 /// storage gives the frame up, before the frame or a value in it is dropped. It also leaves a phase
 /// that claims no frame the machine has let go of: [`reset`](Self::reset) installs the new phase
 /// before it drops anything, and a step whose value an unwind takes leaves the
-/// [`Term`](PrattPoll::Term) phase, where that sub-expression starts over.
+/// [`Term`](PrattPoll::Term) phase, where that sub-expression starts over. The frame's
+/// non-associativity latch stays as it was, so a caller that goes on after an unwind it caught
+/// calls [`reset`](Self::reset), which returns the machine to a known state.
 ///
 /// Both rest on the storage's obligation for an unwind, among those above: a push or a pop that
 /// unwinds leaves the frames as they were.

@@ -343,9 +343,10 @@ assert_eq!(binding, ("x", 13));
 [`flat`](crate::pratt::flat) takes a [`PrattTable`](crate::pratt::PrattTable), which reads the
 token's own [`PrattToken`](crate::token::PrattToken) rows, and an operand parser, any
 [`TryParseInput`](crate::TryParseInput). The operand parser is asked first at every term, so the
-table's left-hand rows need only the prefix operators. The driver is one loop over the machine and
-recurses nowhere, so it enters no level of the recursion budget: a grammar whose operand parser
-re-enters an expression bounds that itself, with
+table's left-hand rows need only the prefix operators. The driver is one loop over the machine, so
+it enters no level of the recursion budget. With an allocator it recurses nowhere; with none,
+`folding` over its default storage recurses on the native stack once for each four pending
+operators. A grammar whose operand parser re-enters an expression bounds that itself, with
 [`descending`](crate::InputRef::descending).
 
 It has two adapters, and the rule for choosing between them is the one thing to know first:
@@ -789,6 +790,10 @@ assert_eq!(eval("(1"), Err(CalcError::Unexpected));
   has the table of what holds them in each tier. [`bare`](crate::pratt::Flat::bare) gives the
   machine up: `parse_into` then takes every operator the table names, with no floor, no refusal
   of a non-associative chain and no cap.
+- **With an allocator, `folding` has no default bound on depth.** The typed driver's recursion
+  budget held a value built along a right-associative chain or a prefix run to 31 levels at most,
+  and `folding` refuses nothing until [`max_depth`](crate::pratt::Flat::max_depth) sets a cap. A
+  caller whose value is dropped or walked by recursion sets one.
 
 ## Recovery: an error node is a legal operand
 

@@ -83,6 +83,12 @@ impl<Expr: ?Sized, Power> fmt::Debug for PrattTable<Expr, Power> {
 /// operator. Anything else, the end of input among it, is
 /// [`UnexpectedEoLhs`](crate::error::UnexpectedEoLhs) at `span().end()`, with the token left on the
 /// input.
+///
+/// A scanner trip since the call began makes whatever the channel would have reported, the operand
+/// included, the terminal [`UnexpectedEot`](crate::error::UnexpectedEot) at `span().end()`
+/// instead: the operand parser can meet a stop and still accept or decline, and a rollback or a
+/// re-key inside it can take the stop off the input. A decline over a refused descent that the
+/// operand parser caught is that error too, and the head is not classified after it.
 pub struct PrattTableLHS<Expr: ?Sized, Power, Operand> {
   operand: Operand,
   _table: PhantomData<fn() -> (*const Expr, Power)>,
@@ -119,6 +125,10 @@ impl<Expr: ?Sized, Power, Operand: fmt::Debug> fmt::Debug for PrattTableLHS<Expr
 /// token to report. It is [`UnexpectedEoRhs`](crate::error::UnexpectedEoRhs) at `span().end()`,
 /// with the token left on the input, wherever the channel reads one, below the typed driver's
 /// floor too: the channel classifies before the driver compares a power.
+///
+/// A scanner stop at the head is the terminal [`UnexpectedEot`](crate::error::UnexpectedEot)
+/// instead of [`PrattRHS::End`] or the `Adjacent` error: the read takes a stop for an error, and
+/// never for the end of the expression.
 pub struct PrattTableRHS<Expr: ?Sized, Power> {
   _table: PhantomData<fn() -> (*const Expr, Power)>,
 }

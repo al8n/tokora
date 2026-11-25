@@ -241,9 +241,9 @@ crate. **The remedy is UFCS**: `MyExt::fold(maybe, ..)` pins your method by name
 
 ### Added
 
-- **The flat expression driver, `pratt::flat`.** One loop over the precedence machine, with no
-  recursion of its own: it enters no level of the recursion budget, and a long chain costs no
-  native stack. A `pratt::PrattTable` reads the token's own `PrattToken` rows, and an operand parser
+- **The flat expression driver, `pratt::flat`.** One loop over the precedence machine: it enters
+  no level of the recursion budget, and a long chain costs no native stack where the crate can
+  allocate. A `pratt::PrattTable` reads the token's own `PrattToken` rows, and an operand parser
   of the caller's, any `TryParseInput`, is asked first at every term. It has two adapters, and the
   guide's chapter 5 gives the rule for choosing: `parse_into` to collect and resolve later,
   `folding` to evaluate as you parse.
@@ -256,8 +256,10 @@ crate. **The remedy is UFCS**: `MyExt::fold(maybe, ..)` pins your method by name
     typed driver's three fold traits, each handed the operator's committed token with its span. A
     fold's `Err` ends the parse at its operator. Its storage holds four pending operators and grows
     past them: on the heap where the crate can allocate, and on the native stack four at a time
-    where it cannot, up to the cap, or 32. `FlatFold::with_stack` lends it a storage of the
-    caller's, which is not grown and is left empty however the parse ends.
+    where it cannot, up to the cap, or 32. With an allocator it has no default bound on depth,
+    where the typed driver's budget held a chain to 31 levels, and `max_depth` sets one.
+    `FlatFold::with_stack` lends it a storage of the caller's, which is not grown and is left empty
+    however the parse ends.
   - `Flat::with_cst_kind` wraps each expression in one node of a lossless tree.
   - Inside an expression, a scanner trip makes its end or refusal a terminal `UnexpectedEot`,
     whatever followed the trip. Every lex is charged to the token budget, and under a cache with
