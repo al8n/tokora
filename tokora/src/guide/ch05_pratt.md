@@ -451,7 +451,7 @@ at its operator:
 # }
 # impl tokora::error::MaybeIncomplete for CalcError {}
 use tokora::{
-  FatalContext, InputRef, ParseAttempt, ParseInput as _, Parser, SimpleSpan,
+  FatalContext, InputRef, Parse, ParseAttempt, ParseInput as _, Parser, SimpleSpan,
   pratt::{PrattInfix, PrattLHS, PrattRHS, PrattTable, Precedenced, flat},
   span::Spanned,
   token::PrattToken,
@@ -660,7 +660,7 @@ parser bounds the nesting itself, one level of the recursion budget for each gro
 # }
 # impl tokora::error::MaybeIncomplete for CalcError {}
 use tokora::{
-  FatalContext, InputRef, ParseAttempt, ParseInput as _, Parser, SimpleSpan,
+  FatalContext, InputRef, Parse, ParseAttempt, ParseInput as _, Parser, SimpleSpan,
   pratt::{PrattInfix, PrattLHS, PrattRHS, PrattTable, Precedenced, flat},
   span::Spanned,
   token::PrattToken,
