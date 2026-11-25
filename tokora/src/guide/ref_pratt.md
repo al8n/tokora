@@ -26,6 +26,9 @@ Reach for the token-level API when an expression's value is itself a token — a
 folds `1 + 2` into `Int(3)`. Reach for the AST-level API when the result is a tree over your own
 node type.
 
+Both recurse once for each pending operator. A third driver, [`flat`](crate::pratt::flat), keeps
+them on a stack of its own instead: see [Flat driver](#flat-driver).
+
 ## Folds are `fn` items, not closures
 
 Every fold parameter — on both surfaces — is bound by a *higher-ranked* `FnMut` (the emitter
@@ -846,6 +849,59 @@ fn parse_expr_cst<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Res
 }
 assert_eq!(Parser::with_parser(parse_expr_cst).parse_str("1 + 2 * 3").unwrap(), tree);
 ```
+
+---
+
+## Flat driver
+
+[`flat`](crate::pratt::flat) makes a [`Flat`](crate::pratt::Flat): one loop over the machine,
+[`PrattResolver`](crate::pratt::PrattResolver), with no recursion of its own, so it enters no level
+of the recursion budget. A [`PrattTable`](crate::pratt::PrattTable) reads the token's own
+[`PrattToken`](crate::token::PrattToken) rows, and the operand parser, any
+[`TryParseInput`](crate::TryParseInput), is asked first at every term, so the left-hand rows need
+only the prefix operators. [Chapter 5](super::ch05_pratt) works a calculator on it.
+
+**Which adapter.** [`parse_into`](crate::pratt::Flat::parse_into) to collect, and resolve later:
+it tells a [`PrattHandler`](crate::pratt::PrattHandler) each item in written order and resolves
+nothing, and a later pass gives the expression its tree. [`folding`](crate::pratt::Flat::folding)
+to evaluate as you parse: the reductions arrive in precedence order, and a fold's `Err` ends the
+parse at its operator. Driving the machine yourself does what `folding` does, for an operator a
+table cannot classify.
+
+```text
+flat(table: PrattTable<Expr, Power>, operand) -> Flat<…>
+Flat::min_precedence(self, floor: Power)     // inclusive
+Flat::max_depth(self, cap: usize)            // pending operators
+Flat::bare(self)                             // no machine; only with neither bound set
+Flat::with_cst_kind(self, kind: u16)         // one node around each expression
+Flat::parse_into(&mut self, input, handler: &mut H) -> Result<(), Error>
+Flat::folding(self, fold_prefix, fold_infix, fold_postfix) -> FlatFold<…>   // a ParseInput
+FlatFold::with_stack(self, stack)            // lend the machine a storage of your own
+```
+
+The two modes of `parse_into`:
+
+| | `Checked`, the default | `Bare`, by `bare()` |
+|---|---|---|
+| A floor | `min_precedence`, inclusive | none: every operator the table names is taken |
+| A repeated non-associative operator | refused with [`NonAssociativeChain`](crate::error::NonAssociativeChain) | told to the handler |
+| A cap | `max_depth`, refused with [`PrattStackFull`](crate::error::PrattStackFull) | none |
+| Storage | the driver's stack of unit frames | none |
+
+`folding` always runs the machine, with the floor and the cap set on the driver. Its folds are the
+AST driver's three fold traits, each handed the operator's committed token with its span. The
+handler is told each item once, after its token is committed, with the input at the item's end:
+
+```text
+fn on_prefix (&mut self, input, operator: Precedenced<Spanned<Token, Span>, Power>) -> Result<(), Error>
+fn on_operand(&mut self, input, operand: O)                                        -> Result<(), Error>
+fn on_infix  (&mut self, input, operator: Precedenced<PrattInfix<…>, Power>)        -> Result<(), Error>
+fn on_postfix(&mut self, input, operator: Precedenced<Spanned<Token, Span>, Power>) -> Result<(), Error>
+```
+
+`()` keeps nothing, and `&mut H` tells `H`. What the driver promises about lexing, the head after a
+fold, scanner trips, the seam and its storage is
+[listed in chapter 5](super::ch05_pratt#what-the-flat-driver-promises).
 
 ---
 

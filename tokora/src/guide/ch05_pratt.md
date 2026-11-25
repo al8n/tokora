@@ -11,18 +11,22 @@ plus a table: each operator carries a *binding power*, and the loop keeps consum
 while their power clears the current floor. One loop, any number of levels, and a new operator
 is a new table row rather than new code.
 
-tokora has two Pratt surfaces:
+tokora has three Pratt drivers:
 
-- **token-level** — [`InputRef::pratt`](crate::InputRef::pratt), used in this chapter. The
-  *token type itself* classifies each token via [`PrattToken`](crate::token::PrattToken), and
-  the folds map tokens to tokens. This is the shape to reach for when the expression's value
+- **token-level** — [`InputRef::pratt`](crate::InputRef::pratt), used first in this chapter.
+  The *token type itself* classifies each token via [`PrattToken`](crate::token::PrattToken),
+  and the folds map tokens to tokens. This is the shape to reach for when the expression's value
   is itself expressible as a token — a calculator that folds `1 + 2` into `Int(3)`.
 - **AST-level** — the [`pratt`](crate::pratt::pratt)
   combinator. You supply LHS/RHS sub-parsers and folds over *your own node type*, so the
   result is a tree. That is what a full Calc — the one whose expressions include variables,
   and which therefore cannot fold to a number during the parse — would use.
+- **flat** — [`flat`](crate::pratt::flat), in *The flat driver* below. One loop over the
+  precedence machine, [`PrattResolver`](crate::pratt::PrattResolver), with operands from an
+  operand parser of yours.
 
-Both run the same engine; only the currency of the folds differs.
+The first two recurse once for each pending operator, and differ only in the currency of their
+folds. The flat driver keeps its pending operators on a stack of its own instead.
 
 ## The power ladder
 
@@ -341,6 +345,261 @@ let binding = Parser::new()
   .unwrap();
 assert_eq!(binding, ("x", 13));
 ```
+
+## The flat driver
+
+[`flat`](crate::pratt::flat) takes a [`PrattTable`](crate::pratt::PrattTable), which reads the
+token's own [`PrattToken`](crate::token::PrattToken) rows, and an operand parser, any
+[`TryParseInput`](crate::TryParseInput). The operand parser is asked first at every term, so the
+table's left-hand rows need only the prefix operators. The driver is one loop over the machine and
+recurses nowhere, so it enters no level of the recursion budget: a grammar whose operand parser
+re-enters an expression bounds that itself, with
+[`descending`](crate::InputRef::descending).
+
+It has two adapters, and the rule for choosing between them is the one thing to know first:
+
+- **[`parse_into`](crate::pratt::Flat::parse_into) to collect, and resolve later.** It tells a
+  [`PrattHandler`](crate::pratt::PrattHandler) each operand and operator in written order and
+  resolves nothing, so the expression is kept as it is written. A later pass, with the machine
+  driven by hand, gives it its tree, and errors of meaning wait for that pass.
+- **[`folding`](crate::pratt::Flat::folding) to evaluate as you parse.** Its reductions arrive in
+  precedence order while the input is still being read, and a fold's `Err` ends the parse there.
+  An evaluator fails early, at the operator, with no second pass, and nothing is stored to be
+  walked again.
+- **Driving the machine yourself** does what `folding` does, for an operator a table cannot
+  classify.
+
+A calculator over `i64` on `folding`, whose infix fold checks its arithmetic, refuses an overflow
+at its operator:
+
+```rust
+# use tokora::{Token as TokenT, logos::{self, Logos}};
+# use tokora::EmitterView;
+# #[derive(Clone, Debug, Default, PartialEq)]
+# struct LexError;
+# impl From<()> for LexError { fn from(_: ()) -> Self { LexError } }
+# #[derive(Debug, Clone, PartialEq, Logos)]
+# #[logos(crate = logos, skip r"[ \t\r\n]+", error = LexError)]
+# enum Tok {
+#   #[regex(r"[0-9]+", |lex| lex.slice().parse::<i64>().map_err(|_| LexError))]
+#   Int(i64),
+#   #[token("let")] Let,
+#   #[token("print")] Print,
+#   #[regex(r"[A-Za-z_][A-Za-z0-9_]*")] Ident,
+#   #[token("+")] Plus,
+#   #[token("-")] Minus,
+#   #[token("*")] Star,
+#   #[token("/")] Slash,
+#   #[token("^")] Caret,
+#   #[token("=")] Assign,
+#   #[token(";")] Semi,
+#   #[token(",")] Comma,
+#   #[token("(")] LParen,
+#   #[token(")")] RParen,
+# }
+# #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+# enum TokKind { Int, Let, Print, Ident, Plus, Minus, Star, Slash, Caret, Assign, Semi, Comma, LParen, RParen }
+# impl core::fmt::Display for TokKind {
+#   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+#     f.write_str(match self {
+#       Self::Int => "integer", Self::Let => "`let`", Self::Print => "`print`",
+#       Self::Ident => "identifier", Self::Plus => "`+`", Self::Minus => "`-`",
+#       Self::Star => "`*`", Self::Slash => "`/`", Self::Caret => "`^`",
+#       Self::Assign => "`=`", Self::Semi => "`;`", Self::Comma => "`,`",
+#       Self::LParen => "`(`", Self::RParen => "`)`",
+#     })
+#   }
+# }
+# impl core::fmt::Display for Tok {
+#   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+#     match self {
+#       Tok::Int(n) => write!(f, "{n}"),
+#       other => core::fmt::Display::fmt(&other.kind(), f),
+#     }
+#   }
+# }
+# impl TokenT<'_> for Tok {
+#   type Kind = TokKind;
+#   type Error = LexError;
+#   const SCAN_LOOKAHEAD: tokora::ScanLookahead = tokora::ScanLookahead::Unbounded;
+#   fn kind(&self) -> TokKind {
+#     match self {
+#       Tok::Int(_) => TokKind::Int, Tok::Let => TokKind::Let, Tok::Print => TokKind::Print,
+#       Tok::Ident => TokKind::Ident, Tok::Plus => TokKind::Plus, Tok::Minus => TokKind::Minus,
+#       Tok::Star => TokKind::Star, Tok::Slash => TokKind::Slash, Tok::Caret => TokKind::Caret,
+#       Tok::Assign => TokKind::Assign, Tok::Semi => TokKind::Semi, Tok::Comma => TokKind::Comma,
+#       Tok::LParen => TokKind::LParen, Tok::RParen => TokKind::RParen,
+#     }
+#   }
+#   fn is_trivia(&self) -> bool { false }
+# }
+# type CalcLexer<'a> = tokora::lexer::LogosLexer<'a, Tok>;
+# use tokora::error::{UnexpectedEnd, UnexpectedToken};
+# #[derive(Debug, Clone, PartialEq)]
+# enum CalcError { Lex, Unexpected, UnexpectedEnd, Overflow(tokora::SimpleSpan) }
+# impl From<LexError> for CalcError { fn from(_: LexError) -> Self { CalcError::Lex } }
+# impl<'a, T, K: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, K, S, Lang>> for CalcError {
+#   fn from(_: UnexpectedToken<'a, T, K, S, Lang>) -> Self { CalcError::Unexpected }
+# }
+# impl<H, O, Lang: ?Sized, Set: Clone + 'static> From<UnexpectedEnd<H, O, Lang, Set>> for CalcError {
+#   fn from(_: UnexpectedEnd<H, O, Lang, Set>) -> Self { CalcError::UnexpectedEnd }
+# }
+# impl<O, Lang: ?Sized> From<tokora::error::RecursionLimitReached<O, Lang>> for CalcError {
+#   fn from(_: tokora::error::RecursionLimitReached<O, Lang>) -> Self { CalcError::UnexpectedEnd }
+# }
+# impl<O, Lang: ?Sized> From<tokora::error::NonAssociativeChain<O, Lang>> for CalcError {
+#   fn from(_: tokora::error::NonAssociativeChain<O, Lang>) -> Self { CalcError::Unexpected }
+# }
+# impl<O, Lang: ?Sized> From<tokora::error::PrattStackFull<O, Lang>> for CalcError {
+#   fn from(_: tokora::error::PrattStackFull<O, Lang>) -> Self { CalcError::UnexpectedEnd }
+# }
+# impl<'inp, L: tokora::Lexer<'inp>, Lang: ?Sized> tokora::emitter::FromUnclosed<'inp, L, Lang> for CalcError {
+#   fn from_unclosed<D>(_: tokora::error::Unclosed<D, L::Span, Lang>) -> Self { CalcError::UnexpectedEnd }
+# }
+# impl tokora::error::MaybeIncomplete for CalcError {}
+use tokora::{
+  FatalContext, InputRef, ParseAttempt, ParseInput as _, Parser, SimpleSpan,
+  pratt::{PrattInfix, PrattLHS, PrattRHS, PrattTable, Precedenced, flat},
+  span::Spanned,
+  token::PrattToken,
+};
+
+type Ctx<'a> = FatalContext<'a, CalcLexer<'a>, CalcError>;
+type Op = Spanned<Tok, SimpleSpan>;
+
+/// The table's marker.
+struct Arith;
+const ARITH: PrattTable<Arith, i64> = PrattTable::new();
+
+impl PrattToken<'_, Arith, i64> for Tok {
+  fn try_pratt_lhs(&self) -> Option<PrattLHS<(), (), i64>> {
+    match self {
+      Tok::Minus => Some(PrattLHS::Prefix(Precedenced::new((), 3))),
+      _ => None,
+    }
+  }
+
+  fn try_pratt_rhs(&self) -> Option<PrattRHS<(), (), (), (), i64>> {
+    Some(match self {
+      Tok::Plus | Tok::Minus => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(()), 1)),
+      Tok::Star | Tok::Slash => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(()), 2)),
+      _ => return None,
+    })
+  }
+}
+
+// The operand parser: an integer literal, or a decline.
+fn number<'a>(
+  inp: &mut InputRef<'a, '_, CalcLexer<'a>, Ctx<'a>>,
+) -> Result<ParseAttempt<i64>, CalcError> {
+  let literal = inp.try_expect(|t| matches!(t.data(), Tok::Int(_)))?;
+  Ok(match literal.map(Spanned::into_data) {
+    Some(Tok::Int(n)) => ParseAttempt::Accept(n),
+    _ => ParseAttempt::Decline,
+  })
+}
+
+// Each fold is handed its operator's committed token, with the token's span.
+fn negate<'a>(
+  _: &mut InputRef<'a, '_, CalcLexer<'a>, Ctx<'a>>,
+  operand: i64,
+  operator: Precedenced<Op, i64>,
+) -> Result<i64, CalcError> {
+  let (span, _) = operator.into_data().into_components();
+  operand.checked_neg().ok_or(CalcError::Overflow(span))
+}
+
+fn arithmetic<'a>(
+  _: &mut InputRef<'a, '_, CalcLexer<'a>, Ctx<'a>>,
+  left: i64,
+  right: i64,
+  operator: Precedenced<PrattInfix<Op, Op, Op>, i64>,
+) -> Result<i64, CalcError> {
+  let (PrattInfix::Left(op) | PrattInfix::Right(op) | PrattInfix::Neither(op)) =
+    operator.into_data();
+  let (span, op) = op.into_components();
+  let value = match op {
+    Tok::Plus => left.checked_add(right),
+    Tok::Minus => left.checked_sub(right),
+    Tok::Star => left.checked_mul(right),
+    // A division by zero is refused at its operator the same way.
+    Tok::Slash => left.checked_div(right),
+    _ => unreachable!("the table has no other infix row"),
+  };
+  value.ok_or(CalcError::Overflow(span))
+}
+
+// The table has no postfix row, so this fold never runs.
+fn keep<'a>(
+  _: &mut InputRef<'a, '_, CalcLexer<'a>, Ctx<'a>>,
+  operand: i64,
+  _: Precedenced<Op, i64>,
+) -> Result<i64, CalcError> {
+  Ok(operand)
+}
+
+// The result, the token on the input after it, and how many items were lexed.
+fn evaluate<'a>(
+  inp: &mut InputRef<'a, '_, CalcLexer<'a>, Ctx<'a>>,
+) -> Result<(Result<i64, CalcError>, Option<Tok>, usize), CalcError> {
+  let value = flat(ARITH, number).folding(negate, arithmetic, keep).parse_input(inp);
+  let lexed = inp.token_budget().spent();
+  let next = inp.try_expect(|_| true)?.map(Spanned::into_data);
+  Ok((value, next, lexed))
+}
+
+let eval = |src| Parser::with_parser(evaluate).parse_str(src).unwrap().0;
+assert_eq!(eval("2 * 3 + 4"), Ok(10));
+assert_eq!(eval("-2 * 3"), Ok(-6));
+
+let source = "9223372036854775807 + 1 + )";
+let (value, next, lexed) = Parser::with_parser(evaluate).parse_str(source).unwrap();
+// The overflow, at the first `+`, which spans 20..21.
+assert_eq!(value, Err(CalcError::Overflow(SimpleSpan::new(20, 21))));
+// The second `+` was read, which is how the driver learned that the first one's fold was due,
+// and it was left on the input.
+assert_eq!(next, Some(Tok::Plus));
+// Four items were lexed, the number, `+`, `1` and `+`: the `)` never was.
+assert_eq!(lexed, 4);
+
+// The same source through `parse_into`, with `()` for a handler, which keeps nothing. The driver
+// resolves no arithmetic, so it reads on to the `)` and reports the operand missing there: the
+// overflow would wait for the pass that lowers the expression.
+fn collect<'a>(inp: &mut InputRef<'a, '_, CalcLexer<'a>, Ctx<'a>>) -> Result<(), CalcError> {
+  flat(ARITH, number).parse_into(inp, &mut ())
+}
+assert_eq!(
+  Parser::with_parser(collect).parse_str(source),
+  Err(CalcError::UnexpectedEnd)
+);
+```
+
+### What the flat driver promises
+
+- **Each token is lexed once** under a cache with room for the head, which the default context
+  has: a token the driver does not take is staged, and the next read takes it from there. Every
+  lex is charged to the [token budget](crate::input::TokenBudget), a re-lex included. Under `()`,
+  which caches nothing, a token that something peeked is lexed again by the next read.
+- **`folding` reads the head again after every fold**, since a fold may consume input and only a
+  read sees what it left. The head's classification is reused while it is the same cache entry
+  or the same parked token, and an end of input it confirmed is not read again.
+- **A scanner trip ends the expression terminally.** Any scanner trip since the expression began
+  makes its end, or its refusal, a terminal
+  [`UnexpectedEot`](crate::error::UnexpectedEot), whatever followed the trip: a rollback that
+  took the stop off the input, or a new lexer regime. So does a decline over a refused descent
+  the operand parser caught. Recovering by re-keying the lexer is the caller's, once the
+  expression has ended.
+- **[`with_cst_kind`](crate::pratt::Flat::with_cst_kind) wraps each expression in one node.** The
+  leading trivia is crossed in the lexer mode the input is in when the parse begins, and an
+  operand parser's mode applies from its own first read.
+- **The machine's storage is the driver's**, emptied when a parse begins and when it ends,
+  however it ends, so a driver that is kept reuses it.
+  [`with_stack`](crate::pratt::FlatFold::with_stack) lends `folding` a storage of yours instead:
+  it is not grown, and it is left empty however the parse ends, an unwind included.
+  [`max_depth`](crate::pratt::Flat::max_depth) caps the pending operators, and its documentation
+  has the table of what holds them in each tier. [`bare`](crate::pratt::Flat::bare) gives the
+  machine up: `parse_into` then takes every operator the table names, with no floor, no refusal
+  of a non-associative chain and no cap.
 
 ## Recovery: an error node is a legal operand
 

@@ -124,6 +124,21 @@ crate. **The remedy is UFCS**: `MyExt::fold(maybe, ..)` pins your method by name
   two by name.
 - **`E0659`, "`BudgetExhausted` is ambiguous"**, the same for a crate that glob-imports
   `tokora::input` beside a glob bringing in a `BudgetExhausted` of its own.
+- **`E0659`, "`Flat` is ambiguous", and the same for each name the flat driver adds**, for a
+  crate that glob-imports `tokora::pratt`, `tokora::container` or `tokora::error` beside another
+  glob that brings in a name of its own spelled as one of them, at every use of the name. The
+  names are `flat`, `Flat`, `FlatFold`, `FlatMode`, `FlatCst`, `WithFlatKind`, `Checked`, `Open`,
+  `Bounded`, `Bare`, `PrattHandler`, `PrattTable`, `PrattTableLHS`, `PrattTableRHS`,
+  `PrattResolver`, `PrattFrame`, `PrattPoll`, `PrattOffer`, `PrattReduction`,
+  `PrattPrefixReduction`, `PrattInfixReduction`, `PrattPostfixReduction`, `PrattPending`,
+  `PrattRefused`, `PrattRefusal`, `PrattStack` and `DefaultPrattStack` in `tokora::pratt`, `Stack`
+  in `tokora::container`, and `PrattStackFull` in `tokora::error`. Import one of the two by name.
+- **`E0034`, "multiple applicable items in scope", for a crate with its own `pop` or `last_mut`
+  extension method on a container that now implements `container::Stack`** — `ArrayDeque`, `Vec`,
+  `VecDeque`, heapless's `Vec` or `SmallVec` — with that trait and `Stack` both in scope. The two
+  methods meet at the same pick, and the call stops compiling. Where the container has an inherent
+  method of the name, as `Vec` has `pop`, the inherent one is picked and nothing changes. Call
+  yours with UFCS, or rename it.
 
 <a id="unreleased-changed-breaking"></a>
 
@@ -223,6 +238,49 @@ crate. **The remedy is UFCS**: `MyExt::fold(maybe, ..)` pins your method by name
   with `pratt` off, in a `From` impl on its error type say, gates that item on `pratt` or turns the
   feature on. `error::RecursionLimitReached` stays ungated: it is the general recursion budget's
   error, raised by `InputRef::descend` for any recursive grammar.
+
+### Added
+
+- **The flat expression driver, `pratt::flat`.** One loop over the precedence machine, with no
+  recursion of its own: it enters no level of the recursion budget, and a long chain costs no
+  native stack. A `pratt::PrattTable` reads the token's own `PrattToken` rows, and an operand parser
+  of the caller's, any `TryParseInput`, is asked first at every term. It has two adapters, and the
+  guide's chapter 5 gives the rule for choosing: `parse_into` to collect and resolve later,
+  `folding` to evaluate as you parse.
+  - `Flat::parse_into` tells a `PrattHandler` each operand and operator in written order, and
+    resolves nothing. Its default mode, `Checked`, admits each operator through a machine of unit
+    values, with a floor (`min_precedence`), a refusal of a repeated non-associative operator
+    (`NonAssociativeChain`) and a cap (`max_depth`). Its stack grows on the heap, and holds 32
+    frames where the crate cannot allocate. `bare()` gives the machine up, as `Bare`.
+  - `Flat::folding` resolves precedence as it parses, and folds into the caller's value with the
+    typed driver's three fold traits, each handed the operator's committed token with its span. A
+    fold's `Err` ends the parse at its operator. Its storage holds four pending operators and grows
+    past them: on the heap where the crate can allocate, and on the native stack four at a time
+    where it cannot, up to the cap, or 32. `FlatFold::with_stack` lends it a storage of the
+    caller's, which is not grown and is left empty however the parse ends.
+  - `Flat::with_cst_kind` wraps each expression in one node of a lossless tree.
+  - Inside an expression, a scanner trip makes its end or refusal a terminal `UnexpectedEot`,
+    whatever followed the trip. Every lex is charged to the token budget, and under a cache with
+    room for the head each token is lexed once.
+- **The machine, `pratt::PrattResolver`**, the Sans-I/O resolver the flat driver runs, which a
+  caller can also drive by hand: `poll` says what it wants next, as a `PrattPoll`, `offer` how it
+  would take an operator, as a `PrattOffer`, and the `handle_*` methods feed it. Its vocabulary is
+  `PrattReduction` with its payloads `PrattPrefixReduction`, `PrattInfixReduction` and
+  `PrattPostfixReduction`, and `PrattPending`, `PrattRefused`, `PrattRefusal` and `PrattFrame`. It
+  keeps its pending operators on any `container::Stack`: `pratt::PrattStack`, and
+  `DefaultPrattStack` at four frames, which spills to the heap where the crate can allocate and
+  refuses past four where it cannot.
+- **`PrattTable::lhs` and `rhs`**, the typed driver's two classifiers read from the same table, as
+  `PrattTableLHS` and `PrattTableRHS`, so the typed and the flat drivers share one table.
+- **`container::Stack`**, a `Container` that pops: `pop` and `last_mut`, for `ArrayDeque`, `Vec`,
+  `VecDeque`, heapless's `Vec`, `SmallVec`, `PrattStack` and `&mut` over any of them. heapless's
+  `Deque` is a `Container` and not a `Stack`. A type parameter bounded by both `Stack` and
+  `error::ErrorContainer` has two `push` items, `ErrorContainer`'s and the one `Stack` requires of
+  `Container`, so `push` on it is `E0034`: call the one you mean by path.
+- **`error::PrattStackFull`**, behind `pratt`: a flat driver's stack is full, at the cap or in a
+  storage that does not grow. It is terminal for every error type, since the driver counts the trip
+  on the input session before it builds the value.
+- **`Precedenced` and `PrattInfix` derive `PartialEq` and `Eq`.**
 
 ## 0.13.2 (2026-11-15)
 

@@ -110,10 +110,16 @@ impl<Expr: ?Sized, Power, Operand, L, O, Ctx, Lang: ?Sized, Cst, B>
   /// Caps the driver at `max_depth` pending operators: the operator past it is
   /// [`PrattStackFull`](crate::error::PrattStackFull), which reports the bound that refused.
   ///
-  /// It is a cap and promises no room. Where the crate cannot allocate,
-  /// [`parse_into`](Self::parse_into)'s stack holds 32 pending operators and does not grow, and a
-  /// cap above 32 does not raise that: the 33rd is refused, and the error reports 32. The default
-  /// storage of [`folding`](Self::folding) grows there up to the cap, which is 32 when none is set.
+  /// It is a cap and promises no room. What holds the pending operators, and where the refusal
+  /// comes:
+  ///
+  /// | Adapter | With an allocator | Without one |
+  /// |---|---|---|
+  /// | [`parse_into`](Self::parse_into) | grows on the heap: refused past the cap, and never with none set | 32 frames, not grown: refused past the cap, or past 32 when the cap is higher or none is set |
+  /// | [`folding`](Self::folding), its default storage | grows on the heap: refused past the cap, and never with none set | grows on the native stack four frames at a time: refused past the cap, or past 32 with none set |
+  /// | `folding`, with [`with_stack`](FlatFold::with_stack) | not grown: refused past the cap or past the storage's capacity, whichever comes first | the same |
+  ///
+  /// [`PrattStackFull`](crate::error::PrattStackFull) reports the bound that refused.
   ///
   /// The driver is then [`Bounded`], whatever the value, and has no [`bare`](Self::bare).
   #[must_use]
@@ -337,11 +343,17 @@ impl<Expr: ?Sized, Power, Operand, L, O, Ctx, Lang: ?Sized, Cst, Mode>
   /// - [`UnexpectedEoRhs`](crate::error::UnexpectedEoRhs) where the mode takes an
   ///   [`Adjacent`](super::PrattRHS::Adjacent) row: a zero-token operator has no token to tell.
   ///   The token is left on the input.
-  /// - [`UnexpectedEot`](crate::error::UnexpectedEot) at a scanner stop, and whatever the operand
-  ///   parser or the handler returns.
+  /// - [`UnexpectedEot`](crate::error::UnexpectedEot), terminal, at a scanner stop. Once any
+  ///   scanner trip has happened since the parse began, it is also what the expression's end or
+  ///   refusal becomes, whatever followed the trip: a rollback that took the stop off the input, or
+  ///   a new lexer regime. So is a decline of the operand parser over a refused descent it caught.
+  ///   Recovering by re-keying the lexer is the caller's, after the expression.
+  /// - Whatever the operand parser or the handler returns.
   ///
   /// What was consumed before an error is kept, and with a seam the expression's node is demoted:
-  /// its tokens are the parent's.
+  /// its tokens are the parent's. Nothing is restored on an unwind out of the operand parser or the
+  /// handler either, and in [`Checked`] mode the frames pending then stay on the driver's stack
+  /// until its next parse empties it.
   #[inline]
   pub fn parse_into<'inp, H, Cmpl>(
     &mut self,

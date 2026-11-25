@@ -229,9 +229,11 @@ where
   /// table is committed. After an operand the head is read for an operator, and trivia there is
   /// committed and the head read again. An operator the machine takes is committed. One it does
   /// not take is left on the input while a reduction it asks for is folded, and the head is read
-  /// again after each fold, so that what a fold consumed is never mistaken for the head. An
-  /// operator below the floor, a token that is no operator, and the end of input end the
-  /// expression: what is pending is folded, and the token is left on the input.
+  /// again after each fold, so that what a fold consumed is never mistaken for the head. Its
+  /// classification is reused while the head is the same cache entry or the same parked token, and
+  /// an end of input the read confirmed is not read again. An operator below the floor, a token
+  /// that is no operator, and the end of input end the expression: what is pending is folded, and
+  /// the token is left on the input.
   ///
   /// # Errors
   ///
@@ -247,8 +249,13 @@ where
   ///   token to fold. The token is left on the input.
   /// - [`PrattStackFull`](crate::error::PrattStackFull) where an operator finds the stack at its
   ///   bound. It is terminal, and the trip is counted on the input session.
-  /// - [`UnexpectedEot`](crate::error::UnexpectedEot) at a scanner stop, and whatever the operand
-  ///   parser or a fold returns.
+  /// - [`UnexpectedEot`](crate::error::UnexpectedEot), terminal, at a scanner stop. Once any
+  ///   scanner trip has happened since the parse began, it is also what the expression's end or
+  ///   refusal becomes, and what stands in for a fold that would follow, whatever followed the
+  ///   trip: a rollback that took the stop off the input, or a new lexer regime. So is a decline
+  ///   of the operand parser over a refused descent it caught. Recovering by re-keying the lexer is
+  ///   the caller's, after the expression.
+  /// - Whatever the operand parser or a fold returns.
   ///
   /// What was consumed before an error is kept, and with a seam the expression's node is demoted.
   /// Nothing is restored on an unwind out of the operand parser or a fold either: what was

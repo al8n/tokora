@@ -4,8 +4,9 @@ use core::marker::PhantomData;
 /// `a == b == c` where `==` is [`PrattInfix::Neither`](crate::pratt::PrattInfix::Neither).
 ///
 /// Three engines raise this, on the same trigger, with the same posture: the typed driver, the
-/// token-level driver, and the flat driver's
-/// [`parse_into`](crate::pratt::Flat::parse_into) in its [`Checked`](crate::pratt::Checked) mode.
+/// token-level driver, and the flat driver, through
+/// [`parse_into`](crate::pratt::Flat::parse_into) in its [`Checked`](crate::pratt::Checked) mode and
+/// through [`folding`](crate::pratt::Flat::folding).
 /// The deciding read is handed back — the offending operator is left on the input, unconsumed —
 /// and the error is **returned**, never emitted.
 ///
