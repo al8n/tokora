@@ -1620,6 +1620,10 @@ INHERENT_SUBJECTS = {
             "close": ("", "Result<(), tokora::pratt::PrattRefusal>"),
             "finish": ("", "Result<(), tokora::pratt::PrattRefusal>"),
             "retract": ("", "Option<tokora::pratt::PrattPending<u8, u8, u8, u8>>"),
+            # `with_stack` is a method of `FlatFold`, whose row routes here, and an associated
+            # function of this owner, which takes no receiver and is never a method candidate.
+            # So the call is the consumer's, at its arity and its return: see `no_collision.txt`.
+            "with_stack": ("", "u8"),
         },
         "assoc_calls": {
             "new": ("", "PrattResolver<u8, u8, u8, u8, u8, u8>"),
@@ -1695,7 +1699,9 @@ INHERENT_SUBJECTS = {
     # `PrattTable`, and routes to `PrattTable`, the alphabetically last. `min_precedence` and
     # `max_depth` are declared by `Flat` and by `PrattResolver`, and route to `PrattResolver`; they
     # are written into `Flat`'s table as well, for the reason `ERROR_SUBJECTS` gives. `lhs` and
-    # `rhs` are `PrattTable`'s alone, and `bare`, `with_cst_kind` and `parse_into` are `Flat`'s.
+    # `rhs` are `PrattTable`'s alone, and `bare`, `with_cst_kind`, `parse_into` and `folding` are
+    # `Flat`'s. `FlatFold`'s one item, the method `with_stack`, routes to `PrattResolver`, which
+    # declares the name as an associated function.
     #
     # `PrattTable<u8>` names `Expr` as `u8` and `Power` at its default, `i64`. `lhs` and `rhs` take
     # `self`, so tokora's inherent item is found at the by-value step, before the consumer's
@@ -1754,6 +1760,16 @@ INHERENT_SUBJECTS = {
                 "tokora::pratt::WithFlatKind>",
             ),
             "parse_into": ("inp, &mut ()", "Result<(), PErr>"),
+            # The three folds are unbounded until the driver parses, so `()` stands for each.
+            "folding": (
+                "(), (), ()",
+                "tokora::pratt::FlatFold<PExpr, i64, POperand, (), (), (), PLexer<'static>, i64, "
+                "PCtx<'static>, (), tokora::pratt::NoCst, tokora::pratt::DefaultPrattStack<"
+                "tokora::pratt::PrattFrame<i64, tokora::span::Spanned<Tok, tokora::SimpleSpan>, "
+                "tokora::span::Spanned<Tok, tokora::SimpleSpan>, "
+                "tokora::span::Spanned<Tok, tokora::SimpleSpan>, "
+                "tokora::span::Spanned<Tok, tokora::SimpleSpan>, i64>>>",
+            ),
         },
         "assoc_calls": {},
     },

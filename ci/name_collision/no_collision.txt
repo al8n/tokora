@@ -539,3 +539,18 @@ on_infix/later_pick_discarded
 on_postfix/same_pick
 on_postfix/later_pick_used
 on_postfix/later_pick_discarded
+
+# ── `with_stack` — a method of the NEW `pratt::FlatFold`, routed to `PrattResolver` ───────────
+#
+# `surface_diff.py` records one owner for a name, the alphabetically last of those the diff adds
+# it to. `with_stack` is a `self` method of `pratt::FlatFold` and an associated function of
+# `pratt::PrattResolver`, so its method row is planned against `PrattResolver`. There tokora's
+# `with_stack` takes no receiver, and method resolution never considers an associated function:
+# the consumer's `&mut self` item is the one candidate. The base side cannot name
+# `PrattResolver`, which this diff mints, and the head side runs the consumer's item.
+#
+# Read these two as "an associated function takes no method call", never as "`with_stack` cannot
+# be stolen". The path-resolved row, `inherent_assoc_fn`, is `PrattResolver`'s own, and probes
+# tokora's item where it is one.
+with_stack/used
+with_stack/discarded
