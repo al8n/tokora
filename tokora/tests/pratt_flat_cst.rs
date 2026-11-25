@@ -7,7 +7,8 @@
 
 //! The flat driver's CST seam over a recording sink: one node around every expression, flat by
 //! construction, none left on a failing exit, with leading trivia outside it and trailing trivia
-//! inside it, at each way an expression ends.
+//! inside it, at each way an expression ends, under both modes of `parse_into` and under
+//! `folding`.
 
 mod flat_fixture;
 
@@ -25,7 +26,10 @@ use tokora::{
   token::PrattToken,
 };
 
-use flat_fixture::{Expr, Fail, Mode, Surface, TABLE, Tok, fold_infix, fold_postfix, fold_prefix};
+use flat_fixture::{
+  Expr, Fail, InfixOp, Mode, Surface, TABLE, Tok, fold_infix, fold_postfix, fold_prefix,
+  read_infix, read_postfix, read_prefix,
+};
 
 // ── The kinds, the profile and the tree ──────────────────────────────────────────────────────
 
@@ -257,7 +261,21 @@ fn bare(input: &mut Ir<'_, '_>, lit: Lit) -> Result<Result<(), Fail>, Fail> {
   Ok(result)
 }
 
-/// The tree of `src` under each mode, which must agree, with the parse's result.
+/// A driver made by `folding` at `floor` with a node of `K_EXPR`, over the fixture's folds that
+/// read on, and then the rest of the input drained.
+fn folded(input: &mut Ir<'_, '_>, lit: Lit, floor: u8) -> Result<Result<(), Fail>, Fail> {
+  let result = flat(TABLE, lit)
+    .min_precedence(floor)
+    .with_cst_kind(K_EXPR)
+    .folding(read_prefix, read_infix, read_postfix)
+    .parse_input(input)
+    .map(|_| ());
+  drain(input)?;
+  Ok(result)
+}
+
+/// The tree of `src` under each mode and under `folding`, which must agree, with the parse's
+/// result.
 fn both(src: &str) -> (Result<(), Fail>, String) {
   let (result, green, _) = run(src, |input| checked(input, PLAIN, 0));
   let result = result.expect("the drain succeeds");
@@ -273,6 +291,13 @@ fn both(src: &str) -> (Result<(), Fail>, String) {
     tree,
     "{src}: the two modes agree"
   );
+  let (folded_result, folded_green, _) = run(src, |input| folded(input, PLAIN, 0));
+  assert_eq!(
+    folded_result.expect("the drain succeeds"),
+    result,
+    "{src}: folding agrees"
+  );
+  assert_eq!(rendered(src, folded_green), tree, "{src}: folding agrees");
   (result, tree)
 }
 
@@ -301,7 +326,8 @@ fn every_expression_gets_its_node() {
 
 /// Each of the loop's own errors leaves no node: the tokens the expression consumed are the
 /// parent's, and the tree balances. A missing operand of either side, and an `Adjacent` row, in
-/// both modes; a refused chain and a full stack, which only a checked driver raises.
+/// both modes and under `folding`; a refused chain and a full stack, which a checked driver and
+/// `folding` raise.
 #[test]
 fn an_error_of_the_loop_leaves_no_node() {
   let cases = [
@@ -336,20 +362,84 @@ fn an_error_of_the_loop_leaves_no_node() {
     assert_eq!(tree, expected, "{src}");
   }
 
-  let (result, green, _) = run("1<2<3", |input| checked(input, PLAIN, 0));
-  assert_eq!(result, Ok(Err(Fail::Chain { at: 3 })));
-  assert_eq!(rendered("1<2<3", green), "Root[Lit[1], <, Lit[2], <, 3]");
+  for folding in [false, true] {
+    let (result, green, _) = run("1<2<3", |input| {
+      if folding {
+        folded(input, PLAIN, 0)
+      } else {
+        checked(input, PLAIN, 0)
+      }
+    });
+    assert_eq!(result, Ok(Err(Fail::Chain { at: 3 })), "folding: {folding}");
+    assert_eq!(
+      rendered("1<2<3", green),
+      "Root[Lit[1], <, Lit[2], <, 3]",
+      "folding: {folding}"
+    );
 
-  let (result, green, _) = run("1^2^3", |input| {
+    let (result, green, _) = run("1^2^3", |input| {
+      let mut driver = flat(TABLE, PLAIN).max_depth(1).with_cst_kind(K_EXPR);
+      let result = if folding {
+        driver
+          .folding(read_prefix, read_infix, read_postfix)
+          .parse_input(input)
+          .map(|_| ())
+      } else {
+        driver.parse_into(input, &mut ())
+      };
+      drain(input)?;
+      Ok(result)
+    });
+    assert_eq!(
+      result,
+      Ok(Err(Fail::Full { at: 4, capacity: 1 })),
+      "folding: {folding}"
+    );
+    assert_eq!(
+      rendered("1^2^3", green),
+      "Root[Lit[1], ^, Lit[2], ^, 3]",
+      "folding: {folding}"
+    );
+  }
+}
+
+/// `1+2` folds to `(1+2)`, and the fold of `*` fails.
+fn fails_at_star<'inp, Ctx>(
+  input: &mut InputRef<'inp, '_, Surface<'inp>, Ctx>,
+  left: String,
+  right: String,
+  operator: InfixOp,
+) -> Result<String, Fail>
+where
+  Ctx: ParseContext<'inp, Surface<'inp>>,
+  Ctx::Emitter: Emitter<'inp, Surface<'inp>, Error = Fail>,
+{
+  let (PrattInfix::Left(tok) | PrattInfix::Right(tok) | PrattInfix::Neither(tok)) =
+    operator.token_ref();
+  if tok.data().0 == b'*' {
+    return Err(Fail::Own("the fold of `*` fails"));
+  }
+  fold_infix(input, left, right, operator)
+}
+
+/// An error out of a fold leaves no node either: what the expression consumed, the trivia before
+/// the `;` among it, is the parent's.
+#[test]
+fn an_error_of_a_fold_leaves_no_node() {
+  let src = "1 + 2 * 3 ;";
+  let (result, green, _) = run(src, |input| {
     let result = flat(TABLE, PLAIN)
-      .max_depth(1)
       .with_cst_kind(K_EXPR)
-      .parse_into(input, &mut ());
+      .folding(read_prefix, fails_at_star, read_postfix)
+      .parse_input(input);
     drain(input)?;
     Ok(result)
   });
-  assert_eq!(result, Ok(Err(Fail::Full { at: 4, capacity: 1 })));
-  assert_eq!(rendered("1^2^3", green), "Root[Lit[1], ^, Lit[2], ^, 3]");
+  assert_eq!(result, Ok(Err(Fail::Own("the fold of `*` fails"))));
+  assert_eq!(
+    rendered(src, green),
+    "Root[Lit[1], ws, +, ws, Lit[2], ws, *, ws, Lit[3], ws, ;]"
+  );
 }
 
 /// An error out of the operand parser leaves no node either.
@@ -537,11 +627,33 @@ fn trailing_trivia_before_a_token_that_is_no_operator_is_inside() {
 #[test]
 fn trailing_trivia_before_an_operator_below_the_floor_is_inside() {
   let src = "1 * 2 + 3";
-  let (result, green, _) = run(src, |input| checked(input, PLAIN, 11));
+  for folding in [false, true] {
+    let (result, green, _) = run(src, |input| {
+      if folding {
+        folded(input, PLAIN, 11)
+      } else {
+        checked(input, PLAIN, 11)
+      }
+    });
+    assert_eq!(result, Ok(Ok(())), "folding: {folding}");
+    assert_eq!(
+      rendered(src, green),
+      "Root[Expr[Lit[1], ws, *, ws, Lit[2], ws], +, ws, 3]",
+      "folding: {folding}"
+    );
+  }
+}
+
+/// Where a fold read on, what it read is inside the node, and so is the trivia after it: under
+/// `folding`, `1 i 2 e 3 ;` holds the `e 3` the `i`'s fold read, and the space before the `;`.
+#[test]
+fn trailing_trivia_after_a_fold_that_read_on_is_inside() {
+  let src = "1 i 2 e 3 ;";
+  let (result, green, _) = run(src, |input| folded(input, PLAIN, 0));
   assert_eq!(result, Ok(Ok(())));
   assert_eq!(
     rendered(src, green),
-    "Root[Expr[Lit[1], ws, *, ws, Lit[2], ws], +, ws, 3]"
+    "Root[Expr[Lit[1], ws, i, ws, Lit[2], ws, e, ws, 3, ws], ;]"
   );
 }
 

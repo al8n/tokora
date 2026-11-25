@@ -2,25 +2,30 @@
 
 //! The flat driver's `parse_into`, held to its loop's own contract: each token lexed once, the
 //! lexer's state left as the caller set it, the operand parser asked first, each error at the
-//! offset it is defined at, the handler told each item once, and its two modes.
+//! offset it is defined at, the handler told each item once, and its two modes. Then `folding`,
+//! held to the same, with what it keeps on an unwind and a kept driver's three parses.
 
 mod flat_fixture;
 mod flat_items;
 
+use core::panic::AssertUnwindSafe;
+use std::panic::catch_unwind;
+
 use tokora::{
-  Emitter, InputRef, Parse, ParseContext, Parser, ParserContext, SimpleSpan,
+  Emitter, InputRef, Lexer, Parse, ParseContext, ParseInput, Parser, ParserContext, SimpleSpan,
   emitter::{Fatal, Verbose},
   error::MaybeTerminal,
   input::TokenBudget,
-  pratt::{Bare, Flat, NoCst, PrattHandler, PrattInfix, Precedenced, flat},
+  pratt::{Bare, Flat, NoCst, PrattHandler, PrattInfix, Precedenced, flat, pratt},
   span::Spanned,
   state::{RecursionLimiter, TokenLimiter},
   utils::typenum::U2,
 };
 
 use flat_fixture::{
-  BareCacheIr, ByteLexer, Expr, Fail, FatalCtx, FatalIr, Landing, LimitedIr, Mode, Operand,
-  Rekeying, Rolling, Signed, Skip, TABLE, Tok, TwoDigits, VerboseIr, forget_lexes, landing, lexes,
+  BareCacheIr, ByteLexer, Expr, Fail, FatalCtx, FatalIr, InfixOp, Landing, LimitedIr, Lookahead,
+  Mode, Operand, Rekeying, Rolling, Signed, Skip, TABLE, Tk, Tok, TwoDigits, VerboseIr, fold_infix,
+  fold_prefix, forget_lexes, landing, lexes, read_infix, read_postfix, read_prefix,
 };
 use flat_items::{Item, Items};
 
@@ -809,4 +814,367 @@ fn a_bare_driver_holds_no_stack() {
     core::mem::size_of::<BareDriver>(),
     core::mem::size_of::<Operand>()
   );
+}
+
+// ── `folding` ─────────────────────────────────────────────────────────────────────────────────
+
+/// What `folding` returned, and where it left the input.
+#[derive(Debug)]
+struct Folded {
+  result: Result<String, Fail>,
+  landing: Landing,
+}
+
+/// A driver made by `folding` at `floor`, over the fixture's folds that read on.
+fn folded<'inp, const SKIP: bool, Ctx>(
+  input: &mut InputRef<'inp, '_, ByteLexer<'inp, SKIP>, Ctx>,
+  operand: Operand,
+  floor: u8,
+) -> Result<Folded, Fail>
+where
+  Ctx: ParseContext<'inp, ByteLexer<'inp, SKIP>>,
+  Ctx::Emitter: Emitter<'inp, ByteLexer<'inp, SKIP>, Error = Fail>,
+{
+  let result = flat(TABLE, operand)
+    .min_precedence(floor)
+    .folding(read_prefix, read_infix, read_postfix)
+    .parse_input(input);
+  Ok(Folded {
+    result,
+    landing: landing(input)?,
+  })
+}
+
+/// A prefix or a postfix operator's fold over any lexer, which builds nothing and reads nothing:
+/// the value is its operand's.
+fn first<'inp, L, Ctx, Operator>(
+  _input: &mut InputRef<'inp, '_, L, Ctx>,
+  operand: String,
+  _operator: Operator,
+) -> Result<String, <Ctx::Emitter as Emitter<'inp, L>>::Error>
+where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L>,
+{
+  Ok(operand)
+}
+
+/// An infix operator's fold over any lexer, which builds nothing and reads nothing: the value is
+/// its left operand's.
+fn first_infix<'inp, L, Ctx, Operator>(
+  _input: &mut InputRef<'inp, '_, L, Ctx>,
+  left: String,
+  _right: String,
+  _operator: Operator,
+) -> Result<String, <Ctx::Emitter as Emitter<'inp, L>>::Error>
+where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L>,
+{
+  Ok(left)
+}
+
+/// `-1*2+3^4i5e6;`: the tokens of [`ONCE`], then an `i` whose fold reads `e6` on, moving the
+/// input.
+const ONCE_FOLDED: &str = "-1*2+3^4i5e6;";
+
+/// `folding` lexes each token once, under the default cache and under a cache of no capacity: at an
+/// operand and at a prefix operator, where an operator is taken at once and where it waits for a
+/// reduction, and after a fold that moved the input. The token that ends the expression is the one
+/// left staged.
+#[test]
+fn folding_lexes_each_token_once() {
+  let expected: Vec<(usize, u8)> = (0..=12).map(|at| (at, 0)).collect();
+  let tree = Ok(String::from("((((-1)*2)+(3^4))i5e6)"));
+
+  let cached = fatal::<true, _>(ONCE_FOLDED, |input| {
+    forget_lexes();
+    let folded = folded(input, Operand::STRICT, 0)?;
+    Ok((folded, lexes()))
+  });
+  assert_eq!(cached.0.result, tree);
+  assert_eq!(cached.1, expected, "default cache");
+  assert_eq!(cached.0.landing.next, Some((b';', 12)));
+  assert_eq!(
+    cached.0.landing.spent, 13,
+    "the staged `;` is the 13th lex, and the last"
+  );
+
+  let unbuffered = uncached::<true, _>(ONCE_FOLDED, |input| {
+    forget_lexes();
+    let folded = folded(input, Operand::STRICT, 0)?;
+    Ok((folded, lexes()))
+  });
+  assert_eq!(unbuffered.0.result, tree);
+  assert_eq!(unbuffered.1, expected, "no cache");
+  assert_eq!(unbuffered.0.landing.spent, 13);
+}
+
+/// At the end of input `folding` stages nothing, and lexes nothing past the last token.
+#[test]
+fn folding_at_the_end_of_input_stages_nothing() {
+  let got = fatal::<true, _>("-1*2+3^4", |input| {
+    forget_lexes();
+    let folded = folded(input, Operand::STRICT, 0)?;
+    Ok((folded, lexes()))
+  });
+  assert_eq!(got.0.result, Ok(String::from("(((-1)*2)+(3^4))")));
+  assert_eq!(got.1, (0..8).map(|at| (at, 0)).collect::<Vec<_>>());
+  assert_eq!(got.0.landing.next, None);
+}
+
+/// `folding` ends and refuses where `parse_into` does, at the same offsets, with the token found
+/// left on the input: a missing operand of either side, a repeated non-associative operator, an
+/// operator below the floor, and an `Adjacent` row declined below the floor, chained at a latched
+/// power, and refused otherwise.
+#[test]
+fn folding_ends_and_refuses_where_parse_into_does() {
+  let cases = [
+    (
+      "1 + - ;",
+      0,
+      Err(Fail::EoLhs {
+        at: 5,
+        terminal: false,
+      }),
+      Some((b';', 6)),
+    ),
+    (
+      "1 + ;",
+      0,
+      Err(Fail::EoRhs {
+        at: 3,
+        terminal: false,
+      }),
+      Some((b';', 4)),
+    ),
+    ("1<2<3;", 0, Err(Fail::Chain { at: 3 }), Some((b'<', 3))),
+    ("1*2+3;", 11, Ok(String::from("(1*2)")), Some((b'+', 3))),
+    ("1@;", 20, Ok(String::from("1")), Some((b'@', 1))),
+    ("1<2@;", 0, Err(Fail::Chain { at: 3 }), Some((b'@', 3))),
+    (
+      "1@;",
+      0,
+      Err(Fail::EoRhs {
+        at: 1,
+        terminal: false,
+      }),
+      Some((b'@', 1)),
+    ),
+  ];
+  for (src, floor, result, next) in cases {
+    let got = fatal::<true, _>(src, |input| folded(input, Operand::STRICT, floor));
+    assert_eq!(got.result, result, "{src} at {floor}");
+    assert_eq!(got.landing.next, next, "{src} at {floor}");
+  }
+}
+
+/// A scanner stop at a head is `folding`'s terminal error too, at a term and at an operator, with
+/// a rejecting emitter and with an accepting one.
+#[test]
+fn a_scanner_stop_is_folding_s_terminal_error() {
+  for (budget, at) in [(0, 0), (1, 1)] {
+    let stop = Err(Fail::Eot { at, terminal: true });
+    let rejecting = Parser::with_context(
+      ParserContext::new(Fatal::new()).with_token_budget(TokenBudget::with_limitation(budget)),
+    )
+    .apply(|input: &mut FatalIr<'_, '_, true>| {
+      Ok(
+        flat(TABLE, Operand::STRICT)
+          .folding(first, first_infix, first)
+          .parse_input(input),
+      )
+    })
+    .parse_str("1+2;")
+    .expect("the parse's own error is caught");
+    assert_eq!(rejecting, stop, "budget {budget}, a rejecting emitter");
+
+    let accepting = Parser::with_context(
+      ParserContext::new(Verbose::new()).with_token_budget(TokenBudget::with_limitation(budget)),
+    )
+    .apply(|input: &mut VerboseIr<'_, '_, true>| {
+      Ok(
+        flat(TABLE, Operand::STRICT)
+          .folding(first, first_infix, first)
+          .parse_input(input),
+      )
+    })
+    .parse_str("1+2;")
+    .expect("the parse's own error is caught");
+    assert_eq!(accepting, stop, "budget {budget}, an accepting emitter");
+  }
+}
+
+/// User code that met a stop and returned over it does not hide it from `folding`: the operand
+/// parser that declined over a window cut short (`42` within one item), the one whose lookahead
+/// met it after an operand (`1.2` within two), and a fold whose tail ran into it (`1i2e3;` within
+/// four, where the `i`'s fold finds no `3`). Each is the terminal error where the input stands.
+#[test]
+fn a_stop_user_code_met_is_folding_s_terminal_error() {
+  let stop = |at| Err(Fail::Eot { at, terminal: true });
+  let declined = within::<true, _>("42", 1, |input| {
+    Ok(
+      flat(TABLE, TwoDigits)
+        .folding(first, first_infix, first)
+        .parse_input(input),
+    )
+  });
+  assert_eq!(declined, stop(0), "an operand parser's decline");
+  let looked = within::<true, _>("1.2", 2, |input| {
+    Ok(
+      flat(TABLE, Lookahead)
+        .folding(first, first_infix, first)
+        .parse_input(input),
+    )
+  });
+  assert_eq!(looked, stop(1), "an operand parser's lookahead");
+  let folded = within::<true, _>("1i2e3;", 4, |input| {
+    Ok(
+      flat(TABLE, Operand::STRICT)
+        .folding(read_prefix, read_infix, read_postfix)
+        .parse_input(input),
+    )
+  });
+  assert_eq!(folded, stop(3), "a fold's tail");
+}
+
+/// A stop a rollback took off the input, a trip after a re-key, and a refused descent the operand
+/// parser caught are each `folding`'s terminal error, read off the trip counters.
+#[test]
+fn a_trip_user_code_rolled_back_or_caught_is_folding_s_terminal_error() {
+  let stop = Err(Fail::Eot {
+    at: 0,
+    terminal: true,
+  });
+  let rolled = Parser::with_context(ParserContext::new(Fatal::new()))
+    .apply(|input: &mut LimitedIr<'_, '_>| {
+      Ok(
+        flat(TABLE, Rolling)
+          .folding(first, first_infix, first)
+          .parse_input(input),
+      )
+    })
+    .parse_with_state("42", TokenLimiter::with_limitation(1))
+    .expect("the parse's own error is caught");
+  assert_eq!(rolled, stop, "a stop a rollback erased");
+  let rekeyed = Parser::with_context(ParserContext::new(Fatal::new()))
+    .apply(|input: &mut LimitedIr<'_, '_>| {
+      Ok(
+        flat(TABLE, Rekeying)
+          .folding(first, first_infix, first)
+          .parse_input(input),
+      )
+    })
+    .parse_str("42")
+    .expect("the parse's own error is caught");
+  assert_eq!(rekeyed, stop, "a trip after a re-key");
+  let refused = Parser::with_context(
+    ParserContext::new(Fatal::new()).with_recursion_limiter(RecursionLimiter::with_limitation(0)),
+  )
+  .apply(|input: &mut FatalIr<'_, '_, true>| {
+    Ok(
+      flat(TABLE, Signed)
+        .folding(first, first_infix, first)
+        .parse_input(input),
+    )
+  })
+  .parse_str("-1;")
+  .expect("the parse's own error is caught");
+  assert_eq!(refused, stop, "a refused descent the operand parser caught");
+}
+
+/// `1+2` folds to `(1+2)`, and the fold of `^` panics.
+fn panics_at_caret<'inp, const SKIP: bool, Ctx>(
+  input: &mut InputRef<'inp, '_, ByteLexer<'inp, SKIP>, Ctx>,
+  left: String,
+  right: String,
+  operator: InfixOp,
+) -> Result<String, Fail>
+where
+  Ctx: ParseContext<'inp, ByteLexer<'inp, SKIP>>,
+  Ctx::Emitter: Emitter<'inp, ByteLexer<'inp, SKIP>, Error = Fail>,
+{
+  let (PrattInfix::Left(tok) | PrattInfix::Right(tok) | PrattInfix::Neither(tok)) =
+    operator.token_ref();
+  assert_ne!(tok.data().0, b'^', "the fold of `^` panics, as asked");
+  fold_infix(input, left, right, operator)
+}
+
+/// What an unwind out of a fold leaves. Under `folding` nothing restores the input: it stands where
+/// the fold was called, past the `4` of `1+2*3^4;`. The typed driver's guard restores the whole
+/// expression: its input stands at the start.
+#[test]
+fn an_unwind_out_of_a_fold_keeps_what_was_consumed() {
+  for flat_driver in [true, false] {
+    let at = fatal::<true, _>("1+2*3^4;", |input| {
+      let unwound = catch_unwind(AssertUnwindSafe(|| {
+        if flat_driver {
+          flat(TABLE, Operand::STRICT)
+            .folding(fold_prefix, panics_at_caret, first)
+            .parse_input(input)
+        } else {
+          pratt(
+            TABLE.lhs(Operand::STRICT),
+            TABLE.rhs(),
+            fold_prefix,
+            panics_at_caret,
+            first,
+          )
+          .parse_input(input)
+        }
+      }));
+      assert!(unwound.is_err(), "the fold of `^` panicked");
+      Ok(input.span().end())
+    });
+    assert_eq!(at, if flat_driver { 7 } else { 0 }, "flat: {flat_driver}");
+  }
+}
+
+/// `1!` folds to `(1!)`, and the fold of `!` panics.
+fn panics_at_bang<'inp, const SKIP: bool, Ctx>(
+  _input: &mut InputRef<'inp, '_, ByteLexer<'inp, SKIP>, Ctx>,
+  operand: String,
+  operator: Precedenced<Tk, u8>,
+) -> Result<String, Fail>
+where
+  Ctx: ParseContext<'inp, ByteLexer<'inp, SKIP>>,
+  Ctx::Emitter: Emitter<'inp, ByteLexer<'inp, SKIP>, Error = Fail>,
+{
+  let byte = operator.into_data().into_data().0;
+  assert_ne!(byte, b'!', "the fold of `!` panics, as asked");
+  Ok(format!("({operand}{})", char::from(byte)))
+}
+
+/// Runs `f` over a `'static` source with a rejecting emitter and the default cache, so that one
+/// driver can serve several parses.
+fn kept<O>(
+  src: &'static str,
+  f: impl FnMut(&mut FatalIr<'static, '_, true>) -> Result<O, Fail>,
+) -> O {
+  Parser::with_context(ParserContext::new(Fatal::new()))
+    .apply(f)
+    .parse_str(src)
+    .expect("the cell catches every error it expects")
+}
+
+/// One driver made by `folding`, three parses: one that fails in the middle of a chain with five
+/// operators pending, one in which a fold panics with five pending and the unwind is caught, and a
+/// valid one, which builds the right tree.
+#[test]
+fn one_folding_driver_serves_three_parses() {
+  let mut driver = flat(TABLE, Operand::STRICT).folding(fold_prefix, fold_infix, panics_at_bang);
+  let failed = kept("1^2^3^4^5^;", |input| Ok(driver.parse_input(input)));
+  assert_eq!(
+    failed,
+    Err(Fail::EoRhs {
+      at: 10,
+      terminal: false
+    })
+  );
+  let unwound = catch_unwind(AssertUnwindSafe(|| {
+    kept("1^2^3^4^5^6!;", |input| Ok(driver.parse_input(input)))
+  }));
+  assert!(unwound.is_err(), "the fold of `!` panicked");
+  let parsed = kept("1^2^3;", |input| Ok(driver.parse_input(input)));
+  assert_eq!(parsed, Ok(String::from("(1^(2^3))")));
 }

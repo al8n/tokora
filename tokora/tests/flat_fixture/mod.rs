@@ -299,12 +299,22 @@ fn postfix(power: u8) -> Option<PrattRHS<(), (), (), (), u8>> {
 /// | `?` | | postfix, 12 |
 /// | `%` | | postfix, 15 |
 /// | `@` | | adjacent, 15 |
+///
+/// And four rows whose folds read on, under the `read_*` folds:
+///
+/// | byte | left-hand side | right-hand side | the fold reads |
+/// |---|---|---|---|
+/// | `p` | prefix, 9 | | a `+` after its operand |
+/// | `i` | | infix, right, 8 | `e` and a digit after its right operand |
+/// | `t` | | infix, left, 45 | a `+` that follows |
+/// | `[` | | postfix, 50 | a digit and a `]` |
 impl PrattToken<'_, Expr, u8> for Tok {
   fn try_pratt_lhs(&self) -> Option<PrattLHS<(), (), u8>> {
     match self.0 {
       b'0'..=b'9' => Some(PrattLHS::Operand(())),
       b'-' => Some(PrattLHS::Prefix(Precedenced::new((), PREFIX_HIGH))),
       b'~' => Some(PrattLHS::Prefix(Precedenced::new((), PREFIX_LOW))),
+      b'p' => Some(PrattLHS::Prefix(Precedenced::new((), 9))),
       _ => None,
     }
   }
@@ -318,7 +328,9 @@ impl PrattToken<'_, Expr, u8> for Tok {
       b'=' => infix(PrattInfix::Right(()), 5),
       b'<' => infix(PrattInfix::Neither(()), 15),
       b'>' => infix(PrattInfix::Left(()), 15),
-      b'!' => postfix(50),
+      b'i' => infix(PrattInfix::Right(()), 8),
+      b't' => infix(PrattInfix::Left(()), 45),
+      b'!' | b'[' => postfix(50),
       b'?' => postfix(12),
       b'%' => postfix(15),
       b'@' => Some(PrattRHS::Adjacent(Precedenced::new((), 15))),
@@ -721,6 +733,152 @@ where
   Ok(format!(
     "({operand}{})",
     char::from(operator.into_data().into_data().0)
+  ))
+}
+
+// ── Folds that read on ────────────────────────────────────────────────────────────────────────
+
+/// One fold, as the `read_*` folds record it: its operator's byte and offset, `span().end()` as it
+/// returns, and whether it read a tail.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Fold {
+  pub byte: u8,
+  pub at: usize,
+  pub end: usize,
+  pub read: bool,
+}
+
+thread_local! {
+  /// Every fold of the `read_*` folds on this thread.
+  static FOLDS: RefCell<Vec<Fold>> = const { RefCell::new(Vec::new()) };
+}
+
+/// The folds recorded on this thread since this was last called.
+pub fn take_folds() -> Vec<Fold> {
+  FOLDS.with(|folds| core::mem::take(&mut *folds.borrow_mut()))
+}
+
+/// Commits `tail` when all of it is next, each byte past the trivia before it and `0` standing for
+/// any digit, and commits nothing otherwise.
+fn read_tail<'inp, const SKIP: bool, Ctx>(
+  input: &mut InputRef<'inp, '_, ByteLexer<'inp, SKIP>, Ctx>,
+  tail: &[u8],
+) -> Option<String>
+where
+  Ctx: ParseContext<'inp, ByteLexer<'inp, SKIP>>,
+{
+  input.attempt(|input| {
+    let mut read = String::new();
+    for &wanted in tail {
+      if !SKIP {
+        input.skip_while(|tok| tok.is_trivia()).ok()?;
+      }
+      let tok = input
+        .try_expect(|tok| {
+          let byte = tok.data().0;
+          if wanted == b'0' {
+            byte.is_ascii_digit()
+          } else {
+            byte == wanted
+          }
+        })
+        .ok()
+        .flatten()?;
+      read.push(char::from(tok.data().0));
+    }
+    Some(read)
+  })
+}
+
+fn record<'inp, const SKIP: bool, Ctx>(
+  input: &InputRef<'inp, '_, ByteLexer<'inp, SKIP>, Ctx>,
+  operator: &Tk,
+  read: bool,
+) where
+  Ctx: ParseContext<'inp, ByteLexer<'inp, SKIP>>,
+{
+  let fold = Fold {
+    byte: operator.data().0,
+    at: operator.span().start(),
+    end: input.span().end(),
+    read,
+  };
+  FOLDS.with(|folds| folds.borrow_mut().push(fold));
+}
+
+/// As [`fold_prefix`], recorded, and `p` takes a `+` after its operand.
+pub fn read_prefix<'inp, const SKIP: bool, Ctx>(
+  input: &mut InputRef<'inp, '_, ByteLexer<'inp, SKIP>, Ctx>,
+  operand: String,
+  operator: Precedenced<Tk, u8>,
+) -> Result<String, Fail>
+where
+  Ctx: ParseContext<'inp, ByteLexer<'inp, SKIP>>,
+  Ctx::Emitter: Emitter<'inp, ByteLexer<'inp, SKIP>, Error = Fail>,
+{
+  let operator = operator.into_data();
+  let byte = operator.data().0;
+  let tail = match byte {
+    b'p' => read_tail(input, b"+"),
+    _ => None,
+  };
+  record(input, &operator, tail.is_some());
+  Ok(format!(
+    "({}{operand}{})",
+    char::from(byte),
+    tail.unwrap_or_default()
+  ))
+}
+
+/// As [`fold_infix`], recorded: `i` reads `e` and a digit after its right operand, and `t` takes a
+/// `+` that follows.
+pub fn read_infix<'inp, const SKIP: bool, Ctx>(
+  input: &mut InputRef<'inp, '_, ByteLexer<'inp, SKIP>, Ctx>,
+  left: String,
+  right: String,
+  operator: InfixOp,
+) -> Result<String, Fail>
+where
+  Ctx: ParseContext<'inp, ByteLexer<'inp, SKIP>>,
+  Ctx::Emitter: Emitter<'inp, ByteLexer<'inp, SKIP>, Error = Fail>,
+{
+  let (PrattInfix::Left(operator) | PrattInfix::Right(operator) | PrattInfix::Neither(operator)) =
+    operator.into_data();
+  let byte = operator.data().0;
+  let tail = match byte {
+    b'i' => read_tail(input, b"e0"),
+    b't' => read_tail(input, b"+"),
+    _ => None,
+  };
+  record(input, &operator, tail.is_some());
+  Ok(format!(
+    "({left}{}{right}{})",
+    char::from(byte),
+    tail.unwrap_or_default()
+  ))
+}
+
+/// As [`fold_postfix`], recorded, and `[` reads a digit and a `]`.
+pub fn read_postfix<'inp, const SKIP: bool, Ctx>(
+  input: &mut InputRef<'inp, '_, ByteLexer<'inp, SKIP>, Ctx>,
+  operand: String,
+  operator: Precedenced<Tk, u8>,
+) -> Result<String, Fail>
+where
+  Ctx: ParseContext<'inp, ByteLexer<'inp, SKIP>>,
+  Ctx::Emitter: Emitter<'inp, ByteLexer<'inp, SKIP>, Error = Fail>,
+{
+  let operator = operator.into_data();
+  let byte = operator.data().0;
+  let tail = match byte {
+    b'[' => read_tail(input, b"0]"),
+    _ => None,
+  };
+  record(input, &operator, tail.is_some());
+  Ok(format!(
+    "({operand}{}{})",
+    char::from(byte),
+    tail.unwrap_or_default()
   ))
 }
 

@@ -5,20 +5,21 @@
   not(feature = "trace")
 ))]
 
-//! What the flat driver's `parse_into` allocates, by a counting allocator this suite has to itself.
+//! What the flat driver's two adapters allocate, by a counting allocator this suite has to itself.
 //!
 //! It is compiled without `trace`. That opt-in debugging feature's hooks fire at every
 //! instrumented read of the input, with or without a `traced` wrapper, and each formats and writes
 //! a line, so a parse under it allocates at every read by design. Without `trace` the suite runs in
 //! the `test (valve-off)` job, `cargo test -p tokora --features logos,std`, and in the Miri shards.
 //!
-//! A checked driver keeps its first four pending operators inline, and allocates nothing while no
-//! more than four are pending. A bare driver keeps no stack and never allocates. A kept checked
-//! driver keeps the storage it grew: its first parse past four allocates, and the same parse again
-//! does not. A driver built afresh for each call grows afresh, and allocates each time.
+//! A checked driver, and a driver made by `folding`, keep their first four pending operators
+//! inline, and allocate nothing while no more than four are pending. A bare driver keeps no stack
+//! and never allocates. A kept driver keeps the storage it grew: its first parse past four
+//! allocates, and the same parse again does not. A driver built afresh for each call grows afresh,
+//! and allocates each time.
 //!
-//! Only the call to `parse_into` is counted. The operand parser and the handler allocate nothing,
-//! and the lexer's log is given room before each parse.
+//! Only the parse is counted. The operand parser, the handler and the folds allocate nothing, and
+//! the lexer's log is given room before each parse.
 
 mod flat_fixture;
 
@@ -26,7 +27,8 @@ use core::cell::Cell;
 use std::alloc::{GlobalAlloc, Layout, System};
 
 use tokora::{
-  Emitter, InputRef, Parse, ParseAttempt, ParseContext, Parser, ParserContext, TryParseInput,
+  Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser, ParserContext,
+  TryParseInput,
   emitter::Fatal,
   pratt::{PrattHandler, Precedenced, flat},
 };
@@ -151,6 +153,31 @@ where
   }
 }
 
+/// A prefix or a postfix operator's fold: its operand's value.
+fn keep<'inp, Ctx>(
+  _input: &mut InputRef<'inp, '_, Skip<'inp>, Ctx>,
+  operand: u8,
+  _operator: Precedenced<Tk, u8>,
+) -> Result<u8, ErrorIn<'inp, Ctx>>
+where
+  Ctx: ParseContext<'inp, Skip<'inp>>,
+{
+  Ok(operand)
+}
+
+/// An infix operator's fold: the sum of its operands, wrapping.
+fn add<'inp, Ctx>(
+  _input: &mut InputRef<'inp, '_, Skip<'inp>, Ctx>,
+  left: u8,
+  right: u8,
+  _operator: InfixOp,
+) -> Result<u8, ErrorIn<'inp, Ctx>>
+where
+  Ctx: ParseContext<'inp, Skip<'inp>>,
+{
+  Ok(left.wrapping_add(right))
+}
+
 // ── The sources, and a measured parse ─────────────────────────────────────────────────────────
 
 /// `1` and `n` times `operator 1`, then a terminator.
@@ -243,6 +270,62 @@ fn a_driver_built_afresh_allocates_each_time() {
       flat(TABLE, Digit).parse_into(input, count)
     });
     assert_eq!((result, items), (Ok(()), 19), "call {call}");
+    assert!(
+      allocated > 0,
+      "call {call}: a fresh driver grows its own storage"
+    );
+  }
+}
+
+/// While no more than four operators are pending, a driver made by `folding` allocates nothing,
+/// over the same four sources.
+#[test]
+fn a_folding_driver_allocates_nothing_while_four_are_pending() {
+  for src in [
+    chain('^', 4),
+    prefixes(4),
+    String::from("1+2*3^4-5;"),
+    chain('+', 100),
+  ] {
+    let (result, _, allocated) = measured(&src, |input, _| {
+      flat(TABLE, Digit)
+        .folding(keep, add, keep)
+        .parse_input(input)
+        .map(|_| ())
+    });
+    assert_eq!((result, allocated), (Ok(()), 0), "{src}");
+  }
+}
+
+/// One kept driver made by `folding` parses a chain that keeps nine operators pending, twice. The
+/// first parse grows its storage, and the second finds it grown.
+#[test]
+fn a_kept_folding_driver_allocates_on_its_first_parse_alone() {
+  let nine = chain('^', 9);
+  let mut driver = flat(TABLE, Digit).folding(keep, add, keep);
+  let (result, _, first) = measured(&nine, |input, _| driver.parse_input(input).map(|_| ()));
+  assert_eq!(result, Ok(()));
+  assert!(first > 0, "the first parse grows the storage");
+  let (result, _, second) = measured(&nine, |input, _| driver.parse_input(input).map(|_| ()));
+  assert_eq!(
+    (result, second),
+    (Ok(()), 0),
+    "the second parse finds it grown"
+  );
+}
+
+/// A driver made by `folding` afresh for each call grows afresh, and allocates each time.
+#[test]
+fn a_folding_driver_built_afresh_allocates_each_time() {
+  let nine = chain('^', 9);
+  for call in 0..2 {
+    let (result, _, allocated) = measured(&nine, |input, _| {
+      flat(TABLE, Digit)
+        .folding(keep, add, keep)
+        .parse_input(input)
+        .map(|_| ())
+    });
+    assert_eq!(result, Ok(()), "call {call}");
     assert!(
       allocated > 0,
       "call {call}: a fresh driver grows its own storage"
