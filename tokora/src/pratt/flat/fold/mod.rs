@@ -647,12 +647,11 @@ where
                 continue;
               }
             }
-            Some(Seen::Staged { entry, rhs }) => {
-              if input.staged_entry() == Some(entry) {
-                reuse = Some(rhs);
-              }
+            Some(Seen::Staged { entry, rhs }) if input.staged_entry() == Some(entry) => {
+              reuse = Some(rhs);
             }
-            None => {}
+            // Nothing kept, or a staged token that is no longer the front.
+            _ => {}
           }
           let mut answer = Answer::End;
           let mut classified = None;
