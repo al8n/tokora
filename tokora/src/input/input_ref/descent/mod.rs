@@ -1270,24 +1270,14 @@ where
     }
   }
 
-  /// The regime generation now. With [`position_writes`](Self::position_writes), it is the pair
-  /// the flat expression driver reads around a fold, to tell whether the head it classified before
-  /// the fold still stands. Two readings name one regime when `same_regime` says so, which no
-  /// reading taken once the allocator has run out does: an input re-keyed past that point reads
-  /// as moved.
+  /// The regime generation now. With `span().end()`, it is the pair the flat expression driver
+  /// reads around a fold, to tell whether the head it classified before the fold still stands.
+  /// Two readings name one regime when `same_regime` says so, which no reading taken once the
+  /// allocator has run out does: an input re-keyed past that point reads as moved.
   #[cfg(feature = "pratt")]
   #[inline(always)]
   pub(crate) fn regime_generation(&self) -> u64 {
     *self.regime
-  }
-
-  /// How many times the committed position has been written: every token settled, every scan's
-  /// frontier committed, every restore. Equal across a span of caller code, with the regime
-  /// unchanged, the span and the lexer state are the ones that span began with.
-  #[cfg(feature = "pratt")]
-  #[inline(always)]
-  pub(crate) fn position_writes(&self) -> u64 {
-    *self.position_writes
   }
 
   /// What the attempt that took `since` as its [`scanner_attempt`](Self::scanner_attempt) capture

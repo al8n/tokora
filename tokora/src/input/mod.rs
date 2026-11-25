@@ -1042,18 +1042,6 @@ where
   /// cell, and harvests terminality by its own route (which reads the error value only — see
   /// [`MaybeTerminal`](crate::error::MaybeTerminal)).
   scanner_trips: u64,
-  /// The **position-write counter**: one for every write of the committed position, through
-  /// `InputRef::install_position`, the one writer of the span and the lexer state together. A
-  /// token settled, a scan's frontier committed and a restore each count one.
-  ///
-  /// Monotone, and outside the rollback set: a restore is itself a write, so it counts one more
-  /// rather than going back. With the regime it tells the flat expression driver whether a fold
-  /// left the position where the head was classified, which the committed offset alone cannot:
-  /// two tokens may end at one offset, under different lexer states. It wraps rather than
-  /// saturating, since a saturated count would read every later fold as leaving the position
-  /// alone, and a wrap is mistaken only after 2^64 writes inside one fold.
-  #[cfg(feature = "pratt")]
-  position_writes: u64,
   /// The **withheld-head memo**: the last frontier verdict this input's lexer withheld, under the
   /// key that decides it (see [`WithheldHead`]). `None` until a non-final [`Partial`] scan first
   /// withholds an item; a [`Complete`] input never writes or reads it.
@@ -1256,9 +1244,6 @@ where
       // Untripped, and for the same reason: a scanner trip is a fact about THIS session's lexing,
       // and no constructor carries one in.
       scanner_trips: 0,
-      // Unwritten: a write of the position is a fact about THIS session too.
-      #[cfg(feature = "pratt")]
-      position_writes: 0,
       // Nothing withheld yet: only a scan of this input can withhold an item.
       withheld: None,
       emitter,
@@ -1423,10 +1408,6 @@ where
       // The scanner-trip counter, borrowed for the identical reason: a trip the scanner takes
       // through this handle is a fact about the session, so it has to outlive the handle.
       scanner_trips: &mut self.scanner_trips,
-      // The position-write counter, borrowed for the same reason: a write through this handle is
-      // a fact about the session, and a later handle compares against it.
-      #[cfg(feature = "pratt")]
-      position_writes: &mut self.position_writes,
       // The withheld-head memo, borrowed so a verdict one handle's peek reached is the one the next
       // handle's consume is answered from.
       withheld: &mut self.withheld,
