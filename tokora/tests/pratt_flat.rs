@@ -923,6 +923,49 @@ fn folding_at_the_end_of_input_stages_nothing() {
   assert_eq!(got.0.landing.next, None);
 }
 
+/// Under `folding` too, every token of the expression and its terminator is lexed under the
+/// caller's state, and the state the lexer ends with is the caller's.
+#[test]
+fn folding_leaves_the_lexer_s_state_the_caller_s() {
+  let got = fatal::<true, _>("1+2;3", |input| {
+    forget_lexes();
+    input.set_state(Mode(1));
+    let folded = folded(input, Operand::STRICT, 0)?;
+    input.set_state(Mode(0));
+    let after = input.next()?.map(|tok| tok.data().0);
+    Ok((folded, after, lexes(), input.state()))
+  });
+  let (folded, after, lexed, state) = got;
+  assert_eq!(folded.result, Ok(String::from("(1+2)")));
+  assert_eq!(folded.landing.next, Some((b';', 3)));
+  assert_eq!(after, Some(b'3'));
+  assert_eq!(lexed, vec![(0, 1), (1, 1), (2, 1), (3, 1), (4, 0)]);
+  assert_eq!(state, Mode(0));
+}
+
+/// Under `folding` too, the operand parser is asked first: a head that it and the table's prefix
+/// row would both take is an operand. One that crosses no trivia is asked again once the driver
+/// has crossed it.
+#[test]
+fn folding_asks_the_operand_parser_first() {
+  let minus = Operand {
+    crossing: false,
+    extra: Some(b'-'),
+  };
+  let got = fatal::<true, _>("-1;", |input| folded(input, minus, 0));
+  assert_eq!(got.result, Ok(String::from("-")));
+  assert_eq!(got.landing.next, Some((b'1', 1)));
+
+  let got = fatal::<true, _>("-1;", |input| folded(input, Operand::STRICT, 0));
+  assert_eq!(got.result, Ok(String::from("(-1)")));
+  assert_eq!(got.landing.next, Some((b';', 2)));
+
+  let got = fatal::<false, _>("  7 ;", |input| folded(input, Operand::STRICT, 0));
+  assert_eq!(got.result, Ok(String::from("7")));
+  assert_eq!(got.landing.handback, 4, "the trailing trivia is consumed");
+  assert_eq!(got.landing.next, Some((b';', 4)));
+}
+
 /// `folding` ends and refuses where `parse_into` does, at the same offsets, with the token found
 /// left on the input: a missing operand of either side, a repeated non-associative operator, an
 /// operator below the floor, and an `Adjacent` row declined below the floor, chained at a latched
