@@ -40,8 +40,8 @@
 //! freely; only code counts. `grep PRATT_CENSUS` finds every anchor.
 
 /// The driver sources under census: the typed driver's RHS loop, the token driver's, the flat
-/// driver's loop with the modes and the seam it runs, and the two channels that read the table for
-/// the typed driver.
+/// driver's two loops with the modes and the seam they run, and the two channels that read the
+/// table for the typed driver.
 const DRIVERS: &[(&str, &str)] = &[
   ("pratt/expr.rs", include_str!("expr.rs")),
   (
@@ -49,6 +49,7 @@ const DRIVERS: &[(&str, &str)] = &[
     include_str!("../input/input_ref/pratt.rs"),
   ),
   ("pratt/flat/mod.rs", include_str!("flat/mod.rs")),
+  ("pratt/flat/fold/mod.rs", include_str!("flat/fold/mod.rs")),
   ("pratt/flat/mode.rs", include_str!("flat/mode.rs")),
   ("pratt/flat/seam.rs", include_str!("flat/seam.rs")),
   ("pratt/table.rs", include_str!("table.rs")),

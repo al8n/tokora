@@ -41,8 +41,8 @@ type UnitStack<Power> = PrattStack<UnitFrame<Power>, U32>;
 pub struct Checked<Power, B = Open> {
   /// The floor, inclusive.
   floor: Power,
-  /// The cap on pending operators: `usize::MAX` when none is set.
-  cap: usize,
+  /// The cap on pending operators, once one is set.
+  cap: Option<usize>,
   /// The machine's stack, lent to it for each parse.
   stack: UnitStack<Power>,
   _bound: PhantomData<B>,
@@ -54,7 +54,7 @@ impl<Power: PrattPower> Checked<Power> {
   pub(super) fn new() -> Self {
     Self {
       floor: Power::default(),
-      cap: usize::MAX,
+      cap: None,
       stack: PrattStack::new(),
       _bound: PhantomData,
     }
@@ -78,10 +78,17 @@ impl<Power, B> Checked<Power, B> {
   pub(super) fn with_cap(self, cap: usize) -> Checked<Power, Bounded> {
     Checked {
       floor: self.floor,
-      cap,
+      cap: Some(cap),
       stack: self.stack,
       _bound: PhantomData,
     }
+  }
+
+  /// The floor, and the cap if one is set: what `folding` carries over. The unit stack is
+  /// dropped.
+  #[inline]
+  pub(super) fn into_bounds(self) -> (Power, Option<usize>) {
+    (self.floor, self.cap)
   }
 }
 
@@ -171,7 +178,7 @@ impl<Power: PrattPower, B> ModeSteps<Power> for Checked<Power, B> {
     CheckedRun {
       machine: PrattResolver::with_stack(&mut self.stack)
         .min_precedence(self.floor.clone())
-        .max_depth(self.cap),
+        .max_depth(self.cap.unwrap_or(usize::MAX)),
     }
   }
 }

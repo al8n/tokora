@@ -20,6 +20,7 @@ use super::{
   NoCst, PrattInfix, PrattLHS, PrattOffer, PrattPower, PrattRHS, PrattTable, Precedenced,
 };
 
+pub use fold::FlatFold;
 pub use handler::PrattHandler;
 pub use mode::{Bare, Bounded, Checked, FlatMode, Open};
 pub use seam::{FlatCst, WithFlatKind};
@@ -27,6 +28,7 @@ pub use seam::{FlatCst, WithFlatKind};
 use mode::{ModeSteps, RunSteps};
 use seam::Seam;
 
+mod fold;
 mod handler;
 mod mode;
 mod seam;
@@ -107,9 +109,10 @@ impl<Expr: ?Sized, Power, Operand, L, O, Ctx, Lang: ?Sized, Cst, B>
   /// Caps the driver at `max_depth` pending operators: the operator past it is
   /// [`PrattStackFull`](crate::error::PrattStackFull), which reports the bound that refused.
   ///
-  /// It is a cap and promises no room. Where the crate cannot allocate, the driver's stack holds 32
-  /// pending operators and does not grow, and a cap above 32 does not raise that: the 33rd is
-  /// refused, and the error reports 32.
+  /// It is a cap and promises no room. Where the crate cannot allocate,
+  /// [`parse_into`](Self::parse_into)'s stack holds 32 pending operators and does not grow, and a
+  /// cap above 32 does not raise that: the 33rd is refused, and the error reports 32. The default
+  /// storage of [`folding`](Self::folding) grows there up to the cap, which is 32 when none is set.
   ///
   /// The driver is then [`Bounded`], whatever the value, and has no [`bare`](Self::bare).
   #[must_use]
@@ -233,12 +236,12 @@ impl<Expr: ?Sized, Power, Operand, L, O, Ctx, Lang: ?Sized, Cst>
 impl<Expr: ?Sized, Power, Operand, L, O, Ctx, Lang: ?Sized, Cst, Mode>
   Flat<Expr, Power, Operand, L, O, Ctx, Lang, Cst, Mode>
 {
-  /// Wraps every expression [`parse_into`](Self::parse_into) reads in one node of `kind`, a bare
-  /// operand too. See [`WithFlatKind`] for where trivia lands.
+  /// Wraps every expression [`parse_into`](Self::parse_into) or a driver made by `folding` reads
+  /// in one node of `kind`, a bare operand too. See [`WithFlatKind`] for where trivia lands.
   ///
   /// The leading trivia is crossed before the operand parser is asked, in the lexer mode the input
-  /// is in when `parse_into` is called: an operand parser's mode applies from its own first read,
-  /// so a grammar whose operand changes what counts as trivia sets that mode before `parse_into`.
+  /// is in when the parse begins: an operand parser's mode applies from its own first read, so a
+  /// grammar whose operand changes what counts as trivia sets that mode before the parse.
   #[must_use]
   #[inline]
   pub fn with_cst_kind(

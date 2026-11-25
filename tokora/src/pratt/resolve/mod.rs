@@ -1065,11 +1065,17 @@ where
 // that does not hold its frames.
 //
 // `allow(dead_code)` outside tests: those loops are adapters', and a build that compiles none of
-// them reaches these two from the machine's tests alone.
+// them reaches these from the machine's tests alone.
 #[cfg_attr(not(test), allow(dead_code))]
 impl<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Post, Power, S>
   PrattResolver<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Post, Power, S>
 {
+  /// The storage, to read: a loop over a segment asks it whether its own frames are gone.
+  #[inline(always)]
+  pub(crate) fn storage(&self) -> &S {
+    &self.stack
+  }
+
   /// Everything but the storage, and the storage.
   #[inline]
   pub(crate) fn into_parts(
