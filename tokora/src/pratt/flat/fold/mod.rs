@@ -74,10 +74,10 @@ impl<Expr: ?Sized, Power, Operand, L, O, Ctx, Lang: ?Sized, Cst, B>
   /// on the input. The floor, the cap and the seam set on this driver carry over.
   ///
   /// The machine's storage is a field of the driver, emptied when a parse begins and when one
-  /// ends, so a driver that is kept reuses it. By default it holds four pending operators. Past
-  /// them, it grows on the heap where the crate can allocate. Where it cannot, it grows on the
-  /// native stack four at a time, up to [`max_depth`](Self::max_depth), or 32 when none is set;
-  /// the operator past that is [`PrattStackFull`](crate::error::PrattStackFull).
+  /// ends, however it ends, so a driver that is kept reuses it. By default it holds four pending
+  /// operators. Past them, it grows on the heap where the crate can allocate. Where it cannot, it
+  /// grows on the native stack four at a time, up to [`max_depth`](Self::max_depth), or 32 when
+  /// none is set; the operator past that is [`PrattStackFull`](crate::error::PrattStackFull).
   /// [`with_stack`](FlatFold::with_stack) supplies a storage that is not grown.
   #[must_use]
   #[inline]
@@ -135,7 +135,8 @@ impl<Expr: ?Sized, Power, Operand, L, O, Ctx, Lang: ?Sized, Cst, B>
 /// [`folding`](super::Flat::folding).
 ///
 /// `S` is the machine's storage, which the driver owns and lends to the machine for every parse.
-/// It is emptied when a parse begins and when one ends.
+/// It is emptied when a parse begins and when one ends, however it ends: an unwind out of the
+/// operand parser or a fold empties it too.
 pub struct FlatFold<
   Expr: ?Sized,
   Power,
@@ -187,7 +188,9 @@ impl<
 > FlatFold<Expr, Power, Operand, FoldPrefix, FoldInfix, FoldPostfix, L, O, Ctx, Lang, Cst, S>
 {
   /// Replaces the machine's storage. The driver owns it and lends it to the machine for every
-  /// parse, emptying it when a parse begins and when one ends.
+  /// parse, emptying it when a parse begins and when one ends, however it ends: a storage lent as
+  /// `&mut` keeps no frame, and so none of the operands they own, past an unwind out of user code,
+  /// and keeps whatever it allocated.
   ///
   /// It is not grown, in any tier: an operator it has no room for is
   /// [`PrattStackFull`](crate::error::PrattStackFull), which reports the lesser of its capacity
@@ -336,6 +339,53 @@ enum Stood {
   Adjacent,
 }
 
+/// A parse's hold on the machine's storage: it empties the storage by its own length when it is
+/// dropped, at the end of the parse, however the parse ends. By its own length, as the machine's
+/// `with_stack` empties a storage, because a parse that grew and then failed leaves the driver's
+/// own frames there while the machine's count is gone with the native frames that carried it; and
+/// on an unwind out of user code too, so that a storage the caller lent keeps none of the operands
+/// its frames own once the parse is gone. It pops, so a storage that grew keeps its allocation for
+/// the next parse.
+struct Emptied<'s, S, T>
+where
+  S: Stack<T>,
+{
+  stack: &'s mut S,
+  _frames: PhantomData<fn() -> T>,
+}
+
+impl<'s, S, T> Emptied<'s, S, T>
+where
+  S: Stack<T>,
+{
+  #[inline(always)]
+  fn new(stack: &'s mut S) -> Self {
+    Self {
+      stack,
+      _frames: PhantomData,
+    }
+  }
+
+  /// The storage, to lend to the machine.
+  #[inline(always)]
+  fn get(&mut self) -> &mut S {
+    &mut *self.stack
+  }
+}
+
+impl<S, T> Drop for Emptied<'_, S, T>
+where
+  S: Stack<T>,
+{
+  fn drop(&mut self) {
+    for _ in 0..self.stack.len() {
+      if self.stack.pop().is_none() {
+        break;
+      }
+    }
+  }
+}
+
 /// How a loop over one storage ends without an error.
 //
 // With an allocator, outside tests, no loop runs over a segment, so nothing reads what a drained
@@ -419,34 +469,11 @@ where
     &mut self,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
+    // Held before anything of the parse runs, the seam's entry included, so that the storage is
+    // emptied however the parse ends, an unwind out of the seam, the operand parser or a fold
+    // among the ways.
+    let mut stack: Emptied<'_, S, Frame<'inp, L, O, Power>> = Emptied::new(&mut self.stack);
     let open = <Cst as Seam<'inp, L, Ctx, Lang, Complete>>::open(&self.cst, input)?;
-    let result = self.resolve::<K>(input);
-    // By its own length, as `with_stack` empties it when the next parse begins: a parse that grew
-    // and failed left the driver's own frames here, and the machine's count went with the native
-    // frames that carried it.
-    for _ in 0..self.stack.len() {
-      if self.stack.pop().is_none() {
-        break;
-      }
-    }
-    match result {
-      Ok(value) => {
-        <Cst as Seam<'inp, L, Ctx, Lang, Complete>>::finish(&self.cst, open, input);
-        Ok(value)
-      }
-      Err(error) => {
-        <Cst as Seam<'inp, L, Ctx, Lang, Complete>>::demote(&self.cst, open, input);
-        Err(error)
-      }
-    }
-  }
-
-  /// The machine, seated on the driver's storage with the driver's floor and cap, and its loop.
-  #[inline]
-  fn resolve<K: ArraySize>(
-    &mut self,
-    input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
-  ) -> Result<O, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
     #[cfg(not(any(feature = "std", feature = "alloc")))]
     let unset = if self.grows { GROWN_CAP } else { usize::MAX };
     #[cfg(any(feature = "std", feature = "alloc"))]
@@ -468,18 +495,31 @@ where
       growth: &mut self.growth,
       _segment: PhantomData,
     };
-    // `with_stack` empties the storage first: a parse that unwound left its frames there.
-    let machine = PrattResolver::with_stack(&mut self.stack)
+    // `with_stack` empties the storage too, by its own length, and finds it empty.
+    let machine = PrattResolver::with_stack(stack.get())
       .min_precedence(self.floor.clone())
       .max_depth(cap);
     // The scanner's trip count as the expression begins, for every point at which the loop ends
     // or refuses, at every depth: a trip since, under user code or a read of the loop's own, makes
     // that point terminal whatever followed it. Recovering by re-keying is the caller's.
     let scans = input.scanner_trip_snapshot();
-    match Self::run::<_, false, K>(machine, None, &mut steps, input, scans)? {
-      Exit::Done(value) => Ok(value),
-      Exit::Drained(..) => {
+    let result = match Self::run::<_, false, K>(machine, None, &mut steps, input, scans) {
+      Ok(Exit::Done(value)) => Ok(value),
+      Ok(Exit::Drained(..)) => {
         unreachable!("the driver's own storage has nothing below it, so its loop never drains")
+      }
+      Err(error) => Err(error),
+    };
+    // Emptied before the seam's exit, as on an unwind it is before the unwind leaves.
+    drop(stack);
+    match result {
+      Ok(value) => {
+        <Cst as Seam<'inp, L, Ctx, Lang, Complete>>::finish(&self.cst, open, input);
+        Ok(value)
+      }
+      Err(error) => {
+        <Cst as Seam<'inp, L, Ctx, Lang, Complete>>::demote(&self.cst, open, input);
+        Err(error)
       }
     }
   }

@@ -17,7 +17,7 @@ use tokora::{
   emitter::{Fatal, Verbose},
   error::MaybeTerminal,
   input::TokenBudget,
-  pratt::{Bare, Flat, NoCst, PrattHandler, PrattInfix, Precedenced, flat, pratt},
+  pratt::{Bare, Flat, NoCst, PrattFrame, PrattHandler, PrattInfix, Precedenced, flat, pratt},
   span::Spanned,
   state::{RecursionLimiter, TokenLimiter},
   utils::typenum::U2,
@@ -1351,4 +1351,26 @@ fn a_stop_a_fold_met_is_terminal_before_the_next_fold_runs() {
       3
     )
   );
+}
+
+/// A caught unwind out of a fold leaves nothing in a storage the caller lent. Over `1^2!;` the `!`
+/// binds tighter than the pending `^`, and its fold panics while the `^`'s frame owns the left
+/// operand. Once the unwind is caught, the caller's `Vec` holds no frame, and it keeps its
+/// allocation for the next parse.
+#[test]
+fn an_unwind_out_of_a_fold_leaves_a_lent_storage_empty() {
+  let mut frames: Vec<PrattFrame<String, Tk, Tk, Tk, Tk, u8>> = Vec::new();
+  let unwound = catch_unwind(AssertUnwindSafe(|| {
+    fatal::<true, _>("1^2!;", |input| {
+      Ok(
+        flat(TABLE, Operand::STRICT)
+          .folding(fold_prefix, fold_infix, panics_at_bang)
+          .with_stack(&mut frames)
+          .parse_input(input),
+      )
+    })
+  }));
+  assert!(unwound.is_err(), "the fold of `!` panicked");
+  assert!(frames.is_empty(), "{} frames are left", frames.len());
+  assert!(frames.capacity() > 0, "the allocation is kept for reuse");
 }
