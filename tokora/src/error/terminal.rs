@@ -6,36 +6,48 @@
 ///
 /// # The terminal sources
 ///
-/// **Three** values in this crate are *built* as terminal and handed to a caller's error type.
-/// Two of them answer [`is_terminal`](Self::is_terminal) for themselves, so an arm holding one
-/// **delegates**; the third does not implement this trait at all, so an arm holding it must answer
+/// **Four** values in this crate are *built* as terminal and handed to a caller's error type.
+/// Three of them answer [`is_terminal`](Self::is_terminal) for themselves, so an arm holding one
+/// **delegates**; the fourth does not implement this trait at all, so an arm holding it must answer
 /// for it. Every variant of your error type that can hold one needs its own arm:
 ///
 /// | Source | Terminal when | Your arm writes | How it reaches you, and what a wrong arm costs |
 /// |---|---|---|---|
 /// | [`UnexpectedEnd`](crate::error::UnexpectedEnd) | its [`is_terminal`](crate::error::UnexpectedEnd::is_terminal) flag is raised — a **scanner** stop: a scanner resource-limit trip, or the poison boundary it latches | `e.is_terminal()` | through `From<UnexpectedEnd<…>>`, as the committed form's end-of-input error, so it reads as an ordinary end of input to a caller that does not care yet stays distinguishable from a *genuine* end of input to one that does. An arm left at `false` is **spent silently**, as a recoverable failure |
-/// | [`RecursionLimitReached`](crate::error::RecursionLimitReached) | **always** — a **descent** stop: the frame budget [`InputRef::descend`](crate::InputRef::descend) enforces, which both Pratt engines enter every frame through | `e.is_terminal()` | through `From<RecursionLimitReached<…>>`, as its own type on the `Err` channel, never emitted. **This is the one row whose stop does not depend on your arm**: the trip latches the input session, and the three recovery combinators read that latch beside this trait, so an arm left at `false` — `()` included — loses the *payload* and still re-raises. Write the arm anyway if you want the offset and the depth |
+/// | [`RecursionLimitReached`](crate::error::RecursionLimitReached) | **always** — a **descent** stop: the frame budget [`InputRef::descend`](crate::InputRef::descend) enforces, which both recursive Pratt engines enter every frame through | `e.is_terminal()` | through `From<RecursionLimitReached<…>>`, as its own type on the `Err` channel, never emitted. **Its stop does not depend on your arm**: the trip latches the input session, and the three recovery combinators read that latch beside this trait, so an arm left at `false` — `()` included — loses the *payload* and still re-raises. Write the arm anyway if you want the offset and the depth |
+#[cfg_attr(
+  feature = "pratt",
+  doc = " | [`PrattStackFull`](crate::error::PrattStackFull) | **always** — a flat expression driver's stack is full: at the cap the caller set, or in a storage that does not grow | `e.is_terminal()` | through `From<PrattStackFull<…>>`, as its own type on the `Err` channel, never emitted. **Its stop does not depend on your arm either**: the driver counts the trip on the input session before it builds the value, and the three recovery combinators read that count beside this trait. Write the arm anyway if you want the offset and the bound |"
+)]
+#[cfg_attr(
+  not(feature = "pratt"),
+  doc = " | `PrattStackFull`, with `pratt` | **always** — a flat expression driver's stack is full: at the cap the caller set, or in a storage that does not grow | `e.is_terminal()` | through `From<PrattStackFull<…>>`, as its own type on the `Err` channel, never emitted. **Its stop does not depend on your arm either**: the driver counts the trip on the input session before it builds the value, and the three recovery combinators read that count beside this trait. Write the arm anyway if you want the offset and the bound |"
+)]
 /// | [`SessionRefusal`](crate::input::SessionRefusal) | **always** — a **session** stop: the cross-attempt byte budget is exhausted, or an earlier attempt latched the session shut. Both are decided before any attempt work | `true`, spelled out — this type deliberately does **not** implement `MaybeTerminal`, so there is nothing to delegate to | through `From<SessionRefusal>` inside [`PartialSession::parse`](crate::input::PartialSession::parse), which then **asserts** the converted value is terminal. That assertion is unconditional, so an arm left at `false` is a **panic in a release build**, not a silent spend — see the [coherence law](crate::input::SessionRefusal#the-coherence-law) for why it is a panic and not a returned error |
 ///
-/// Recovery is the caller that must care about the first two, and it asks *this trait* rather than
-/// either type. For [`UnexpectedEnd`](crate::error::UnexpectedEnd) that is the whole answer: a
-/// grammar error holding one decides the verdict by what its [`is_terminal`](Self::is_terminal)
-/// returns, not by what the value inside it would have said. For
-/// [`RecursionLimitReached`](crate::error::RecursionLimitReached) the payload arm still matters —
-/// for the details it carries (the offset, the depth) and for a value your own code fabricated
-/// rather than received from a real trip — but it no longer decides the verdict alone: an actual
-/// input-descent trip is decided by the session latch **in addition to** the trait check, so an arm
-/// left at `false` — `()` included — no longer settles the question by itself. The third has a
-/// stricter caller: the session gate does not consult the verdict, it *requires* it.
+/// Recovery is the caller that must care about the first three, and it asks *this trait* rather
+/// than any of the types. For [`UnexpectedEnd`](crate::error::UnexpectedEnd) that is the whole
+/// answer: a grammar error holding one decides the verdict by what its
+/// [`is_terminal`](Self::is_terminal) returns, not by what the value inside it would have said. For
+/// [`RecursionLimitReached`](crate::error::RecursionLimitReached) and `PrattStackFull` the payload
+/// arm still matters — for the details it carries and for a value your own code fabricated rather
+/// than received from a real trip — but it no longer decides the verdict alone: an actual trip is
+/// decided by the session latch **in addition to** the trait check, so an arm left at `false` —
+/// `()` included — no longer settles the question by itself. The fourth has a stricter caller: the
+/// session gate does not consult the verdict, it *requires* it.
 ///
-/// No other value in this crate **reports itself** terminal. The trait's only other implementations
-/// here are [`NonAssociativeChain`](crate::error::NonAssociativeChain) and `()`, and both keep the
-/// `false` default deliberately — the first is malformed input, which recovery *may* spend; the
-/// second stores nothing at all.
+/// The trait's only other implementations here are
+#[cfg_attr(
+  feature = "pratt",
+  doc = " [`NonAssociativeChain`](crate::error::NonAssociativeChain)"
+)]
+#[cfg_attr(not(feature = "pratt"), doc = " `NonAssociativeChain`, with `pratt`,")]
+/// and `()`, and both keep the `false` default deliberately — the first is malformed input, which
+/// recovery *may* spend; the second stores nothing at all.
 ///
 /// # This list is what the crate knows it produces, not a proof of closure
 ///
-/// Read the table as *"handle these three"*, **not** as *"nothing else can be terminal"*. It
+/// Read the table as *"handle these four"*, **not** as *"nothing else can be terminal"*. It
 /// enumerates the values this crate builds and marks; it does not enumerate the **events** that can
 /// reach you as terminal conditions, and those are not the same set. A terminal event can arrive
 /// through a carrier nobody marked — including from inside this crate, on a path the table does not
@@ -128,18 +140,19 @@
 ///
 /// A conversion that **discards** the source discards the marker with it. The converted value is
 /// non-terminal whatever the value it came from said — `()` included, since the sink stores nothing
-/// — and recovery will spend the stop rather than re-raise it. **The one exception is the resource
-/// budget**: a [`RecursionLimitReached`](crate::error::RecursionLimitReached) trip is recorded on
-/// the input session as well as in the value, and the three recovery combinators read both, so that
-/// stop survives a discarding conversion. Every other row of the table above is yours to carry. See
+/// — and recovery will spend the stop rather than re-raise it. **The exceptions are the two stops
+/// the session counter records**: a [`RecursionLimitReached`](crate::error::RecursionLimitReached)
+/// trip and a flat expression driver's `PrattStackFull` are each recorded on the input session as
+/// well as in the value, and the three recovery combinators read both, so those stops survive a
+/// discarding conversion. Every other row of the table above is yours to carry. See
 /// [`RecursionLimitReached`](crate::error::RecursionLimitReached)'s own
 /// [section on the payload and the stop](crate::error::RecursionLimitReached#the-stop-does-not-travel-in-the-payload-so-a-discarding-sink-cannot-drop-it)
-/// for why exactly one row works that way and what it still costs to discard the value.
+/// for why a row works that way and what it still costs to discard the value.
 ///
 /// # Where the set stops being closed
 ///
 /// The table is closed over one thing only: the terminal-**marked** values this crate constructs.
-/// Those three exhaust *that* set, and the trait's only other implementations here keep the `false`
+/// Those four exhaust *that* set, and the trait's only other implementations here keep the `false`
 /// default on purpose. That is a statement about carriers. It is **not** a statement about terminal
 /// *conditions*, and the two come apart in both directions.
 ///
@@ -199,13 +212,20 @@
 ///
 /// | Wrong arm | What it costs |
 /// |---|---|
-/// | `false` on a real terminal stop | [`Recover`](crate::combinator::Recover), [`InplaceRecover`](crate::combinator::InplaceRecover) and [`skip_then_retry`](crate::ParseInput::skip_then_retry) **spend** it: they synthesize a value and re-enter the parser, which re-trips the same limit. Under a [`PartialSession`](crate::input::PartialSession) the terminal latch misses it too, so the next attempt is admitted and re-lexes the same prefix. Nothing in this crate bounds either loop. The three recovery combinators are covered for the **two limits this crate itself enforces** — a scanner trip through the input's poison latch, a descent trip through the session counter, neither of which your conversion can discard — so what a `false` arm still spends there is a limit of *your own*; the `PartialSession` latch has no such second witness and misses every one |
+/// | `false` on a real terminal stop | [`Recover`](crate::combinator::Recover), [`InplaceRecover`](crate::combinator::InplaceRecover) and [`skip_then_retry`](crate::ParseInput::skip_then_retry) **spend** it: they synthesize a value and re-enter the parser, which re-trips the same limit. Under a [`PartialSession`](crate::input::PartialSession) the terminal latch misses it too, so the next attempt is admitted and re-lexes the same prefix. Nothing in this crate bounds either loop. The three recovery combinators are covered for the **limits this crate itself enforces** — a scanner trip through the input's poison latch, and a descent trip or a flat driver's full stack through the session counter, none of which your conversion can discard — so what a `false` arm still spends there is a limit of *your own*; the `PartialSession` latch has no such second witness and misses every one |
 /// | `true` on a recoverable failure | recovery re-raises what it could have repaired, so one diagnostic becomes a hard stop; under a `PartialSession` it also latches the session shut and later attempts are refused. Both fail **closed** — you lose recovery, loudly, and never spin |
 ///
 /// Malformed input is the one case where `false` is affirmatively right, and you can always
 /// recognize it: you built the value from a construct the **grammar** rejected, not from a limit the
 /// **runtime** refused. That is exactly why
-/// [`NonAssociativeChain`](crate::error::NonAssociativeChain) answers `false`.
+#[cfg_attr(
+  feature = "pratt",
+  doc = " [`NonAssociativeChain`](crate::error::NonAssociativeChain) answers `false`."
+)]
+#[cfg_attr(
+  not(feature = "pratt"),
+  doc = " `NonAssociativeChain` answers `false`."
+)]
 ///
 /// ```
 /// use tokora::{
@@ -296,12 +316,13 @@ pub trait MaybeTerminal {
 /// The unit error sink is never a terminal signal: it stores nothing, so it can carry no source's
 /// marker — `is_terminal` on `()` always answers `false`. For a stop whose only carrier is the
 /// converted value, that makes converting it into `()` an opt-out of terminal re-raise — see
-/// [Opting in](MaybeTerminal#opting-in). **The one exception is
-/// [`RecursionLimitReached`](crate::error::RecursionLimitReached)**: converting a trip to `()`
-/// still loses the *payload* — the offset, the depth, the limitation — but not the *stop*, because
-/// the trip also latches the input session, and the three recovery combinators consult that latch
-/// beside this trait. A `()`-errored grammar therefore still re-raises an actual input-descent
-/// trip, exactly as a delegating error type does. See
+/// [Opting in](MaybeTerminal#opting-in). **The exceptions are
+/// [`RecursionLimitReached`](crate::error::RecursionLimitReached) and `PrattStackFull`**:
+/// converting either to `()` still loses the *payload* — the offset, and the depth and the
+/// limitation, or the bound — but not the *stop*, because the trip also latches the input session,
+/// and the three recovery combinators consult that latch beside this trait. A `()`-errored grammar
+/// therefore still re-raises an actual input-descent trip, or a full stack, exactly as a delegating
+/// error type does. See
 /// [`RecursionLimitReached`](crate::error::RecursionLimitReached)'s own
 /// [section on the payload and the stop](crate::error::RecursionLimitReached#the-stop-does-not-travel-in-the-payload-so-a-discarding-sink-cannot-drop-it)
 /// for the detail. It is also why this crate ships no `From<SessionRefusal>` for `()`, and why it

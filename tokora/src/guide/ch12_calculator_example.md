@@ -114,13 +114,14 @@ The relevant public APIs are `Token`, [`token::PrattToken`](crate::token::PrattT
 [`pratt::PrattInfix`](crate::pratt::PrattInfix), [`InputRef::pratt`](crate::InputRef::pratt),
 `PrattEmitter`, `Spanned`, `Parser`, and `Parse::parse_str`.
 
-## Define the precedence constants and grouping sentinel
+## Define the precedence constants
 
 `Power(i32)` names this language's ladder. It is useful for making the domain explicit, not for
 orphan-rule reasons: Tokora implements [`PrattPower`](crate::pratt::PrattPower) for the standard
-integer types too, so a bare `i64` (chapter 5's choice) would also work. The grouping sentinel is
-below the default floor so an opening parenthesis can recurse at that lower floor and consume its
-matching closing parenthesis without exposing it to the outer expression.
+integer types too, so a bare `i64` (chapter 5's choice) would also work. The ladder has no row
+for parentheses: the token-level surface has no grouping idiom, as
+[chapter 5](super::ch05_pratt) explains, and the flat driver there takes brackets in an operand
+parser instead. The lexer still knows `(` and `)`; the engine leaves them on the input.
 
 ```rust
 use tokora::pratt::PrattPower;
@@ -131,7 +132,6 @@ struct Power(i32);
 // Nothing to implement: a binding power is only ever compared, never stepped.
 impl PrattPower for Power {}
 
-const PREC_PAREN: Power = Power(-1); // ( )       — below the floor
 const PREC_SUM: Power = Power(1);    // + -
 const PREC_PROD: Power = Power(2);   // * /
 const PREC_NEG: Power = Power(3);    // unary -
@@ -139,9 +139,6 @@ const PREC_EXP: Power = Power(4);    // ^
 
 // A top-level parse starts at the default floor.
 assert_eq!(Power::default(), Power(0));
-// `(` sits *below* that floor, so a stray `)` is invisible at the top level and left for the
-// caller — but consumable inside the recursive call a `(` prefix opens (whose floor is PREC_PAREN).
-assert!(PREC_PAREN < Power::default());
 // Associativity is how strictly the engine compares against a level, not a move along the
 // ladder: after a left-associative `+` the recursion admits only powers strictly above
 // PREC_SUM, so `*` gets in and another `+` does not.
@@ -153,10 +150,10 @@ assert!(PREC_NEG < PREC_EXP);
 
 The [`PrattToken`](crate::token::PrattToken) implementation turns that ladder into the engine's
 classifier: the token type describes *itself* at each position. `try_pratt_lhs` accepts a number
-(an operand), a prefix minus, or an opening parenthesis; `try_pratt_rhs` accepts the infix
-operators and the closing-parenthesis postfix sentinel. Returning `None` tells the engine that the
+(an operand) or a prefix minus; `try_pratt_rhs` accepts the infix operators. Returning `None`
+tells the engine that the
 token is not part of this expression here, so it is left on the input and the loop stops. `^` is
-the one [`Right`](crate::pratt::PrattInfix)-associative row; `(`/`)` share `PREC_PAREN`.
+the one [`Right`](crate::pratt::PrattInfix)-associative row.
 
 ```rust
 # use tokora::{Token as TokenT, logos::{self, Logos}};
@@ -192,7 +189,6 @@ the one [`Right`](crate::pratt::PrattInfix)-associative row; `(`/`)` share `PREC
 # #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 # struct Power(i32);
 # impl PrattPower for Power {}
-# const PREC_PAREN: Power = Power(-1);
 # const PREC_SUM: Power = Power(1);
 # const PREC_PROD: Power = Power(2);
 # const PREC_NEG: Power = Power(3);
@@ -205,7 +201,6 @@ impl PrattToken<'_, f64, Power> for Token {
     Some(match self {
       Token::Num(_) => PrattLHS::Operand(()),
       Token::Minus => PrattLHS::Prefix(Precedenced::new((), PREC_NEG)),
-      Token::LParen => PrattLHS::Prefix(Precedenced::new((), PREC_PAREN)),
       _ => return None,
     })
   }
@@ -218,20 +213,19 @@ impl PrattToken<'_, f64, Power> for Token {
       Token::Slash => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(()), PREC_PROD)),
       // The one right-associative row: `2 ^ 3 ^ 2` groups as `2 ^ (3 ^ 2)`.
       Token::Caret => PrattRHS::Infix(Precedenced::new(PrattInfix::Right(()), PREC_EXP)),
-      // `)` is a postfix at PREC_PAREN, consumed only inside the group `(` opened.
-      Token::RParen => PrattRHS::Postfix(Precedenced::new((), PREC_PAREN)),
       _ => return None,
     })
   }
 }
 
-// A number is an operand; `-` and `(` open the left edge; everything else declines.
+// A number is an operand; `-` opens the left edge; everything else declines.
 assert!(matches!(Token::Num(1.0).try_pratt_lhs(), Some(PrattLHS::Operand(()))));
 assert!(matches!(Token::Minus.try_pratt_lhs(), Some(PrattLHS::Prefix(_))));
 assert!(Token::Plus.try_pratt_lhs().is_none());
-// `^` is an infix, `)` a postfix; a bare number has no right-hand-side role.
+// `^` is an infix; a bare number has no right-hand-side role.
 assert!(matches!(Token::Caret.try_pratt_rhs(), Some(PrattRHS::Infix(_))));
-assert!(matches!(Token::RParen.try_pratt_rhs(), Some(PrattRHS::Postfix(_))));
+// No grouping row: the engine leaves a `)` on the input.
+assert!(Token::RParen.try_pratt_rhs().is_none());
 assert!(Token::Num(1.0).try_pratt_rhs().is_none());
 ```
 
@@ -240,10 +234,9 @@ assert!(Token::Num(1.0).try_pratt_rhs().is_none());
 Use named functions rather than closures because the token-level fold traits require a
 higher-ranked lifetime bound on the emitter (`for<'lt> FnMut(…, &'lt mut Emitter)`); a closure is
 monomorphic in that lifetime and does not satisfy it, while a `fn` item is generic over its
-lifetimes and satisfies it for free. `fold_prefix` negates a number or passes a grouped value
-through; `fold_infix` extracts the operator from [`PrattInfix`](crate::pratt::PrattInfix) and
-computes the next `f64` (here `^` is `powf`); `fold_postfix` acknowledges a closing parenthesis and
-returns its operand. Each fold trades in [`Spanned`](crate::span::Spanned)`<Token>`, so the
+lifetimes and satisfies it for free. `fold_prefix` negates a number; `fold_infix` extracts the
+operator from [`PrattInfix`](crate::pratt::PrattInfix) and computes the next `f64` (here `^` is
+`powf`); `fold_postfix` returns its operand, and never runs, since the table has no postfix row. Each fold trades in [`Spanned`](crate::span::Spanned)`<Token>`, so the
 evaluated value goes back in as a `Token::Num`. The emitter parameter is unused here, so the folds
 can even be exercised directly with `E = ()`:
 
@@ -300,10 +293,7 @@ fn fold_prefix<'inp, E>(
       let n = match operand.into_data() { Token::Num(n) => n, _ => unreachable!() };
       Ok(Spanned::new(span, Token::Num(-n)))
     }
-    // Grouping: the `(` prefix's "operand" is the whole parenthesised expression, already folded
-    // by the inner call (which also ate the `)`). Pass it through untouched.
-    Token::LParen => Ok(operand),
-    _ => unreachable!("the LHS table admits only `-` and `(` as prefixes"),
+    _ => unreachable!("the LHS table admits only `-` as a prefix"),
   }
 }
 
@@ -334,7 +324,7 @@ fn fold_postfix<'inp, E>(
   _close: Spanned<Token, SimpleSpan>,
   _: EmitterView<'_, 'inp, CalcLexer<'inp>, E>,
 ) -> Result<Spanned<Token, SimpleSpan>, CalcError> {
-  Ok(operand) // `)` closed its group; the value flows on
+  Ok(operand) // the table has no postfix row, so this fold never runs
 }
 
 // The folds are pure arithmetic over `Spanned<Token>`, so they run with no parser context: pick
@@ -357,12 +347,6 @@ let neg = fold_prefix::<()>(
 ).unwrap();
 assert!(matches!(neg.into_data(), Token::Num(n) if n == -2.0));
 
-let grouped = fold_postfix::<()>(
-  Spanned::new(span, Token::Num(9.0)),
-  Spanned::new(span, Token::RParen),
-  EmitterView::new(&mut ()),
-).unwrap();
-assert!(matches!(grouped.into_data(), Token::Num(n) if n == 9.0));
 ```
 
 ## Build `calc_expr`
@@ -420,7 +404,6 @@ impl<O, Lang: ?Sized> From<tokora::error::NonAssociativeChain<O, Lang>> for Calc
 # #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 # struct Power(i32);
 # impl PrattPower for Power {}
-# const PREC_PAREN: Power = Power(-1);
 # const PREC_SUM: Power = Power(1);
 # const PREC_PROD: Power = Power(2);
 # const PREC_NEG: Power = Power(3);
@@ -432,7 +415,6 @@ impl<O, Lang: ?Sized> From<tokora::error::NonAssociativeChain<O, Lang>> for Calc
 #     Some(match self {
 #       Token::Num(_) => PrattLHS::Operand(()),
 #       Token::Minus => PrattLHS::Prefix(Precedenced::new((), PREC_NEG)),
-#       Token::LParen => PrattLHS::Prefix(Precedenced::new((), PREC_PAREN)),
 #       _ => return None,
 #     })
 #   }
@@ -443,7 +425,6 @@ impl<O, Lang: ?Sized> From<tokora::error::NonAssociativeChain<O, Lang>> for Calc
 #       Token::Star => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(()), PREC_PROD)),
 #       Token::Slash => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(()), PREC_PROD)),
 #       Token::Caret => PrattRHS::Infix(Precedenced::new(PrattInfix::Right(()), PREC_EXP)),
-#       Token::RParen => PrattRHS::Postfix(Precedenced::new((), PREC_PAREN)),
 #       _ => return None,
 #     })
 #   }
@@ -453,7 +434,6 @@ impl<O, Lang: ?Sized> From<tokora::error::NonAssociativeChain<O, Lang>> for Calc
 #   let (span, op) = op.into_components();
 #   match op {
 #     Token::Minus => { let n = match operand.into_data() { Token::Num(n) => n, _ => unreachable!() }; Ok(Spanned::new(span, Token::Num(-n))) }
-#     Token::LParen => Ok(operand),
 #     _ => unreachable!(),
 #   }
 # }
@@ -500,7 +480,6 @@ let eval = |src| Parser::new().apply(calc_expr).parse_str(src);
 #   assert!((got - want).abs() < 1e-9, "{got} != {want}");
 # }
 assert_close(eval("1 + 2 * 3").unwrap(), 7.0);   // `*` binds tighter than `+`  → 1 + (2 * 3)
-assert_close(eval("(1 + 2) * 3").unwrap(), 9.0); // grouping overrides          → (1 + 2) * 3
 assert_close(eval("2 ^ 3 ^ 2").unwrap(), 512.0); // `^` is RIGHT-assoc          → 2 ^ (3 ^ 2)
 assert_close(eval("-2 ^ 2").unwrap(), -4.0);     // `^` outranks unary `-`      → -(2 ^ 2)
 assert_close(eval("10 / 2 / 5").unwrap(), 1.0);  // `/` is left-assoc           → (10 / 2) / 5
@@ -509,8 +488,7 @@ assert_close(eval("10 / 2 / 5").unwrap(), 1.0);  // `/` is left-assoc           
 ## Reproduce the maintained assertion table
 
 The assertions above *are* the maintained binary's assertion table: precedence (`1 + 2 * 3`),
-parentheses, right-associative `2 ^ 3 ^ 2`, unary minus versus exponentiation, and
-left-associative division. They are the behavior contract for the evaluator. For the full runnable
+right-associative `2 ^ 3 ^ 2`, unary minus versus exponentiation, and left-associative division. They are the behavior contract for the evaluator. For the full runnable
 program — the same code driven from a `main` that prints each result — run:
 
 ```sh

@@ -1,4 +1,4 @@
-use crate::container::Container;
+use crate::container::{Container, Stack};
 
 const _: () = {
   use heapless_0_9::{Deque, LenType, Vec};
@@ -38,6 +38,21 @@ const _: () = {
     }
   }
 
+  impl<T, LenT, const N: usize> Stack<T> for Vec<T, N, LenT>
+  where
+    LenT: LenType,
+  {
+    #[inline(always)]
+    fn pop(&mut self) -> Option<T> {
+      Vec::pop(self)
+    }
+
+    #[inline(always)]
+    fn last_mut(&mut self) -> Option<&mut T> {
+      self.as_mut_slice().last_mut()
+    }
+  }
+
   impl<T, const N: usize> Container<T> for Deque<T, N> {
     #[inline(always)]
     fn max_capacity(&self) -> usize {
@@ -61,7 +76,11 @@ const _: () = {
 
     #[inline(always)]
     fn len(&self) -> usize {
-      Deque::len(self)
+      // The two halves of the ring, summed. They are disjoint runs of the buffer, so the sum is
+      // at most `N`. `Deque::len` computes a wrapped length as `back + N - front` instead, and
+      // that overflows when `N` is near `usize::MAX`, which a deque of zero-sized items can be.
+      let (front, back) = self.as_slices();
+      front.len() + back.len()
     }
 
     #[inline(always)]
@@ -69,4 +88,9 @@ const _: () = {
       Deque::is_empty(self)
     }
   }
+
+  // A `Deque` is a `Container` and no `Stack`. A stack's equality must not panic on a valid
+  // stack, since a reader compares one with its clone, and the deque's own `PartialEq` computes the
+  // same wrapped length `len` avoids above, which overflows at `N = usize::MAX`. heapless's `Vec`
+  // is the fixed-capacity stack, and it compares by its slice.
 };

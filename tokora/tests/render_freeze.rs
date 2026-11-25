@@ -40,10 +40,11 @@ use std::format;
 
 use tokora::SimpleSpan;
 use tokora::error::{
-  FullContainer, NonAssociativeChain, RecursionLimitReached, TooFew, TooMany, Unclosed,
-  UnexpectedEot,
+  FullContainer, RecursionLimitReached, TooFew, TooMany, Unclosed, UnexpectedEot,
 };
 use tokora::error::{MissingToken, SeparatedError, SeparatorPosition, UnexpectedToken};
+#[cfg(feature = "pratt")]
+use tokora::error::{NonAssociativeChain, PrattStackFull};
 use tokora::punct::Paren;
 use tokora::state::{RecursionLimiter, RecursionTracker};
 use tokora::utils::CowStr;
@@ -204,7 +205,9 @@ fn display_renders_are_frozen() {
   // `1 ; 2 ; 3` the operator starts at 6, not 5 — while `offset()` was pinned in four suites and
   // every one of them stayed green. That is the argument for a freeze per *type* rather than per
   // accessor: a carrier nobody pinned is a carrier whose text can say anything.
+  #[cfg(feature = "pratt")]
   let chain: NonAssociativeChain = NonAssociativeChain::of(5);
+  #[cfg(feature = "pratt")]
   assert_eq!(
     format!("{chain}"),
     "non-associative operator cannot be chained at its own power; input handed back at 5, at or \
@@ -217,6 +220,16 @@ fn display_renders_are_frozen() {
   assert_eq!(
     format!("{trip}"),
     "recursion limit reached at 15: depth 9, maximum 8"
+  );
+
+  // The full expression stack: committed consumption after the operator that could not be
+  // stacked, and the bound that refused it.
+  #[cfg(feature = "pratt")]
+  let full: PrattStackFull = PrattStackFull::of(12, 32);
+  #[cfg(feature = "pratt")]
+  assert_eq!(
+    format!("{full}"),
+    "expression operator stack is full at 12: capacity 32"
   );
 }
 
@@ -266,7 +279,9 @@ fn debug_renders_are_frozen() {
   // The two pratt carriers, both derived. These are the one rendered surface on either type that
   // could not have mislabelled the offset: a derived `Debug` prints the field's declared name, so
   // the label is `at`, and `at`'s own doc is what defines it.
+  #[cfg(feature = "pratt")]
   let chain: NonAssociativeChain = NonAssociativeChain::of(5);
+  #[cfg(feature = "pratt")]
   assert_eq!(
     format!("{chain:?}"),
     "NonAssociativeChain { at: 5, _lang: PhantomData<()> }"
@@ -277,6 +292,14 @@ fn debug_renders_are_frozen() {
     format!("{trip:?}"),
     "RecursionLimitReached { at: 15, exceeded: RecursionLimitExceeded(RecursionLimiter { max: 8, \
      current: 9 }), _lang: PhantomData<()> }"
+  );
+
+  #[cfg(feature = "pratt")]
+  let full: PrattStackFull = PrattStackFull::of(12, 32);
+  #[cfg(feature = "pratt")]
+  assert_eq!(
+    format!("{full:?}"),
+    "PrattStackFull { at: 12, capacity: 32, _lang: PhantomData<()> }"
   );
 }
 
@@ -333,6 +356,7 @@ fn the_freeze_can_fail() {
 
   // The offset on the two pratt carriers. Both renders are built from a single field, so a pin
   // that could not see that field move would be pinning a constant.
+  #[cfg(feature = "pratt")]
   assert_ne!(
     format!("{}", NonAssociativeChain::<usize>::of(5)),
     format!("{}", NonAssociativeChain::<usize>::of(6)),
@@ -343,5 +367,11 @@ fn the_freeze_can_fail() {
     format!("{}", RecursionLimitReached::<usize>::of(15, exceeded(8, 9))),
     format!("{}", RecursionLimitReached::<usize>::of(15, exceeded(4, 5))),
     "the tracker's report must reach Display, and not only the offset in front of it"
+  );
+  #[cfg(feature = "pratt")]
+  assert_ne!(
+    format!("{}", PrattStackFull::<usize>::of(12, 32)),
+    format!("{}", PrattStackFull::<usize>::of(12, 8)),
+    "the bound that refused must reach Display, and not only the offset in front of it"
   );
 }

@@ -26,6 +26,9 @@ Reach for the token-level API when an expression's value is itself a token — a
 folds `1 + 2` into `Int(3)`. Reach for the AST-level API when the result is a tree over your own
 node type.
 
+Both recurse once for each pending operator. A third driver, [`flat`](crate::pratt::flat), keeps
+them on a stack of its own instead: see [Flat driver](#flat-driver).
+
 ## Folds are `fn` items, not closures
 
 Every fold parameter — on both surfaces — is bound by a *higher-ranked* `FnMut` (the emitter
@@ -124,16 +127,18 @@ with `==` non-associative and `<` left-associative at the same power is **reject
 folded. Haskell and Rust reject both. Tightening tokora to match is a semantic expansion, not a
 fix, and is deliberately out of scope for the table above.
 
-Two further knobs share the same mechanism:
+One further knob shares the same mechanism, and one idiom does not exist:
 
 - **A floor.** A parse runs against a *minimum* binding power (`Power::default()` at the top —
   `0` for an integer power). Operators below the floor are left on the input for the surrounding
   grammar. A token that is not an operator at all is not a power: an AST-level classifier says
   [`PrattRHS::End`](crate::pratt::PrattRHS) and a token-level one returns `None`.
-- **Grouping is a pair below the floor.** `(` is a *prefix* operator and `)` a *postfix* operator
-  at the same sub-floor power: `)` is invisible at the top level (below the floor, left for the
-  caller) but consumable inside the recursive call a `(` prefix opens (whose floor is that same
-  low power). No bracket-matching code — the precedence rule already says it.
+- **Grouping is not an operator pair.** A `(` prefix and a `)` postfix at one power below the
+  floor do not close a group: a static floor cannot say that a frame ends at its `)`, so the frame
+  the `(` opened takes everything after it, and `2 * (1 + 2) + 3` reads as `2 * ((1 + 2) + 3)`.
+  Brackets belong in an operand parser, as the AST-level example below has them and
+  [chapter 5](super::ch05_pratt) has them on the flat driver. The token-level surface has no
+  grouping idiom.
 
 ---
 
@@ -370,10 +375,14 @@ enum PrattLHS<Op, Pre, Power = i64> {          // left edge of a (sub-)expressio
     Operand(Op),                                //   a value
     Prefix(Precedenced<Pre, Power>),            //   a prefix operator + its power
 }
-enum PrattInfix<L, R, N> { Left(L), Right(R), Neither(N) }   // associativity + operator
-enum PrattRHS<L, R, N, Post, Power = i64> {     // what follows an operand
-    Infix(Precedenced<PrattInfix<L, R, N>, Power>),
-    Adjacent(Precedenced<L, Power>),            //   an infix spelled with NO token
+enum PrattInfix<LeftAssoc, RightAssoc, NeitherAssoc> {   // associativity + operator
+    Left(LeftAssoc),
+    Right(RightAssoc),
+    Neither(NeitherAssoc),
+}
+enum PrattRHS<LeftAssoc, RightAssoc, NeitherAssoc, Post, Power = i64> {   // what follows an operand
+    Infix(Precedenced<PrattInfix<LeftAssoc, RightAssoc, NeitherAssoc>, Power>),
+    Adjacent(Precedenced<LeftAssoc, Power>),    //   an infix spelled with NO token
     Postfix(Precedenced<Post, Power>),
     End,                                        //   the expression stops here
 }
@@ -434,8 +443,7 @@ trait PrattToken<'a, Expr: ?Sized, Power = i64>: Token<'a> {
 ### `InputRef::pratt` / `pratt_with_min_precedence`
 
 The engine. `pratt` starts at `Power::default()`; `pratt_with_min_precedence` names the floor
-(parse only what binds at least that tightly, leaving the rest to the caller — the same knob the
-`(` prefix turns).
+(parse only what binds at least that tightly, leaving the rest to the caller).
 
 ```text
 InputRef::pratt::<FoldPrefix, FoldInfix, FoldPostfix, Expr, Power>(
@@ -474,8 +482,9 @@ trait PrattEmitter<'inp, L, Lang = ()>: Emitter<'inp, L, Lang> {
 ### End to end
 
 A one-character-per-token arithmetic grammar. `+ -` bind loosest (left), `*` tighter (left), `^`
-tightest (**right**), unary `-` is a prefix, and `( )` groups. The folds evaluate as they go,
-re-encoding each result as a `Digit` token.
+tightest (**right**), and unary `-` is a prefix. This surface has no grouping idiom, so the
+table has no row for `(` or `)`. The folds evaluate as they go, re-encoding each result as a
+`Digit` token.
 
 ```rust
 # use core::convert::Infallible;
@@ -546,7 +555,6 @@ impl PrattToken<'_, (), i64> for Tok {
     Some(match self {
       Tok::Digit(_) => PrattLHS::Operand(()),
       Tok::Minus => PrattLHS::Prefix(Precedenced::new((), 3)), //   unary minus
-      Tok::LParen => PrattLHS::Prefix(Precedenced::new((), -1)), // `(` — a sub-floor prefix
       _ => return None,
     })
   }
@@ -555,7 +563,6 @@ impl PrattToken<'_, (), i64> for Tok {
       Tok::Plus | Tok::Minus => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(()), 1)),
       Tok::Star => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(()), 2)),
       Tok::Caret => PrattRHS::Infix(Precedenced::new(PrattInfix::Right(()), 4)), // right-assoc
-      Tok::RParen => PrattRHS::Postfix(Precedenced::new((), -1)), //                closes `(`
       _ => return None,
     })
   }
@@ -570,7 +577,7 @@ fn fold_prefix<'a>(
   let (span, op) = op.into_components();
   Ok(match op {
     Tok::Minus => Spanned::new(span, Tok::Digit(-int(operand))),
-    _ => operand, // `(` grouping: the inner value flows straight through
+    _ => operand,
   })
 }
 fn fold_infix<'a>(
@@ -597,7 +604,7 @@ fn fold_postfix<'a>(
   _close: Spanned<Tok, SimpleSpan>,
   _: EmitterView<'_, 'a, CharLexer<'a>, Fatal<Error>>,
 ) -> Result<Spanned<Tok, SimpleSpan>, Error> {
-  Ok(operand) // `)` closed its group; the value flows on
+  Ok(operand) // the table has no postfix row, so this fold never runs
 }
 fn int(t: Spanned<Tok, SimpleSpan>) -> i64 {
   match t.into_data() {
@@ -616,7 +623,6 @@ fn eval<'a>(inp: &mut InputRef<'a, '_, CharLexer<'a>, Ctx<'a>>) -> Result<i64, E
 
 let eval = |src| Parser::with_parser(eval).parse_str(src);
 assert_eq!(eval("1 + 2 * 3"), Ok(7)); //   `*` outranks `+`        → 1 + (2 * 3)
-assert_eq!(eval("(1 + 2) * 3"), Ok(9)); // grouping overrides
 assert_eq!(eval("2 ^ 3 ^ 2"), Ok(512)); // `^` is RIGHT-assoc      → 2 ^ (3 ^ 2)
 assert_eq!(eval("-2 ^ 2"), Ok(-4)); //     `^` outranks unary `-`  → -(2 ^ 2)
 ```
@@ -636,7 +642,7 @@ whole crate — see the [combinator reference](super::ref_combinators)). The res
 ```text
 pratt(parse_lhs, parse_rhs, fold_prefix, fold_infix, fold_postfix) -> Pratt<…, Lang>
 // parse_lhs: any parser producing PrattLHS<O, PreOp, Power>
-// parse_rhs: any parser producing PrattRHS<L, R, N, PostOp, Power>
+// parse_rhs: any parser producing PrattRHS<LeftAssoc, RightAssoc, NeitherAssoc, PostOp, Power>
 ```
 
 `parse_lhs` and `parse_rhs` are ordinary parsers whose output is a classification: any
@@ -661,9 +667,9 @@ postfix `[` reads an index and its `]`); the operator is a [`Precedenced`](crate
 and comes **last**. Each returns your node type `O`.
 
 ```text
-fn fold_prefix (&mut InputRef, operand: O,           operator: Precedenced<PreOp, Power>)              -> Result<O, Error>
-fn fold_infix  (&mut InputRef, left: O,   right: O,  operator: Precedenced<PrattInfix<L,R,N>, Power>) -> Result<O, Error>
-fn fold_postfix(&mut InputRef, operand: O,           operator: Precedenced<PostOp, Power>)            -> Result<O, Error>
+fn fold_prefix (&mut InputRef, operand: O,           operator: Precedenced<PreOp, Power>)                                           -> Result<O, Error>
+fn fold_infix  (&mut InputRef, left: O,   right: O,  operator: Precedenced<PrattInfix<LeftAssoc, RightAssoc, NeitherAssoc>, Power>) -> Result<O, Error>
+fn fold_postfix(&mut InputRef, operand: O,           operator: Precedenced<PostOp, Power>)                                          -> Result<O, Error>
 ```
 
 ### End to end
@@ -845,6 +851,60 @@ assert_eq!(Parser::with_parser(parse_expr_cst).parse_str("1 + 2 * 3").unwrap(), 
 
 ---
 
+## Flat driver
+
+[`flat`](crate::pratt::flat) makes a [`Flat`](crate::pratt::Flat): one loop over the machine,
+[`PrattResolver`](crate::pratt::PrattResolver), so it enters no level of the recursion budget. With
+an allocator it has no recursion of its own; with none, `folding` over its default storage recurses
+once for each four pending operators. A [`PrattTable`](crate::pratt::PrattTable) reads the token's
+own [`PrattToken`](crate::token::PrattToken) rows, and the operand parser, any
+[`TryParseInput`](crate::TryParseInput), is asked first at every term, so the left-hand rows need
+only the prefix operators. [Chapter 5](super::ch05_pratt) works a calculator on it.
+
+**Which adapter.** [`parse_into`](crate::pratt::Flat::parse_into) to collect, and resolve later:
+it tells a [`PrattHandler`](crate::pratt::PrattHandler) each item in written order and resolves
+nothing, and a later pass gives the expression its tree. [`folding`](crate::pratt::Flat::folding)
+to evaluate as you parse: the reductions arrive in precedence order, and a fold's `Err` ends the
+parse at its operator. Driving the machine yourself does what `folding` does, for an operator a
+table cannot classify.
+
+```text
+flat(table: PrattTable<Expr, Power>, operand) -> Flat<…>
+Flat::min_precedence(self, floor: Power)     // inclusive
+Flat::max_depth(self, cap: usize)            // pending operators
+Flat::bare(self)                             // no machine; only with neither bound set
+Flat::with_cst_kind(self, kind: u16)         // one node around each expression
+Flat::parse_into(&mut self, input, handler: &mut H) -> Result<(), Error>
+Flat::folding(self, fold_prefix, fold_infix, fold_postfix) -> FlatFold<…>   // a ParseInput
+FlatFold::with_stack(self, stack)            // lend the machine a storage of your own
+```
+
+The two modes of `parse_into`:
+
+| | `Checked`, the default | `Bare`, by `bare()` |
+|---|---|---|
+| A floor | `min_precedence`, inclusive | none: every operator the table names is taken |
+| A repeated non-associative operator | refused with [`NonAssociativeChain`](crate::error::NonAssociativeChain) | told to the handler |
+| A cap | `max_depth`, refused with [`PrattStackFull`](crate::error::PrattStackFull) | none |
+| Storage | the driver's stack of unit frames | none |
+
+`folding` always runs the machine, with the floor and the cap set on the driver. Its folds are the
+AST driver's three fold traits, each handed the operator's committed token with its span. The
+handler is told each item once, after its token is committed, with the input at the item's end:
+
+```text
+fn on_prefix (&mut self, input, operator: Precedenced<Spanned<Token, Span>, Power>) -> Result<(), Error>
+fn on_operand(&mut self, input, operand: O)                                        -> Result<(), Error>
+fn on_infix  (&mut self, input, operator: Precedenced<PrattInfix<…>, Power>)        -> Result<(), Error>
+fn on_postfix(&mut self, input, operator: Precedenced<Spanned<Token, Span>, Power>) -> Result<(), Error>
+```
+
+`()` keeps nothing, and `&mut H` tells `H`. What the driver promises about lexing, the head after a
+fold, scanner trips, the seam and its storage is
+[listed in chapter 5](super::ch05_pratt#what-the-flat-driver-promises).
+
+---
+
 ## Building a CST while you fold
 
 Only the AST driver carries a CST seam. [`with_cst_kinds`](crate::pratt::Pratt::with_cst_kinds)
@@ -894,7 +954,8 @@ assert_eq!(rhs.name(), Some("expression (right hand side)"));
 ## See also
 
 - [Chapter 5 — Pratt parsing](super::ch05_pratt): the token-level engine taught with the full
-  calculator ladder (grouping-below-floor, right-associativity, prefix operators).
+  calculator ladder (right-associativity, prefix operators), and the flat driver with grouping in
+  its operand parser.
 - [Chapter 15 — C expressions](super::ch15_c_expression_example): the AST-level driver with folds
   that consume further input (index, call, ternary).
 - [Combinator & atom reference](super::ref_combinators): the `Lang` convention and the

@@ -46,6 +46,7 @@ fn unexpected_end_eos() {
   );
 }
 
+#[cfg(feature = "pratt")]
 #[test]
 fn unexpected_end_eorhs() {
   let e = UnexpectedEnd::eorhs(100usize);
@@ -57,6 +58,7 @@ fn unexpected_end_eorhs() {
   );
 }
 
+#[cfg(feature = "pratt")]
 #[test]
 fn unexpected_end_eolhs() {
   let e = UnexpectedEnd::eolhs(100usize);
@@ -197,12 +199,14 @@ fn unexpected_end_debug() {
   assert!(s.contains("UnexpectedEnd") || s.contains("offset"));
 }
 
+#[cfg(feature = "pratt")]
 #[test]
 fn unexpected_end_eorhs_of() {
   let e = UnexpectedEnd::<PrattRhsHint, usize>::eorhs_of(42);
   assert_eq!(e.offset(), 42);
 }
 
+#[cfg(feature = "pratt")]
 #[test]
 fn unexpected_end_eolhs_of() {
   let e = UnexpectedEnd::<PrattLhsHint, usize>::eolhs_of(42);
@@ -247,6 +251,11 @@ fn hint_displays() {
   assert_eq!(FileHint.to_string(), "byte");
   assert_eq!(TokenHint.to_string(), "token");
   assert_eq!(CharacterHint.to_string(), "character");
+}
+
+#[cfg(feature = "pratt")]
+#[test]
+fn pratt_hint_displays() {
   assert_eq!(PrattRhsHint.to_string(), "either an infix or a postfix");
   assert_eq!(
     PrattLhsHint.to_string(),

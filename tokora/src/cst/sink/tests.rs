@@ -149,9 +149,11 @@ impl<'a, T, Kind: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, Kind, S, L
 // bundle's error type — the full-family conformance test below names every trait.
 const _: () = {
   use crate::error::{
-    FullContainer, MissingSyntax, MissingToken, NonAssociativeChain, RecursionLimitReached,
-    SeparatedError, TooFew, TooMany, UnexpectedEoLhs, UnexpectedEoRhs,
+    FullContainer, MissingSyntax, MissingToken, RecursionLimitReached, SeparatedError, TooFew,
+    TooMany,
   };
+  #[cfg(feature = "pratt")]
+  use crate::error::{NonAssociativeChain, UnexpectedEoLhs, UnexpectedEoRhs};
 
   impl<S, Lang: ?Sized> From<TooFew<S, Lang>> for TestErr {
     fn from(_: TooFew<S, Lang>) -> Self {
@@ -189,12 +191,14 @@ const _: () = {
     }
   }
 
+  #[cfg(feature = "pratt")]
   impl<O, Lang: ?Sized> From<UnexpectedEoLhs<O, Lang>> for TestErr {
     fn from(_: UnexpectedEoLhs<O, Lang>) -> Self {
       Self::Unexpected
     }
   }
 
+  #[cfg(feature = "pratt")]
   impl<O, Lang: ?Sized> From<UnexpectedEoRhs<O, Lang>> for TestErr {
     fn from(_: UnexpectedEoRhs<O, Lang>) -> Self {
       Self::Unexpected
@@ -207,6 +211,7 @@ const _: () = {
     }
   }
 
+  #[cfg(feature = "pratt")]
   impl<O, Lang: ?Sized> From<NonAssociativeChain<O, Lang>> for TestErr {
     fn from(_: NonAssociativeChain<O, Lang>) -> Self {
       Self::Unexpected

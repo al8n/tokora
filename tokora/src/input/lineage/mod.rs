@@ -23,7 +23,8 @@
 //!   the live-checkpoint stack (restore *pops through* the restored id rather than copying a
 //!   snapshot) and the pin set (a restore never changes which guards are live).
 //! - **Monotone id sources** — the counters that hand out never-reused ids: the checkpoint-id
-//!   source and the savepoint sequence. They are memos in spirit but **restore must NOT touch
+//!   source, the savepoint sequence and, with the `pratt` feature, the id of the token in the
+//!   parked front slot. They are memos in spirit but **restore must NOT touch
 //!   them**: rewinding a counter would reissue a live id, and an id that can collide is worse than
 //!   no id. Distinguished from a *restored* memo like the cache-push counter — which is a fact
 //!   *about* the lineage, not an identity source — precisely because their restore semantics are
@@ -75,8 +76,8 @@
 //! only through the operations below, each of which carries the invariant it maintains. Every
 //! memo but the cache-push counter is a live-checkpoint concept that only exists where an
 //! allocator does, so all of them except [`cache_pushes`](Lineage::cache_pushes) sit behind the
-//! allocator gate; an allocator-less build keeps only the counter and every stack operation
-//! compiles out.
+//! allocator gate; an allocator-less build keeps only the counter, and with the `pratt` feature
+//! the parked token's id source, and every stack operation compiles out.
 //!
 //! # CELL_CENSUS — every mutable cell, and its class
 //!
@@ -133,6 +134,7 @@
 //! | `points` (open session points) | `Session` | lineage memo | settle the suffix below the restored id (the *checked* rewind is refused by the pin first) |
 //! | [`next_ckp_id`](Lineage) | `Lineage` | monotone id source | **nothing** — rewinding would reissue a live id |
 //! | [`savepoint_seq`](Lineage) | `Lineage` | monotone id source | **nothing** — same |
+//! | [`parks`](Lineage) (the parked token's id) | `Lineage` | monotone id source | **nothing** — a rewound count would give a token parked after the restore the id of one parked before it. Bumped by `Lineage::record_park` each time the parked slot takes a token it did not just hand out; present with the `pratt` feature |
 //! | `finality` (`is_final`) | `Input` (snapshot on `InputRef`) | **world fact** | **nothing** — and it cannot change while a handle lives |
 //! | `recursion` (the descent budget) | `Input` (borrowed through `InputRef`) | **control-stack fact** | **nothing** — a checkpoint does not carry it; the `Descent` guard's drop balances it with the frame it counts |
 //! | `token_budget` (the item ceiling) | `Input` (borrowed through `InputRef`) | **monotone session fact** | **nothing** — and here the reason is not that the cell cannot be observed to change, as it is for the two rows around it, but that a budget a rollback refunds is not a budget. An attempt that lexed a thousand items and declined performed a thousand items of scanning; giving the count back would hand an adversary who forces speculation free work without limit. Tested by `InputRef::lex_within_boundary` **before** it invokes the lexer and charged there, one per item a step produced, so the enforcement sits in front of the work rather than behind a stop a rollback can refund; the refusal records that stop through `InputRef::publish_scanner_trip`, staged before the lexer call that decides one is owed. It carries a **second** durable bit, for the same reason: the gate answers "would an item be refused?" and a driver needs "is there an item?", so `InputRef::settle_met_ceiling` runs a one-shot probe wherever the two answers differ and latches it here — outside the rollback set exactly as the counter is, since a flag any of these doors cleared would buy a fresh probe every round. No lowering writer exists for either half, and there is no `token_budget_mut`. What it costs is that a re-lex is charged again, so the ceiling bounds produce-events rather than distinct document tokens |
@@ -277,6 +279,10 @@ pub(crate) fn census<'inp, L, Ctx, Lang, Cmpl>(
       Lineage {
         // — lineage memo: pure-copied (`restore_cache_pushes`).
         cache_pushes: _,
+        // — monotone id source: restore must NOT touch it (a rewound count would give a token
+        //   parked after the restore the id of one parked before it).
+        #[cfg(feature = "pratt")]
+          parks: _,
         // — monotone id source: restore must NOT touch it (a reissued id could collide).
         #[cfg(any(feature = "std", feature = "alloc"))]
           savepoint_seq: _,
@@ -363,16 +369,25 @@ pub(crate) fn census<'inp, L, Ctx, Lang, Cmpl>(
 ///
 /// The fields are private: callers reach them only through the operations, so every invariant
 /// that governs a cell lives on the one method that maintains it. In an allocator-less build
-/// only [`cache_pushes`](Self::cache_pushes) exists; the live-checkpoint stack, the pin set, and
-/// their counters all compile out with the backtracking machinery that needs them.
+/// only [`cache_pushes`](Self::cache_pushes) exists, and with the `pratt` feature `parks`; the
+/// live-checkpoint stack, the pin set, and their counters all compile out with the backtracking
+/// machinery that needs them.
 pub(crate) struct Lineage {
   /// Monotone count of tokens the cache has accepted over the input's life, bumped by every
   /// successful cache push (see [`record_cache_push`](Self::record_cache_push)). A
   /// [`Checkpoint`](super::Checkpoint) captures it at save time and
   /// [`restore`](super::InputRef::restore) uses the difference to drop the entries pushed on
   /// the abandoned continuation. It is correctness state in **every** build, so it is the one
-  /// memo present without an allocator.
+  /// memo present without an allocator. It starts at the entries the cache arrived holding, which
+  /// count as pushed, so that it is never short of the entries resident.
   cache_pushes: u64,
+  /// Monotone id source for the token in the parked front slot, bumped by
+  /// [`record_park`](Self::record_park) each time the slot takes a token it did not just hand out.
+  /// While one token stays parked, peeked past or taken and put back, its id stays; any other token
+  /// that takes the slot, one with an equal span among them, takes a new one. Read by the flat
+  /// expression driver, to keep the classification of a head it staged.
+  #[cfg(feature = "pratt")]
+  parks: u64,
   /// Input-global savepoint sequence counter for [`StackedTransaction`](super::StackedTransaction),
   /// handed out monotonically by [`next_savepoint_seq`](Self::next_savepoint_seq) and never reset.
   /// It is monotone across every stacked transaction of this input, so a
@@ -445,12 +460,15 @@ const CACHE_PUSHES_EXHAUSTED: &str = "cache-push counter exhausted: 2^64 cache p
    witness; a wrap would make it read as a smaller history than actually occurred.";
 
 impl Lineage {
-  /// A fresh set of memos for a new input: an unadvanced cache-push counter and — in allocator
-  /// builds — an empty live-checkpoint stack, an empty pin set, and zeroed counters.
+  /// A fresh set of memos for a new input whose cache arrives holding `resident` entries: a
+  /// cache-push counter that counts them as pushed and — in allocator builds — an empty
+  /// live-checkpoint stack, an empty pin set, and zeroed counters.
   #[inline(always)]
-  pub(crate) fn new() -> Self {
+  pub(crate) fn new(resident: u64) -> Self {
     Self {
-      cache_pushes: 0,
+      cache_pushes: resident,
+      #[cfg(feature = "pratt")]
+      parks: 0,
       #[cfg(any(feature = "std", feature = "alloc"))]
       savepoint_seq: 0,
       #[cfg(any(feature = "std", feature = "alloc"))]
@@ -494,6 +512,25 @@ impl Lineage {
       .cache_pushes
       .checked_add(1)
       .expect(CACHE_PUSHES_EXHAUSTED);
+  }
+
+  /// The id of the token in the parked front slot: how many tokens the slot has taken that it had
+  /// not just handed out. `u64::MAX` names no token, since the count saturates there.
+  #[cfg(feature = "pratt")]
+  #[inline(always)]
+  pub(crate) fn parks(&self) -> u64 {
+    self.parks
+  }
+
+  /// Records a token entering the parked front slot that the slot did not just hand out. Only the
+  /// cold park path reaches it, once for each such token, and the count saturates rather than wrap.
+  /// Without the `pratt` feature nothing reads the id, and there is nothing to record.
+  #[inline(always)]
+  pub(crate) fn record_park(&mut self) {
+    #[cfg(feature = "pratt")]
+    {
+      self.parks = self.parks.saturating_add(1);
+    }
   }
 
   /// Rewinds the cache-push counter to a checkpoint's saved value on restore.

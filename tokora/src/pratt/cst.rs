@@ -35,6 +35,8 @@ use crate::{
   pratt::PrattInfix,
 };
 
+use super::sealed;
+
 /// The operator a pratt fold is about to apply, by reference — the input of the
 /// [`with_cst_kinds`](super::Pratt::with_cst_kinds) classifier.
 ///
@@ -60,10 +62,6 @@ pub enum PrattFoldOp<'op, PreOp, LeftAssoc, RightAssoc, NeitherAssoc, PostOp> {
 /// types the driver already carries, so a configured [`Pratt`](super::Pratt) stays nameable.
 pub type PrattCstKinds<PreOp, LeftAssoc, RightAssoc, NeitherAssoc, PostOp> =
   fn(PrattFoldOp<'_, PreOp, LeftAssoc, RightAssoc, NeitherAssoc, PostOp>) -> Option<u16>;
-
-mod sealed {
-  pub trait Sealed {}
-}
 
 /// The typed driver's CST seam, threaded through the pratt parse loop: mint the
 /// driver-held mark at expression entry, classify each fold's operator, and wrap the

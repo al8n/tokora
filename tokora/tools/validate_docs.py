@@ -131,7 +131,7 @@ SECTIONS = {
     ),
     "ch12_calculator_example.md": (
         "Define token, kind, lexer alias, and CalcError",
-        "Define the precedence constants and grouping sentinel",
+        "Define the precedence constants",
         "Implement try_pratt_lhs and try_pratt_rhs",
         "Implement the named prefix, infix, and postfix folds",
         "Build calc_expr", "Reproduce the maintained assertion table",

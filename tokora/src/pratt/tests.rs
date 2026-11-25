@@ -39,13 +39,20 @@
 //! Counting is line-based and skips `//`-prefixed lines, so prose may name these predicates
 //! freely; only code counts. `grep PRATT_CENSUS` finds every anchor.
 
-/// The two driver sources under census: the typed driver's RHS loop and the token driver's.
+/// The driver sources under census: the typed driver's RHS loop, the token driver's, the flat
+/// driver's two loops with the modes and the seam they run, and the two channels that read the
+/// table for the typed driver.
 const DRIVERS: &[(&str, &str)] = &[
   ("pratt/expr.rs", include_str!("expr.rs")),
   (
     "input/input_ref/pratt.rs",
     include_str!("../input/input_ref/pratt.rs"),
   ),
+  ("pratt/flat/mod.rs", include_str!("flat/mod.rs")),
+  ("pratt/flat/fold/mod.rs", include_str!("flat/fold/mod.rs")),
+  ("pratt/flat/mode.rs", include_str!("flat/mode.rs")),
+  ("pratt/flat/seam.rs", include_str!("flat/seam.rs")),
+  ("pratt/table.rs", include_str!("table.rs")),
 ];
 
 /// The input-layer source that *defines* the position predicates, censused so the rail below

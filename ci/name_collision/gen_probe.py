@@ -753,6 +753,55 @@ TRAITS = {
         "scope": None,
         "fixture": FROM_COMPONENTS_FIXTURE,
     },
+    # ── `Stack` — a NEW trait in a PRE-EXISTING module ──────────────────────────────────────
+    #
+    # `container::Stack` is minted by the diff that adds its two items, `pop` and `last_mut`.
+    # Its module is not new, so `scope` takes the `TrackerExt` shape: a glob over
+    # `tokora::container`, which resolves on the base ref too, where it brings in `Container`
+    # alone. A named `use tokora::container::Stack;` would not resolve there, and every row
+    # would score INCONCL.
+    #
+    # The subject is tokora's own `ArrayDeque<u8, U4>`, reached through `tokora::utils`. tokora
+    # implements `Stack` for it in every tier, in `container/mod.rs` beside its `Container`
+    # impl, and it declares no inherent `pop` or `last_mut` of its own, so no item the base ref
+    # already has can take the call. `recvr` is spliced into `{recvr}.{name}()` as a fresh
+    # temporary, which a `&mut self` method may borrow for its one statement.
+    #
+    # READ THE `TrackerExt` HEADER ABOVE BEFORE READING A VERDICT HERE. Both items take
+    # `&mut self` and nothing else, so `trait_method`'s three consumer spellings, `self` and
+    # `&self`, are strictly earlier picks, the consumer wins on both sides, and every row
+    # agrees. #225's ruling applies, and `no_collision.txt` carries the pick analysis.
+    #
+    # `self_ty` stays absent: neither item is receiver-less, so no `trait_assoc_fn` row can
+    # arise.
+    "Stack": {
+        "recvr": "tokora::utils::ArrayDeque::<u8, tokora::utils::typenum::U4>::new()",
+        "self_ty": None,
+        "scope": "use tokora::container::*;",
+        "fixture": None,
+    },
+    # ── `PrattHandler` — a NEW trait in a PRE-EXISTING module ──────────────────────────────
+    #
+    # `pratt::PrattHandler` is minted by the diff that adds its four items: `on_prefix`,
+    # `on_operand`, `on_infix` and `on_postfix`. Its module is not new, so `scope` takes the
+    # `Stack` shape: a glob over `tokora::pratt`, which resolves on the base ref too.
+    #
+    # The subject is `()`. tokora implements `PrattHandler` for `()` at every parameter, as the
+    # handler that is told nothing, and `()` declares no item of these names that the base ref
+    # already has.
+    #
+    # READ THE `TrackerExt` HEADER ABOVE BEFORE READING A VERDICT HERE. Each item takes
+    # `&mut self`, an input and an item, so `trait_method`'s three consumer spellings, `self` and
+    # `&self`, are strictly earlier picks: the consumer wins on both sides, and every row agrees.
+    # #225's ruling applies, and `no_collision.txt` carries the pick analysis.
+    #
+    # `self_ty` stays absent: no item is receiver-less, so no `trait_assoc_fn` row can arise.
+    "PrattHandler": {
+        "recvr": "()",
+        "self_ty": None,
+        "scope": "use tokora::pratt::*;",
+        "fixture": None,
+    },
 }
 
 
@@ -872,6 +921,28 @@ ERROR_SUBJECTS = {
         "accessors": {
             "offset": "usize",
             "offset_ref": "&usize",
+        },
+    },
+    # The flat drivers' full-stack error, minted by the diff that adds every item on it. It is
+    # `Copy` with a public constructor, as the two above are, and `of` takes the offset and the
+    # bound that refused. `capacity` is the one accessor neither of the other two declares.
+    #
+    # `of`, `offset`, `offset_ref` and `map_offset` are declared by all three types, so which owner
+    # `surface_diff.py` records for them on a run is the alphabetically last that this diff ADDS
+    # them to — the reason given above for keeping an entry for every owner.
+    "PrattStackFull": {
+        "ty": "PrattStackFull<usize, ()>",
+        "path": "PrattStackFull::<usize, ()>",
+        "imports": "use tokora::error::PrattStackFull;\n",
+        "build": (
+            "  let subject: PrattStackFull<usize, ()> = PrattStackFull::of(12usize, 32);\n"
+        ),
+        "of_setup": "",
+        "of_args": "12usize, 32",
+        "accessors": {
+            "offset": "usize",
+            "offset_ref": "&usize",
+            "capacity": "usize",
         },
     },
 }
@@ -1106,6 +1177,76 @@ pub fn mini_cst() -> Cst<'static, Mini<'static>, Silent<PErr>> {
     mini_drain,
   );
   cst
+}
+'''
+
+
+# What `flat` asks for, over the fixture's own types: a token the table classifies, an operand
+# parser, and the conversions `parse_into` asks of the error. The table classifies nothing, and the
+# operand parser declines: the probe calls each item once, and what a parse then does is not what
+# it measures.
+#
+# The operand parser is generic over its context, and spells its error as the context's. Written
+# for `PCtx` with the error spelled `PErr`, it is E0053 on the head side: `TryParseInput` puts its
+# `Ctx: ParseContext` bound on the method, so checking the impl assumes `PCtx: ParseContext`, and
+# that assumption keeps `PCtx`'s emitter from normalizing to `Silent<PErr>`.
+#
+# `PrattStackFull` is new with the machine, so the base side cannot resolve it either. That is a
+# second unresolved name on a side whose verdict is already that the owner is unresolved, which
+# `run.sh` reads from the owner's own diagnostic.
+FLAT_FIXTURE = r'''
+pub struct PExpr;
+
+impl<'a> tokora::token::PrattToken<'a, PExpr, i64> for Tok {
+  fn try_pratt_lhs(&self) -> Option<tokora::pratt::PrattLHS<(), (), i64>> {
+    None
+  }
+
+  fn try_pratt_rhs(&self) -> Option<tokora::pratt::PrattRHS<(), (), (), (), i64>> {
+    None
+  }
+}
+
+pub struct POperand;
+
+impl<'inp, Ctx> TryParseInput<'inp, PLexer<'inp>, i64, Ctx> for POperand
+where
+  Ctx: ParseContext<'inp, PLexer<'inp>>,
+{
+  fn try_parse_input(
+    &mut self,
+    _inp: &mut InputRef<'inp, '_, PLexer<'inp>, Ctx>,
+  ) -> Result<tokora::ParseAttempt<i64>, <Ctx::Emitter as Emitter<'inp, PLexer<'inp>>>::Error> {
+    Ok(tokora::ParseAttempt::Decline)
+  }
+}
+
+impl<O, Lang: ?Sized, Set: Clone + 'static> From<tokora::error::UnexpectedEoLhs<O, Lang, Set>>
+  for PErr
+{
+  fn from(_: tokora::error::UnexpectedEoLhs<O, Lang, Set>) -> Self {
+    PErr
+  }
+}
+
+impl<O, Lang: ?Sized, Set: Clone + 'static> From<tokora::error::UnexpectedEoRhs<O, Lang, Set>>
+  for PErr
+{
+  fn from(_: tokora::error::UnexpectedEoRhs<O, Lang, Set>) -> Self {
+    PErr
+  }
+}
+
+impl<O, Lang: ?Sized> From<tokora::error::NonAssociativeChain<O, Lang>> for PErr {
+  fn from(_: tokora::error::NonAssociativeChain<O, Lang>) -> Self {
+    PErr
+  }
+}
+
+impl<O, Lang: ?Sized> From<tokora::error::PrattStackFull<O, Lang>> for PErr {
+  fn from(_: tokora::error::PrattStackFull<O, Lang>) -> Self {
+    PErr
+  }
 }
 '''
 
@@ -1395,6 +1536,243 @@ INHERENT_SUBJECTS = {
             "new": ("10, 8", "BudgetExhausted"),
         },
     },
+    # `PrattStack` is minted by the same diff as its one inherent item, `new`, so it takes this
+    # table's new-owner shape. `tokora::pratt` is not a new module, so a plain
+    # `use tokora::pratt::PrattStack;` names the owner in the base-side diagnostic, as
+    # `TokenBudget`'s import does. The probe's feature point carries `combinators`, which turns
+    # `pratt` on.
+    #
+    # `new()` takes no argument, and a path call prefers the inherent item over the consumer's
+    # trait item. `PrattStack<u8>` names the type at its default `N`. The type declares no
+    # receiver method: what it can do is `Container`'s and `Stack`'s, both trait items.
+    "PrattStack": {
+        "imports": "use tokora::pratt::PrattStack;\n",
+        "fixture": "",
+        "ty": "PrattStack<u8>",
+        "setup": "",
+        "build": "  let mut subject: PrattStack<u8> = PrattStack::new();\n",
+        "calls": {},
+        "assoc_calls": {
+            "new": ("", "PrattStack<u8>"),
+        },
+    },
+    # ── The Pratt machine and its vocabulary: four owners minted with their items ──────────────
+    #
+    # `PrattResolver`, `PrattOffer`, `PrattRefusal` and `PrattRefused` are minted by the diff that
+    # adds every inherent item on them, so they take this table's new-owner shape: every call at
+    # the item's real arity, every `used` binding at its real return type. `tokora::pratt` is not a
+    # new module, so a plain `use tokora::pratt::<Owner>;` names the owner in the base-side
+    # diagnostic. Every other type a call or a binding names is spelled by its full path, so the
+    # owner's import is the only one a row adds, and it is used.
+    #
+    # Every item here is inherent, and each sits at the consumer's step or an earlier one: `self`
+    # items at the by-value step, `&self` items at `&T`, `&mut self` items at `&mut T`, where an
+    # inherent item outranks the consumer's trait item. So tokora's item takes the call and the
+    # head side reads `witness=0`. The other new types, `PrattPoll`, `PrattReduction`, the three
+    # reductions, `PrattPending` and `PrattFrame`, declare no inherent item that reaches these
+    # tables: the reductions' `into_components` routes to `PrattRefused`, below.
+    #
+    # WHICH names reach which owner: `surface_diff.py` records the alphabetically LAST owner of a
+    # name among those the diff adds it to. `new` routes to `PrattTable` (below); `is_reduce`,
+    # `is_decline` and `is_chain`, which `PrattOffer` and `PrattRefusal` both derive, route to
+    # `PrattRefusal`; `into_components`, declared by the three reductions and by `PrattRefused`,
+    # routes to `PrattRefused`. Each shared name is written into every table that declares it but
+    # the reductions', for the reason `ERROR_SUBJECTS` gives.
+    #
+    # `PrattResolver<u8, u8, u8, u8, u8, u8>` names `Post` as `u8` rather than its default
+    # `Infallible`, so that `handle_postfix` has an operator a probe can build; `Power` and `S` are
+    # their defaults, `i64` and `DefaultPrattStack<PrattFrame<u8, u8, u8, u8, u8>>`.
+    "PrattResolver": {
+        "imports": "use tokora::pratt::PrattResolver;\n",
+        "fixture": "",
+        "ty": "PrattResolver<u8, u8, u8, u8, u8, u8>",
+        "setup": "",
+        "build": (
+            "  let mut subject: PrattResolver<u8, u8, u8, u8, u8, u8> = PrattResolver::new();\n"
+        ),
+        "calls": {
+            "min_precedence": ("0", "PrattResolver<u8, u8, u8, u8, u8, u8>"),
+            "max_depth": ("4", "PrattResolver<u8, u8, u8, u8, u8, u8>"),
+            "into_stack": (
+                "",
+                "tokora::pratt::DefaultPrattStack<tokora::pratt::PrattFrame<u8, u8, u8, u8, u8>>",
+            ),
+            "reset": ("", "()"),
+            "depth": ("", "usize"),
+            "capacity": ("", "usize"),
+            "poll": ("", "tokora::pratt::PrattPoll<u8, u8, u8, u8, u8, u8>"),
+            "offer": ("&tokora::pratt::PrattRHS::End", "tokora::pratt::PrattOffer"),
+            "handle_prefix": (
+                "tokora::pratt::Precedenced::new(1u8, 1)",
+                "Result<(), tokora::pratt::PrattRefused<tokora::pratt::Precedenced<u8, i64>>>",
+            ),
+            "handle_operand": ("1u8", "Result<(), tokora::pratt::PrattRefused<u8>>"),
+            "handle_infix": (
+                "tokora::pratt::Precedenced::new(tokora::pratt::PrattInfix::Left(1u8), 1)",
+                "Result<(), tokora::pratt::PrattRefused<"
+                "tokora::pratt::Precedenced<tokora::pratt::PrattInfix<u8, u8, u8>, i64>>>",
+            ),
+            "handle_postfix": (
+                "tokora::pratt::Precedenced::new(1u8, 1)",
+                "Result<(), tokora::pratt::PrattRefused<tokora::pratt::Precedenced<u8, i64>>>",
+            ),
+            "handle_reduced": ("1u8", "Result<(), tokora::pratt::PrattRefused<u8>>"),
+            "close": ("", "Result<(), tokora::pratt::PrattRefusal>"),
+            "finish": ("", "Result<(), tokora::pratt::PrattRefusal>"),
+            "retract": ("", "Option<tokora::pratt::PrattPending<u8, u8, u8, u8>>"),
+            # `with_stack` is a method of `FlatFold`, whose row routes here, and an associated
+            # function of this owner, which takes no receiver and is never a method candidate.
+            # So the call is the consumer's, at its arity and its return: see `no_collision.txt`.
+            "with_stack": ("", "u8"),
+        },
+        "assoc_calls": {
+            "new": ("", "PrattResolver<u8, u8, u8, u8, u8, u8>"),
+            "with_stack": (
+                "tokora::pratt::DefaultPrattStack::new()",
+                "PrattResolver<u8, u8, u8, u8, u8, u8>",
+            ),
+        },
+    },
+    # `PrattOffer` and `PrattRefusal` derive derive_more's `IsVariant`, so each gains one inherent
+    # `const fn is_<variant>(&self) -> bool` for each variant. Both are unit-only enums a consumer
+    # can name a variant of: `PrattRefusal` is `#[non_exhaustive]`, which forbids an exhaustive
+    # match outside the crate and not the construction of a variant.
+    "PrattOffer": {
+        "imports": "use tokora::pratt::PrattOffer;\n",
+        "fixture": "",
+        "ty": "PrattOffer",
+        "setup": "",
+        "build": "  let mut subject: PrattOffer = PrattOffer::Take;\n",
+        "calls": {
+            "is_take": ("", "bool"),
+            "is_reduce": ("", "bool"),
+            "is_decline": ("", "bool"),
+            "is_chain": ("", "bool"),
+        },
+        "assoc_calls": {},
+    },
+    "PrattRefusal": {
+        "imports": "use tokora::pratt::PrattRefusal;\n",
+        "fixture": "",
+        "ty": "PrattRefusal",
+        "setup": "",
+        "build": "  let mut subject: PrattRefusal = PrattRefusal::Full;\n",
+        "calls": {
+            "is_misplaced": ("", "bool"),
+            "is_reduce": ("", "bool"),
+            "is_decline": ("", "bool"),
+            "is_chain": ("", "bool"),
+            "is_full": ("", "bool"),
+        },
+        "assoc_calls": {},
+    },
+    # `PrattRefused` has no public constructor: only a machine makes one. So the subject is REACHED,
+    # as `ParseState`'s is: a fresh machine is handed a reduced value in its `Term` phase, which it
+    # refuses as misplaced, handing the `u8` back inside the refusal.
+    "PrattRefused": {
+        "imports": "use tokora::pratt::PrattRefused;\n",
+        "fixture": "",
+        "ty": "PrattRefused<u8>",
+        "setup": "",
+        "build": (
+            "  let mut subject: PrattRefused<u8> =\n"
+            "    tokora::pratt::PrattResolver::<u8, u8, u8, u8, u8>::new()\n"
+            "      .handle_reduced(1u8)\n"
+            "      .unwrap_err();\n"
+        ),
+        "calls": {
+            "why": ("", "tokora::pratt::PrattRefusal"),
+            "item": ("", "&u8"),
+            "into_item": ("", "u8"),
+            "into_components": ("", "(tokora::pratt::PrattRefusal, u8)"),
+        },
+        "assoc_calls": {},
+    },
+    # ── The table and the flat driver: two owners minted with their items ───────────────────
+    #
+    # `PrattTable` and `Flat` are minted by the diff that adds every inherent item on them, so
+    # they take this table's new-owner shape, as the machine's owners above do: every call at the
+    # item's real arity, every `used` binding at its real return type, and a plain
+    # `use tokora::pratt::<Owner>;`, since `tokora::pratt` is not a new module.
+    #
+    # WHICH names reach which owner. `new` is declared by `PrattResolver`, `PrattStack` and
+    # `PrattTable`, and routes to `PrattTable`, the alphabetically last. `min_precedence` and
+    # `max_depth` are declared by `Flat` and by `PrattResolver`, and route to `PrattResolver`; they
+    # are written into `Flat`'s table as well, for the reason `ERROR_SUBJECTS` gives. `lhs` and
+    # `rhs` are `PrattTable`'s alone, and `bare`, `with_cst_kind`, `parse_into` and `folding` are
+    # `Flat`'s. `FlatFold`'s one item, the method `with_stack`, routes to `PrattResolver`, which
+    # declares the name as an associated function.
+    #
+    # `PrattTable<u8>` names `Expr` as `u8` and `Power` at its default, `i64`. `lhs` and `rhs` take
+    # `self`, so tokora's inherent item is found at the by-value step, before the consumer's
+    # `&mut self` item.
+    "PrattTable": {
+        "imports": "use tokora::pratt::PrattTable;\n",
+        "fixture": "",
+        "ty": "PrattTable<u8>",
+        "setup": "",
+        "build": "  let mut subject: PrattTable<u8> = PrattTable::new();\n",
+        "calls": {
+            "lhs": ("1u8", "tokora::pratt::PrattTableLHS<u8, i64, u8>"),
+            "rhs": ("", "tokora::pratt::PrattTableRHS<u8, i64>"),
+        },
+        "assoc_calls": {
+            "new": ("", "PrattTable<u8>"),
+        },
+    },
+    # `Flat` is made by `flat`, which asks for a token that `PrattToken` classifies and an operand
+    # parser, so `FLAT_FIXTURE` adds both over the fixture's own `Tok`, `PLexer` and `PCtx`, and
+    # the four conversions `parse_into` asks of the error. `parse_into` takes an input, so the
+    # record is `in_parse`: the subject is built and called inside a parse, with `inp` in scope.
+    #
+    # Every item but `parse_into` takes `self`, and is found at the by-value step. `parse_into`
+    # takes `&mut self`, as the consumer's item does, and an inherent item outranks a trait item
+    # at the same step. The handler is `()`, which tokora implements `PrattHandler` for.
+    "Flat": {
+        "imports": "use tokora::pratt::Flat;\n",
+        "fixture": FLAT_FIXTURE,
+        "ty": "Flat<PExpr, i64, POperand, PLexer<'static>, i64, PCtx<'static>>",
+        "setup": "",
+        "build": (
+            "    let mut subject: Flat<PExpr, i64, POperand, PLexer<'static>, i64, PCtx<'static>> =\n"
+            "      tokora::pratt::flat(tokora::pratt::PrattTable::new(), POperand);\n"
+        ),
+        "in_parse": True,
+        "calls": {
+            "min_precedence": (
+                "0",
+                "Flat<PExpr, i64, POperand, PLexer<'static>, i64, PCtx<'static>, (), "
+                "tokora::pratt::NoCst, tokora::pratt::Checked<i64, tokora::pratt::Bounded>>",
+            ),
+            "max_depth": (
+                "4",
+                "Flat<PExpr, i64, POperand, PLexer<'static>, i64, PCtx<'static>, (), "
+                "tokora::pratt::NoCst, tokora::pratt::Checked<i64, tokora::pratt::Bounded>>",
+            ),
+            "bare": (
+                "",
+                "Flat<PExpr, i64, POperand, PLexer<'static>, i64, PCtx<'static>, (), "
+                "tokora::pratt::NoCst, tokora::pratt::Bare>",
+            ),
+            "with_cst_kind": (
+                "1u16",
+                "Flat<PExpr, i64, POperand, PLexer<'static>, i64, PCtx<'static>, (), "
+                "tokora::pratt::WithFlatKind>",
+            ),
+            "parse_into": ("inp, &mut ()", "Result<(), PErr>"),
+            # The three folds are unbounded until the driver parses, so `()` stands for each.
+            "folding": (
+                "(), (), ()",
+                "tokora::pratt::FlatFold<PExpr, i64, POperand, (), (), (), PLexer<'static>, i64, "
+                "PCtx<'static>, (), tokora::pratt::NoCst, tokora::pratt::DefaultPrattStack<"
+                "tokora::pratt::PrattFrame<i64, tokora::span::Spanned<Tok, tokora::SimpleSpan>, "
+                "tokora::span::Spanned<Tok, tokora::SimpleSpan>, "
+                "tokora::span::Spanned<Tok, tokora::SimpleSpan>, "
+                "tokora::span::Spanned<Tok, tokora::SimpleSpan>, i64>>>",
+            ),
+        },
+        "assoc_calls": {},
+    },
 }
 
 
@@ -1414,7 +1792,13 @@ def inherent_subject(name, owner, table):
 
 
 def inherent_subject_method(name, owner, spelling):
-    """A consumer extension trait on an owner this same diff introduces."""
+    """A consumer extension trait on an owner this same diff introduces.
+
+    An owner whose record sets `in_parse` has an item that takes an input, which only exists
+    inside a parse. Its subject is built, and every one of its calls made, in a parse function
+    over the fixture's `PLexer` and `PCtx`, with the input in scope as `inp`: the shape the
+    `InputRef` rows use, at the `'static` input the fixture's `ctx()` gives.
+    """
     rec, (args, returns) = inherent_subject(name, owner, "calls")
     imports, fixture, ty = rec["imports"], rec["fixture"], rec["ty"]
     setup, build = rec["setup"], rec["build"]
@@ -1423,6 +1807,24 @@ def inherent_subject_method(name, owner, spelling):
         if spelling == "used"
         else f"subject.{name}({args});"
     )
+    if rec.get("in_parse"):
+        body = f"""#[allow(unused_mut)]
+fn drive() {{
+  fn body(inp: &mut InputRef<'static, '_, PLexer<'static>, PCtx<'static>>) -> Result<(), PErr> {{
+{setup}{build}    reached();
+    {call}
+    Ok(())
+  }}
+  let _ = Parser::with_context(ctx()).apply(body).parse_str("1 2");
+}}
+"""
+    else:
+        body = f"""#[allow(unused_mut)]
+fn drive() {{
+{setup}{build}  reached();
+  {call}
+}}
+"""
     return ITEM_FIXTURE + fixture + f"""
 {imports}
 pub trait ConsumerExt {{
@@ -1436,12 +1838,7 @@ impl ConsumerExt for {ty} {{
   }}
 }}
 
-#[allow(unused_mut)]
-fn drive() {{
-{setup}{build}  reached();
-  {call}
-}}
-""" + WITNESS
+""" + body + WITNESS
 
 
 def inherent_subject_assoc_fn(name, owner, spelling):
@@ -2013,6 +2410,20 @@ def trait_method(name, owner, spelling):
         "spanned_trimmed": "",
         "sliced_trimmed": "",
         "located_trimmed": "",
+        # `container::Stack`'s two. Each takes `&mut self` and nothing else — read
+        # `container/mod.rs` — so this is the empty-argument shape `clear` and `take_probe`
+        # ride, and #225's foreknown-vacuous one: see `TRAITS["Stack"]`.
+        "pop": "",
+        "last_mut": "",
+        # `PrattHandler`'s four. Each takes `&mut self`, an input and an item. The probe calls each
+        # with no argument, which is the consumer's arity and not tokora's: tokora's `&mut self`
+        # item is never reached, because the consumer's `self` and `&self` items are earlier picks.
+        # So this is the foreknown-vacuous shape #225 names, ridden at the empty-argument template
+        # rather than a multi-argument one it declines: see `TRAITS["PrattHandler"]`.
+        "on_prefix": "",
+        "on_operand": "",
+        "on_infix": "",
+        "on_postfix": "",
     }.get(name)
     if args is None:
         # The pointer matters more than the refusal. An author who lands here reads "add a
