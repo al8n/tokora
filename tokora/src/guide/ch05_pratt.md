@@ -780,10 +780,11 @@ assert_eq!(eval("(1"), Err(CalcError::Unexpected));
 - **[`with_cst_kind`](crate::pratt::Flat::with_cst_kind) wraps each expression in one node.** The
   leading trivia is crossed in the lexer mode the input is in when the parse begins, and an
   operand parser's mode applies from its own first read.
-- **The machine's storage is the driver's**, emptied when a parse begins and when it ends,
-  however it ends, so a driver that is kept reuses it.
+- **The machine's storage is the driver's**, so a driver that is kept reuses it. `folding`
+  empties it when a parse begins and when it ends, however it ends, an unwind included;
+  `parse_into` empties its stack of unit frames when a parse begins and when one returns.
   [`with_stack`](crate::pratt::FlatFold::with_stack) lends `folding` a storage of yours instead:
-  it is not grown, and it is left empty however the parse ends, an unwind included.
+  it is not grown, and it is left empty however the parse ends.
   [`max_depth`](crate::pratt::Flat::max_depth) caps the pending operators, and its documentation
   has the table of what holds them in each tier. [`bare`](crate::pratt::Flat::bare) gives the
   machine up: `parse_into` then takes every operator the table names, with no floor, no refusal
