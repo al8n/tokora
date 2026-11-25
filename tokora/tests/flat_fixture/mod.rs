@@ -5,7 +5,7 @@
 // Each suite uses a part of it.
 #![allow(dead_code)]
 
-use core::cell::RefCell;
+use core::cell::{Cell, RefCell};
 
 use tokora::{
   Emitter, InputRef, Lexer, ParseAttempt, ParseContext, ParserContext, ReadFrontier, ScanLookahead,
@@ -63,6 +63,22 @@ impl State for Mode {
 thread_local! {
   /// Every lex on this thread: the token's offset, and the mode it was lexed under.
   static LEXED: RefCell<Vec<(usize, u8)>> = const { RefCell::new(Vec::new()) };
+}
+
+thread_local! {
+  /// How many spaces the lexer that skips trivia has stepped over on this thread.
+  static SKIPPED: Cell<usize> = const { Cell::new(0) };
+}
+
+/// Forgets the spaces skipped on this thread.
+pub fn forget_skipped() {
+  SKIPPED.with(|skipped| skipped.set(0));
+}
+
+/// The spaces skipped on this thread since they were last forgotten: each one every time a lex
+/// steps over it.
+pub fn skipped() -> usize {
+  SKIPPED.with(Cell::get)
 }
 
 /// Forgets the lexes recorded on this thread.
@@ -154,6 +170,7 @@ impl<'inp, const SKIP: bool> Lexer<'inp> for ByteLexer<'inp, SKIP> {
     if SKIP {
       while bytes.get(self.pos) == Some(&b' ') {
         self.pos += 1;
+        SKIPPED.with(|skipped| skipped.set(skipped.get() + 1));
       }
     }
     let byte = *bytes.get(self.pos)?;

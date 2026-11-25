@@ -26,7 +26,8 @@ use tokora::{
 use flat_fixture::{
   BareCacheIr, ByteLexer, Expr, Fail, FatalCtx, FatalIr, InfixOp, Landing, LimitedIr, Lookahead,
   Marking, Mode, Operand, Rekeying, Rolling, Signed, Skip, TABLE, Tk, Tok, TwoDigits, VerboseIr,
-  fold_infix, fold_prefix, forget_lexes, landing, lexes, read_infix, read_postfix, read_prefix,
+  fold_infix, fold_prefix, forget_lexes, forget_skipped, landing, lexes, read_infix, read_postfix,
+  read_prefix, skipped,
 };
 use flat_items::{Item, Items};
 
@@ -1372,5 +1373,27 @@ fn a_fold_that_takes_a_token_ending_at_the_same_offset_is_followed_by_a_fresh_re
       .parse_str("-1+2;")
       .expect("the parse's own error is caught");
     assert_eq!(got, Ok(String::from("((-1.)+2)")), "folding: {folding}");
+  }
+}
+
+/// The end of input is read once, however many folds follow it: over N prefix operators, `1` and N
+/// spaces, which the lexer steps over, the spaces are visited once in all, where a read after each
+/// fold would visit them N + 1 times over.
+#[test]
+fn the_end_of_input_is_read_once_across_the_folds_that_follow_it() {
+  for n in [16, 64] {
+    let src = format!("{}1{}", "-".repeat(n), " ".repeat(n));
+    let (result, visited) = fatal::<true, _>(&src, |input| {
+      forget_skipped();
+      let result = flat(TABLE, Operand::STRICT)
+        .folding(first, first_infix, first)
+        .parse_input(input);
+      Ok((result, skipped()))
+    });
+    assert_eq!(result, Ok(String::from("1")), "{n}");
+    assert!(
+      (n..=2 * n).contains(&visited),
+      "{n} prefix operators and {n} spaces: {visited} spaces visited"
+    );
   }
 }
