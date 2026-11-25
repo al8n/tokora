@@ -847,13 +847,13 @@ where
   })
 }
 
-/// A prefix or a postfix operator's fold over any lexer, which builds nothing and reads nothing:
-/// the value is its operand's.
-fn first<'inp, L, Ctx, Operator>(
+/// A prefix or a postfix operator's fold over any lexer and any value, which builds nothing and
+/// reads nothing: the value is its operand's.
+fn first<'inp, L, Ctx, O, Operator>(
   _input: &mut InputRef<'inp, '_, L, Ctx>,
-  operand: String,
+  operand: O,
   _operator: Operator,
-) -> Result<String, <Ctx::Emitter as Emitter<'inp, L>>::Error>
+) -> Result<O, <Ctx::Emitter as Emitter<'inp, L>>::Error>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L>,
@@ -861,14 +861,14 @@ where
   Ok(operand)
 }
 
-/// An infix operator's fold over any lexer, which builds nothing and reads nothing: the value is
-/// its left operand's.
-fn first_infix<'inp, L, Ctx, Operator>(
+/// An infix operator's fold over any lexer and any value, which builds nothing and reads nothing:
+/// the value is its left operand's.
+fn first_infix<'inp, L, Ctx, O, Operator>(
   _input: &mut InputRef<'inp, '_, L, Ctx>,
-  left: String,
-  _right: String,
+  left: O,
+  _right: O,
   _operator: Operator,
-) -> Result<String, <Ctx::Emitter as Emitter<'inp, L>>::Error>
+) -> Result<O, <Ctx::Emitter as Emitter<'inp, L>>::Error>
 where
   L: Lexer<'inp>,
   Ctx: ParseContext<'inp, L>,
@@ -1396,4 +1396,61 @@ fn the_end_of_input_is_read_once_across_the_folds_that_follow_it() {
       "{n} prefix operators and {n} spaces: {visited} spaces visited"
     );
   }
+}
+
+/// An operand whose destructor panics for the digit `2`, outside an unwind.
+#[derive(Debug)]
+struct Bomb(u8);
+
+impl Drop for Bomb {
+  fn drop(&mut self) {
+    if self.0 == b'2' && !std::thread::panicking() {
+      panic!("the operand `2` panics when it is dropped, as asked");
+    }
+  }
+}
+
+/// A digit, as a [`Bomb`].
+#[derive(Debug, Clone, Copy)]
+struct Bombs;
+
+impl<'inp, const SKIP: bool, Ctx> TryParseInput<'inp, ByteLexer<'inp, SKIP>, Bomb, Ctx> for Bombs
+where
+  Ctx: ParseContext<'inp, ByteLexer<'inp, SKIP>>,
+{
+  fn try_parse_input(
+    &mut self,
+    input: &mut InputRef<'inp, '_, ByteLexer<'inp, SKIP>, Ctx>,
+  ) -> Result<ParseAttempt<Bomb>, <Ctx::Emitter as Emitter<'inp, ByteLexer<'inp, SKIP>>>::Error> {
+    Ok(
+      match input.try_expect(|tok| tok.data().0.is_ascii_digit())? {
+        Some(tok) => ParseAttempt::Accept(Bomb(tok.into_data().0)),
+        None => ParseAttempt::Decline,
+      },
+    )
+  }
+}
+
+/// A destructor that unwinds while a parse's storage is emptied does not stop the emptying. Over
+/// `1^2^3^;` the last `^`'s operand is missing, and the storage the caller lent holds the frames
+/// of the two before it, which own `1` and `2`. Emptying it drops `2`, whose destructor panics,
+/// and the rest is drained all the same: once the unwind is caught, the caller's `Vec` is empty,
+/// and keeps its allocation.
+#[test]
+fn a_destructor_that_unwinds_while_a_lent_storage_empties_leaves_it_empty() {
+  let mut frames: Vec<PrattFrame<Bomb, Tk, Tk, Tk, Tk, u8>> = Vec::new();
+  let unwound = catch_unwind(AssertUnwindSafe(|| {
+    fatal::<true, _>("1^2^3^;", |input| {
+      Ok(
+        flat(TABLE, Bombs)
+          .folding(first, first_infix, first)
+          .with_stack(&mut frames)
+          .parse_input(input)
+          .map(|_| ()),
+      )
+    })
+  }));
+  assert!(unwound.is_err(), "dropping `2` panicked");
+  assert!(frames.is_empty(), "{} frames are left", frames.len());
+  assert!(frames.capacity() > 0, "the allocation is kept for reuse");
 }

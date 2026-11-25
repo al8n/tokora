@@ -356,11 +356,52 @@ where
   S: Stack<T>,
 {
   fn drop(&mut self) {
+    // A frame's destructor that unwinds leaves this drain part-way, and the unwind drops `rest`,
+    // which drains what is left.
+    let mut rest = Rest {
+      stack: &mut *self.stack,
+      _frames: PhantomData,
+    };
+    rest.drain();
+  }
+}
+
+/// What is left of a storage being emptied, which drains it when it is dropped: the guard over the
+/// drain in `Emptied`'s own drop. A frame's destructor that unwinds would otherwise stop that drain
+/// with frames still in the storage, and a storage the caller lent would keep them. A second
+/// destructor that unwinds while the guard drains aborts the process, as a panic during an unwind
+/// does.
+struct Rest<'s, S, T>
+where
+  S: Stack<T>,
+{
+  stack: &'s mut S,
+  _frames: PhantomData<fn() -> T>,
+}
+
+impl<S, T> Rest<'_, S, T>
+where
+  S: Stack<T>,
+{
+  /// Pops and drops every frame, by the storage's length now. It pops, so the storage keeps its
+  /// allocation.
+  #[inline]
+  fn drain(&mut self) {
     for _ in 0..self.stack.len() {
-      if self.stack.pop().is_none() {
-        break;
+      match self.stack.pop() {
+        Some(frame) => drop(frame),
+        None => break,
       }
     }
+  }
+}
+
+impl<S, T> Drop for Rest<'_, S, T>
+where
+  S: Stack<T>,
+{
+  fn drop(&mut self) {
+    self.drain();
   }
 }
 
