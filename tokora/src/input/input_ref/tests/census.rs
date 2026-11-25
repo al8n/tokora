@@ -71,7 +71,7 @@
 //! `InputRef::can_park()`. Only a cache that can *refuse* a front push into an empty cache
 //! ever parks anything, so under a retaining cache the slot is statically `None` and the
 //! probe folds away at monomorphization. The gate counts are censused beside the slot
-//! counts — `mod.rs` 8, `peek/mod.rs` 4, `scan.rs` 1 — so a new reader of the slot has to
+//! counts — `mod.rs` 9, `peek/mod.rs` 4, `scan.rs` 1 — so a new reader of the slot has to
 //! decide its gating rather than inherit an ungated probe; the touches that are
 //! deliberately ungated are the cold ones (the parked halves reached through a gate, the
 //! `park` write, and the two drops in the re-key and the restore).
@@ -2561,9 +2561,9 @@ fn front_census_every_probe_is_const_gated() {
   let gates: &[(&str, usize, &str)] = &[
     (
       "mod.rs",
-      8,
-      "`front`, `has_front`, `take_front`, `take_front_if`, `resume`, `cursor`, `offset`, and \
-       `park`'s lying-cache assert",
+      9,
+      "`front`, `has_front`, `take_front`, `take_front_if`, `resume`, `cursor`, `offset`, \
+       `staged_entry`, and `park`'s lying-cache assert",
     ),
     (
       "peek/mod.rs",

@@ -359,6 +359,8 @@ pub(crate) struct WithheldHead<O> {
 }
 
 pub(crate) use input_ref::Session;
+#[cfg(feature = "pratt")]
+pub(crate) use input_ref::StagedEntry;
 pub use input_ref::{
   Balance, Commit, DelimClass, Descent, DropPolicy, Hole, InputRef, ResourceTripBaseline, Rollback,
   ScannerAttempt, ScannerOutcome, ScannerTripBaseline, Transaction,

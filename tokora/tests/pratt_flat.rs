@@ -26,8 +26,8 @@ use tokora::{
 use flat_fixture::{
   BareCacheIr, ByteLexer, Expr, Fail, FatalCtx, FatalIr, InfixOp, Landing, LimitedIr, Lookahead,
   Marking, Mode, Operand, Rekeying, Rolling, Signed, Skip, TABLE, Tk, Tok, TwoDigits, VerboseIr,
-  fold_infix, fold_prefix, forget_lexes, forget_skipped, landing, lexes, read_infix, read_postfix,
-  read_prefix, skipped,
+  classified, fold_infix, fold_prefix, forget_classified, forget_lexes, forget_skipped, landing,
+  lexes, read_infix, read_postfix, read_prefix, skipped,
 };
 use flat_items::{Item, Items};
 
@@ -1453,4 +1453,40 @@ fn a_destructor_that_unwinds_while_a_lent_storage_empties_leaves_it_empty() {
   assert!(unwound.is_err(), "dropping `2` panicked");
   assert!(frames.is_empty(), "{} frames are left", frames.len());
   assert!(frames.capacity() > 0, "the allocation is kept for reuse");
+}
+
+/// `folding` over `input`, with folds that read nothing, and the right-hand sides it classified.
+fn classifying<'inp, const SKIP: bool, Ctx>(
+  input: &mut InputRef<'inp, '_, ByteLexer<'inp, SKIP>, Ctx>,
+) -> (Result<String, Fail>, usize)
+where
+  Ctx: ParseContext<'inp, ByteLexer<'inp, SKIP>>,
+  Ctx::Emitter: Emitter<'inp, ByteLexer<'inp, SKIP>, Error = Fail>,
+{
+  forget_classified();
+  let result = flat(TABLE, Operand::STRICT)
+    .folding(first, first_infix, first)
+    .parse_input(input);
+  (result, classified())
+}
+
+/// A token a read staged is classified once, however many folds it waits behind: over N prefix
+/// operators, `1` and a token no row takes, under a cache with room and under none, where it waits
+/// parked. A classification after each fold would make N + 1, and a table that looks a word up by
+/// its spelling reads the whole word each time, so over an N-byte word the bytes read would grow
+/// with N squared.
+#[test]
+fn a_staged_token_is_classified_once_across_the_folds_it_waits_behind() {
+  for n in [16, 64] {
+    let src = format!("{}1x", "-".repeat(n));
+    let cached = fatal::<true, _>(&src, |input| Ok(classifying(input)));
+    let parked = uncached::<true, _>(&src, |input| Ok(classifying(input)));
+    for (cache, (result, calls)) in [("a cache with room", cached), ("no cache", parked)] {
+      assert_eq!(result, Ok(String::from("1")), "{n}, {cache}");
+      assert!(
+        calls <= 2,
+        "{n} prefix operators, {cache}: {calls} classifications of the staged token"
+      );
+    }
+  }
 }

@@ -81,6 +81,21 @@ pub fn skipped() -> usize {
   SKIPPED.with(Cell::get)
 }
 
+thread_local! {
+  /// How many right-hand sides the table has classified on this thread.
+  static CLASSIFIED: Cell<usize> = const { Cell::new(0) };
+}
+
+/// Forgets the right-hand sides classified on this thread.
+pub fn forget_classified() {
+  CLASSIFIED.with(|classified| classified.set(0));
+}
+
+/// The right-hand sides classified on this thread since they were last forgotten.
+pub fn classified() -> usize {
+  CLASSIFIED.with(Cell::get)
+}
+
 /// Forgets the lexes recorded on this thread.
 pub fn forget_lexes() {
   LEXED.with(|lexed| lexed.borrow_mut().clear());
@@ -430,6 +445,7 @@ impl PrattToken<'_, Expr, u8> for Tok {
   }
 
   fn try_pratt_rhs(&self) -> Option<PrattRHS<(), (), (), (), u8>> {
+    CLASSIFIED.with(|classified| classified.set(classified.get() + 1));
     match self.0 {
       b'+' | b'-' => infix(PrattInfix::Left(()), 10),
       b'&' => infix(PrattInfix::Right(()), 10),

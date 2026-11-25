@@ -499,6 +499,43 @@ where
     self.pending.is_some()
   }
 
+  /// Which token stands at the front of the stream, by an identity two reads can compare: a cache
+  /// entry by its index in the cache's push order, a parked token by the count of items lexed while
+  /// it stood there. `None` when nothing is staged.
+  ///
+  /// Two equal readings on either side of caller code name one token, which that code may have
+  /// peeked behind but has neither consumed nor replaced, by a token with the same span either. An
+  /// entry's index is the push count less the entries resident: a pop off the front moves it, a
+  /// push behind the front does not, and a restore that keeps the front keeps it, since it rewinds
+  /// the count by exactly the entries it drops from the back. A token parks only where the cache
+  /// refuses it, and a cache refuses only when full, so only a cache that holds nothing parks one:
+  /// then the one token that can take the slot without a lex is the one that left it, and every lex
+  /// is charged to the token budget. The flat expression driver reads this around a fold, to keep
+  /// the classification of the head it staged. It reads counters the input keeps anyway, and adds
+  /// nothing per token.
+  #[cfg(feature = "pratt")]
+  #[inline(always)]
+  pub(crate) fn staged_entry(&self) -> Option<StagedEntry> {
+    if Self::can_park() && self.has_front_parked() {
+      // The count saturates at its sentinel, where it stops telling one token from the next.
+      return match self.token_budget.spent() {
+        usize::MAX => None,
+        lexed => Some(StagedEntry::Parked(lexed)),
+      };
+    }
+    match self.cache().len() {
+      0 => None,
+      // A count short of the resident entries names none of them: no identity, rather than a
+      // wrong one.
+      held => self
+        .session
+        .lineage
+        .cache_pushes()
+        .checked_sub(held as u64)
+        .map(StagedEntry::Cached),
+    }
+  }
+
   /// Restores the five facts a rewinding scan's entry snapshot holds, then settles its mark by
   /// rewinding to it — the one body behind both `ScanMode::on_eof` and `ScanMode::on_incomplete`,
   /// so the normal no-match exit and the abandoning exits cannot drift.
@@ -5044,6 +5081,17 @@ where
     // re-examine the new front.
     cache.pop_front();
   }
+}
+
+/// Which token stands at the front of the stream, as [`InputRef::staged_entry`] names it.
+#[cfg(feature = "pratt")]
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum StagedEntry {
+  /// A cache entry, by its index in the cache's push order.
+  Cached(u64),
+  /// The token parked outside a cache that holds none, by the count of items lexed while it stood
+  /// there.
+  Parked(usize),
 }
 
 /// Where a token being put back came from — the *only* thing [`InputRef::hold_front`] needs to

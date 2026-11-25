@@ -3,10 +3,11 @@
 //!
 //! It runs the flat loop over a machine of the caller's values, and folds each reduction the
 //! machine hands out, one for each poll, with the operator that asked for it left on the input.
-//! After every fold the head is read again, and classified and offered afresh: whatever the fold
-//! consumed or left, the read is of the input's current head. Under a cache with room it takes the
-//! staged token and lexes nothing. A token is committed only on the answer of that read's own
-//! offer.
+//! After every fold the head is read again and offered afresh: whatever the fold consumed or left,
+//! the read is of the input's current head. Its classification is reused only while the head is
+//! still the token the last read classified, the same cache entry or the same parked token. Under
+//! a cache with room the read takes the staged token and lexes nothing. A token is committed only
+//! on the answer of that read's own offer.
 //!
 //! Where the crate cannot allocate, a default storage grows on the native stack, a segment at a
 //! time. A loop that finds its storage full below the cap goes on in a deeper native frame over a
@@ -22,7 +23,7 @@ use crate::{
   Emitter, InputRef, Lexer, ParseAttempt, ParseContext, ParseInput, Token as _, TryParseInput,
   container::Stack,
   error::{NonAssociativeChain, PrattStackFull, UnexpectedEoLhs, UnexpectedEoRhs, UnexpectedEot},
-  input::{Complete, ScannerTripBaseline, same_regime},
+  input::{Complete, ScannerTripBaseline, StagedEntry, same_regime},
   span::{Span as _, Spanned},
   token::PrattToken,
 };
@@ -376,13 +377,29 @@ where
   not(any(test, not(any(feature = "std", feature = "alloc")))),
   allow(dead_code)
 )]
-enum Exit<V, State, Offset> {
+enum Exit<V, State, Offset, Power> {
   /// The expression's value. Only the loop over the driver's own storage gets here: a segment
   /// exists only above full storage, so its loop returns before the count can reach zero.
   Done(V),
-  /// The loop's segment is drained: the machine's state, and the end of input a read confirmed if
-  /// one did, for the loop below to go on with on its own segment.
-  Drained(State, Option<AtEnd<Offset>>),
+  /// The loop's segment is drained: the machine's state, and what the last read of the head found,
+  /// for the loop below to go on with on its own segment.
+  Drained(State, Option<Seen<Offset, Power>>),
+}
+
+/// What the last read of the head found, kept across the folds after it while it still answers for
+/// the head, so that the read after a fold repeats no work it can prove would come out the same.
+enum Seen<Offset, Power> {
+  /// No token at all: the end of input, confirmed at a position and a regime.
+  End(AtEnd<Offset>),
+  /// A token the read classified and staged, by the identity the input gives the front: a cache
+  /// entry's place in the push order, or the parked token's count of items lexed. Its
+  /// classification is reused while that token is the front, so a long token a table spells out
+  /// is classified once, however many folds it waits for. A fold that took it, or left another
+  /// token in its place, a token with the same span among them, leaves another identity.
+  Staged {
+    entry: StagedEntry,
+    rhs: Option<PrattRHS<(), (), (), (), Power>>,
+  },
 }
 
 /// The end of input a read confirmed: no token was to be had from the committed position, under
@@ -524,12 +541,12 @@ where
   #[inline]
   fn run<'closure, St, const UPPER: bool, K: ArraySize>(
     mut machine: Machine<'inp, L, O, Power, St>,
-    mut end: Option<AtEnd<L::Offset>>,
+    mut seen: Option<Seen<L::Offset, Power>>,
     steps: &mut Steps<'_, Operand, FoldPrefix, FoldInfix, FoldPostfix, K>,
     input: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
     scans: ScannerTripBaseline<'closure>,
   ) -> Result<
-    Exit<O, State<'inp, L, O, Power>, L::Offset>,
+    Exit<O, State<'inp, L, O, Power>, L::Offset, Power>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   >
   where
@@ -581,9 +598,9 @@ where
                       input,
                       scans,
                     )?;
-                    let (state, at_end) = drained(exit);
+                    let (state, back) = drained(exit);
                     machine = PrattResolver::from_parts(state, storage);
-                    end = at_end;
+                    seen = back;
                     break;
                   }
                 }
@@ -615,25 +632,46 @@ where
         // token the machine does not take stays staged, so under a cache with room the next read
         // lexes nothing.
         PrattPoll::Operator => {
-          // An end of input a read confirmed is not read again while it stands: the expression
-          // ends there, and the close meets the trip check as a read's would.
-          if let Some(confirmed) = &end {
-            if *input.span().end_ref() == confirmed.at
-              && same_regime(input.regime_generation(), confirmed.regime)
-            {
-              close(&mut machine, input, scans)?;
-              continue;
+          // What the last read found spares this one its work while it stands. An end of input
+          // confirmed at this position and regime is not read again: the expression ends there,
+          // and the close meets the trip check as a read's would. A token the read staged keeps
+          // its classification while it is still the front.
+          let mut reuse = None;
+          match seen.take() {
+            Some(Seen::End(at_end)) => {
+              if *input.span().end_ref() == at_end.at
+                && same_regime(input.regime_generation(), at_end.regime)
+              {
+                seen = Some(Seen::End(at_end));
+                close(&mut machine, input, scans)?;
+                continue;
+              }
             }
-            end = None;
+            Some(Seen::Staged { entry, rhs }) => {
+              if input.staged_entry() == Some(entry) {
+                reuse = Some(rhs);
+              }
+            }
+            None => {}
           }
           let mut answer = Answer::End;
+          let mut classified = None;
           let head = input.try_expect_map_or_stop(|tok| {
-            if tok.is_trivia() {
-              return Some(OperatorHead::Trivia);
-            }
-            let rhs = match tok.try_pratt_rhs() {
+            // The front is the entry checked above when its classification is reused, and a staged
+            // entry is never trivia.
+            let rhs = match reuse.take() {
+              Some(rhs) => rhs,
+              None => {
+                if tok.is_trivia() {
+                  return Some(OperatorHead::Trivia);
+                }
+                tok.try_pratt_rhs()
+              }
+            };
+            let rhs = match rhs {
               Some(PrattRHS::End) | None => {
                 answer = Answer::Close;
+                classified = Some(None);
                 return None;
               }
               Some(rhs) => rhs,
@@ -650,8 +688,14 @@ where
                 answer = Answer::Adjacent;
                 None
               }
-              (PrattOffer::Take, PrattRHS::End) | (PrattOffer::Reduce | PrattOffer::Decline, _) => {
+              (PrattOffer::Take, PrattRHS::End) => {
                 answer = Answer::Close;
+                classified = Some(None);
+                None
+              }
+              (PrattOffer::Reduce | PrattOffer::Decline, rhs) => {
+                answer = Answer::Close;
+                classified = Some(Some(rhs));
                 None
               }
               (PrattOffer::Chain, _) => {
@@ -683,9 +727,9 @@ where
                       input,
                       scans,
                     )?;
-                    let (state, at_end) = drained(exit);
+                    let (state, back) = drained(exit);
                     machine = PrattResolver::from_parts(state, storage);
-                    end = at_end;
+                    seen = back;
                     continue;
                   }
                 }
@@ -705,13 +749,18 @@ where
             // read on may have left the head it stopped behind.
             None => match answer {
               Answer::End => {
-                end = Some(AtEnd {
+                seen = Some(Seen::End(AtEnd {
                   at: input.span().end_ref().clone(),
                   regime: input.regime_generation(),
-                });
+                }));
                 close(&mut machine, input, scans)?;
               }
-              Answer::Close => close(&mut machine, input, scans)?,
+              Answer::Close => {
+                if let (Some(rhs), Some(entry)) = (classified, input.staged_entry()) {
+                  seen = Some(Seen::Staged { entry, rhs });
+                }
+                close(&mut machine, input, scans)?;
+              }
               Answer::Chain => return Err(chain(input, scans)),
               Answer::Adjacent => return Err(adjacent(input, scans)),
             },
@@ -748,7 +797,7 @@ where
               steps.growth.returned += 1;
               steps.growth.above -= 1;
             }
-            return Ok(Exit::Drained(machine.into_parts().0, end));
+            return Ok(Exit::Drained(machine.into_parts().0, seen));
           }
         }
 
@@ -801,7 +850,7 @@ where
     input: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
     scans: ScannerTripBaseline<'closure>,
   ) -> Result<
-    Exit<O, State<'inp, L, O, Power>, L::Offset>,
+    Exit<O, State<'inp, L, O, Power>, L::Offset, Power>,
     <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
   >
   where
@@ -828,17 +877,20 @@ where
       steps.growth.above += 1;
       steps.growth.deepest = steps.growth.deepest.max(steps.growth.above);
     }
-    // No end of input was confirmed: the push followed a read that found a token, or a term.
+    // Nothing is staged and no end of input was confirmed: the push followed a read that committed
+    // a token, or a term.
     Self::run::<_, true, K>(machine, None, steps, input, scans)
   }
 }
 
-/// The state, and the end of input a read confirmed, that a drained segment handed back.
+/// The state, and what the last read of the head found, that a drained segment handed back.
 #[cfg(any(test, not(any(feature = "std", feature = "alloc"))))]
 #[inline]
-fn drained<V, State, Offset>(exit: Exit<V, State, Offset>) -> (State, Option<AtEnd<Offset>>) {
+fn drained<V, State, Offset, Power>(
+  exit: Exit<V, State, Offset, Power>,
+) -> (State, Option<Seen<Offset, Power>>) {
   match exit {
-    Exit::Drained(state, at_end) => (state, at_end),
+    Exit::Drained(state, seen) => (state, seen),
     Exit::Done(_) => unreachable!(
       "a deeper frame never answers `Done`: a segment exists only above full storage, so its \
        loop returns before the count can reach zero"
