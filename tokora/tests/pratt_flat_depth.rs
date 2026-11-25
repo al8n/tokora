@@ -22,7 +22,7 @@ use tokora::{
   span::Spanned,
 };
 
-use flat_fixture::{Fail, FatalIr, LexErr, Operand, Skip, TABLE, Tok, landing};
+use flat_fixture::{Fail, FatalIr, InfixOp, LexErr, Operand, Skip, TABLE, Tk, Tok, landing};
 
 /// The stack each deep case runs on.
 const STACK: usize = 256 * 1024;
@@ -180,7 +180,7 @@ where
 fn keep<'inp, Ctx>(
   _input: &mut InputRef<'inp, '_, Skip<'inp>, Ctx>,
   operand: u32,
-  _operator: Precedenced<Spanned<Tok, SimpleSpan>, u8>,
+  _operator: Precedenced<Tk, u8>,
 ) -> Result<u32, ErrorIn<'inp, Ctx>>
 where
   Ctx: ParseContext<'inp, Skip<'inp>>,
@@ -193,10 +193,7 @@ fn add<'inp, Ctx>(
   _input: &mut InputRef<'inp, '_, Skip<'inp>, Ctx>,
   left: u32,
   right: u32,
-  _operator: Precedenced<
-    PrattInfix<Spanned<Tok, SimpleSpan>, Spanned<Tok, SimpleSpan>, Spanned<Tok, SimpleSpan>>,
-    u8,
-  >,
+  _operator: InfixOp,
 ) -> Result<u32, ErrorIn<'inp, Ctx>>
 where
   Ctx: ParseContext<'inp, Skip<'inp>>,
