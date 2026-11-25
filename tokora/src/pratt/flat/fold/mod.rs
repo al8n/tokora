@@ -2,10 +2,11 @@
 //! caller's value with the typed driver's three fold traits.
 //!
 //! It runs the flat loop over a machine of the caller's values, and folds each reduction the
-//! machine hands out, one for each poll, with the operator that asked for it left on the input. A
-//! classification of the head stands across a fold while the input has not moved: offered again,
-//! it reads nothing, and a token is committed only on the answer of a fresh read's own offer. After
-//! a fold that moved the input, the head is read again.
+//! machine hands out, one for each poll, with the operator that asked for it left on the input.
+//! After every fold the head is read again, and classified and offered afresh: whatever the fold
+//! consumed or left, the read is of the input's current head. Under a cache with room it takes the
+//! staged token and lexes nothing. A token is committed only on the answer of that read's own
+//! offer.
 //!
 //! Where the crate cannot allocate, a default storage grows on the native stack, a segment at a
 //! time. A loop that finds its storage full below the cap goes on in a deeper native frame over a
@@ -21,7 +22,7 @@ use crate::{
   Emitter, InputRef, Lexer, ParseAttempt, ParseContext, ParseInput, Token as _, TryParseInput,
   container::Stack,
   error::{NonAssociativeChain, PrattStackFull, UnexpectedEoLhs, UnexpectedEoRhs, UnexpectedEot},
-  input::{Complete, ScannerTripBaseline, same_regime},
+  input::{Complete, ScannerTripBaseline},
   span::{Span as _, Spanned},
   token::PrattToken,
 };
@@ -267,9 +268,10 @@ where
   /// a trivia token is committed and the operand parser asked again, and a prefix operator of the
   /// table is committed. After an operand the head is read for an operator, and trivia there is
   /// committed and the head read again. An operator the machine takes is committed. One it does
-  /// not take is left on the input while the reductions it asks for are folded, and is then
-  /// offered again. An operator below the floor, a token that is no operator, and the end of input
-  /// end the expression: what is pending is folded, and the token is left on the input.
+  /// not take is left on the input while a reduction it asks for is folded, and the head is read
+  /// again after each fold, so that what a fold consumed is never mistaken for the head. An
+  /// operator below the floor, a token that is no operator, and the end of input end the
+  /// expression: what is pending is folded, and the token is left on the input.
   ///
   /// # Errors
   ///
@@ -304,34 +306,10 @@ where
   }
 }
 
-/// The classification of a head the loop left on the input. It stands while the input has not
-/// moved, since the head is then the same token by the lexer's determinism.
-enum Standing<Power> {
-  /// No operator of the table, `End`, or the end of input: the expression ends there.
-  Ending,
-  /// An operator of the table, which waits for the reductions it asked for.
-  Operator(PrattRHS<(), (), (), (), Power>),
-}
-
-/// What a fresh read decided where it committed nothing.
-enum Answer<Power> {
-  /// No operator of the table, `End`, or the end of input.
-  Ending,
-  /// The operator waits for a reduction.
-  Reduce(PrattRHS<(), (), (), (), Power>),
-  /// The operator is not this expression's.
-  Decline,
-  /// The operator repeats a non-associative chain.
-  Chain,
-  /// The machine would take a zero-token operator.
-  Adjacent,
-}
-
-/// What a classification that stands asks of the loop.
-enum Stood {
-  /// Nothing stands: the head is read.
-  Read,
-  /// A reduction is owed, or the expression is over: one sub-expression is closed.
+/// What a read of the head decided where it committed nothing.
+enum Answer {
+  /// No operator of the table, `End` or the end of input; an operator below the floor; or an
+  /// operator that waits for a reduction. One sub-expression is closed.
   Close,
   /// The operator repeats a non-associative chain.
   Chain,
@@ -394,13 +372,13 @@ where
   not(any(test, not(any(feature = "std", feature = "alloc")))),
   allow(dead_code)
 )]
-enum Exit<V, State, Power> {
+enum Exit<V, State> {
   /// The expression's value. Only the loop over the driver's own storage gets here: a segment
   /// exists only above full storage, so its loop returns before the count can reach zero.
   Done(V),
-  /// The loop's segment is drained: the machine's state, and the classification that stands, for
-  /// the loop below to go on with on its own segment.
-  Drained(State, Option<Standing<Power>>),
+  /// The loop's segment is drained: the machine's state, for the loop below to go on with on its
+  /// own segment.
+  Drained(State),
 }
 
 /// A push a full storage refused below the cap, fed again on the next segment.
@@ -503,7 +481,7 @@ where
     // or refuses, at every depth: a trip since, under user code or a read of the loop's own, makes
     // that point terminal whatever followed it. Recovering by re-keying is the caller's.
     let scans = input.scanner_trip_snapshot();
-    let result = match Self::run::<_, false, K>(machine, None, &mut steps, input, scans) {
+    let result = match Self::run::<_, false, K>(machine, &mut steps, input, scans) {
       Ok(Exit::Done(value)) => Ok(value),
       Ok(Exit::Drained(..)) => {
         unreachable!("the driver's own storage has nothing below it, so its loop never drains")
@@ -529,14 +507,10 @@ where
   #[inline]
   fn run<'closure, St, const UPPER: bool, K: ArraySize>(
     mut machine: Machine<'inp, L, O, Power, St>,
-    mut standing: Option<Standing<Power>>,
     steps: &mut Steps<'_, Operand, FoldPrefix, FoldInfix, FoldPostfix, K>,
     input: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
     scans: ScannerTripBaseline<'closure>,
-  ) -> Result<
-    Exit<O, State<'inp, L, O, Power>, Power>,
-    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
-  >
+  ) -> Result<Exit<O, State<'inp, L, O, Power>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     St: Stack<Frame<'inp, L, O, Power>>,
   {
@@ -586,9 +560,7 @@ where
                       input,
                       scans,
                     )?;
-                    let (state, back) = drained(exit);
-                    machine = PrattResolver::from_parts(state, storage);
-                    standing = back;
+                    machine = PrattResolver::from_parts(drained(exit), storage);
                     break;
                   }
                 }
@@ -614,38 +586,20 @@ where
           }
         },
 
-        // An operator, or the ending.
+        // An operator, or the ending. The head is read every time, after a fold too: a fold may
+        // have consumed the token that was staged, or left one in its place that ends where it
+        // ended, and only a read sees which. The read's own offer decides what is committed, and a
+        // token the machine does not take stays staged, so under a cache with room the next read
+        // lexes nothing.
         PrattPoll::Operator => {
-          // A classification that stands is offered again, and nothing is read. On `Take` the
-          // head is read afresh, and the read's own offer decides what is committed.
-          let stood = match &standing {
-            None => Stood::Read,
-            Some(Standing::Ending) => Stood::Close,
-            Some(Standing::Operator(rhs)) => match machine.offer(rhs) {
-              PrattOffer::Reduce | PrattOffer::Decline => Stood::Close,
-              PrattOffer::Chain => Stood::Chain,
-              PrattOffer::Take if matches!(rhs, PrattRHS::Adjacent(_)) => Stood::Adjacent,
-              PrattOffer::Take => Stood::Read,
-            },
-          };
-          match stood {
-            Stood::Read => standing = None,
-            Stood::Close => {
-              close(&mut machine, input, scans)?;
-              continue;
-            }
-            Stood::Chain => return Err(chain(input, scans)),
-            Stood::Adjacent => return Err(adjacent(input, scans)),
-          }
-
-          let mut answer = Answer::Ending;
+          let mut answer = Answer::Close;
           let head = input.try_expect_map_or_stop(|tok| {
             if tok.is_trivia() {
               return Some(OperatorHead::Trivia);
             }
             let rhs = match tok.try_pratt_rhs() {
               Some(PrattRHS::End) | None => {
-                answer = Answer::Ending;
+                answer = Answer::Close;
                 return None;
               }
               Some(rhs) => rhs,
@@ -662,16 +616,8 @@ where
                 answer = Answer::Adjacent;
                 None
               }
-              (PrattOffer::Take, PrattRHS::End) => {
-                answer = Answer::Ending;
-                None
-              }
-              (PrattOffer::Reduce, rhs) => {
-                answer = Answer::Reduce(rhs);
-                None
-              }
-              (PrattOffer::Decline, _) => {
-                answer = Answer::Decline;
+              (PrattOffer::Take, PrattRHS::End) | (PrattOffer::Reduce | PrattOffer::Decline, _) => {
+                answer = Answer::Close;
                 None
               }
               (PrattOffer::Chain, _) => {
@@ -703,9 +649,7 @@ where
                       input,
                       scans,
                     )?;
-                    let (state, back) = drained(exit);
-                    machine = PrattResolver::from_parts(state, storage);
-                    standing = back;
+                    machine = PrattResolver::from_parts(drained(exit), storage);
                     continue;
                   }
                 }
@@ -724,15 +668,7 @@ where
             // for an ending, a reduction and a refusal alike: an operand parser or a fold that
             // read on may have left the head it stopped behind.
             None => match answer {
-              Answer::Ending => {
-                standing = Some(Standing::Ending);
-                close(&mut machine, input, scans)?;
-              }
-              Answer::Reduce(rhs) => {
-                standing = Some(Standing::Operator(rhs));
-                close(&mut machine, input, scans)?;
-              }
-              Answer::Decline => close(&mut machine, input, scans)?,
+              Answer::Close => close(&mut machine, input, scans)?,
               Answer::Chain => return Err(chain(input, scans)),
               Answer::Adjacent => return Err(adjacent(input, scans)),
             },
@@ -741,11 +677,6 @@ where
 
         // One reduction, folded with the operator that asked for it still on the input.
         PrattPoll::Reduce(reduction) => {
-          // The moved pair, read only while a classification stands, which is after every
-          // reduction but a postfix operator's.
-          let before = standing
-            .as_ref()
-            .map(|_| (input.span().end_ref().clone(), input.regime_generation()));
           let value = match reduction {
             PrattReduction::Prefix(reduction) => {
               let (operand, operator) = reduction.into_components();
@@ -766,13 +697,6 @@ where
               refused.why()
             );
           }
-          // The one key: the offsets compared for equality, and the regimes by `same_regime`, as
-          // the input compares them. Moved, the head is read again.
-          if let Some((at, regime)) = before
-            && (*input.span().end_ref() != at || !same_regime(input.regime_generation(), regime))
-          {
-            standing = None;
-          }
           // The return test, before the loop next reads its stack: a segment whose own frames are
           // gone hands the machine to the loop below, which goes on over its own segment, full.
           if UPPER && machine.storage().is_empty() {
@@ -781,7 +705,7 @@ where
               steps.growth.returned += 1;
               steps.growth.above -= 1;
             }
-            return Ok(Exit::Drained(machine.into_parts().0, standing));
+            return Ok(Exit::Drained(machine.into_parts().0));
           }
         }
 
@@ -833,10 +757,7 @@ where
     steps: &mut Steps<'_, Operand, FoldPrefix, FoldInfix, FoldPostfix, K>,
     input: &mut InputRef<'inp, 'closure, L, Ctx, Lang>,
     scans: ScannerTripBaseline<'closure>,
-  ) -> Result<
-    Exit<O, State<'inp, L, O, Power>, Power>,
-    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error,
-  >
+  ) -> Result<Exit<O, State<'inp, L, O, Power>>, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
   where
     St: Stack<Frame<'inp, L, O, Power>>,
   {
@@ -861,17 +782,16 @@ where
       steps.growth.above += 1;
       steps.growth.deepest = steps.growth.deepest.max(steps.growth.above);
     }
-    // Nothing stands: the push followed a fresh read, or a term.
-    Self::run::<_, true, K>(machine, None, steps, input, scans)
+    Self::run::<_, true, K>(machine, steps, input, scans)
   }
 }
 
-/// The state and the classification a drained segment handed back.
+/// The state a drained segment handed back.
 #[cfg(any(test, not(any(feature = "std", feature = "alloc"))))]
 #[inline]
-fn drained<V, State, Power>(exit: Exit<V, State, Power>) -> (State, Option<Standing<Power>>) {
+fn drained<V, State>(exit: Exit<V, State>) -> State {
   match exit {
-    Exit::Drained(state, standing) => (state, standing),
+    Exit::Drained(state) => state,
     Exit::Done(_) => unreachable!(
       "a deeper frame never answers `Done`: a segment exists only above full storage, so its \
        loop returns before the count can reach zero"

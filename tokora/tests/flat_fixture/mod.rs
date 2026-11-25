@@ -262,6 +262,99 @@ impl<'inp> Lexer<'inp> for Limited<'inp> {
   }
 }
 
+/// The state of [`Marking`]: the start of the digit whose end marker is still to come.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Marked(pub Option<usize>);
+
+impl State for Marked {
+  type Error = LexErr;
+
+  fn check(&self) -> Result<(), LexErr> {
+    Ok(())
+  }
+}
+
+/// One token for each byte, and after each digit an end marker `.` with the digit's own span: two
+/// tokens that end at one offset, under two lexer states.
+pub struct Marking<'inp> {
+  src: &'inp str,
+  tok_start: usize,
+  pos: usize,
+  state: Marked,
+}
+
+impl<'inp> Lexer<'inp> for Marking<'inp> {
+  type State = Marked;
+  type Source = str;
+  type Token = Tok;
+  type Span = SimpleSpan;
+  type Offset = usize;
+
+  fn new(src: &'inp str) -> Self {
+    Self::with_state(src, Marked::default())
+  }
+
+  fn with_state(src: &'inp str, state: Marked) -> Self {
+    Self {
+      src,
+      tok_start: 0,
+      pos: 0,
+      state,
+    }
+  }
+
+  fn check(&self) -> Result<(), LexErr> {
+    Ok(())
+  }
+
+  fn state(&self) -> &Self::State {
+    &self.state
+  }
+
+  fn state_mut(&mut self) -> &mut Self::State {
+    &mut self.state
+  }
+
+  fn into_state(self) -> Self::State {
+    self.state
+  }
+
+  fn source(&self) -> &'inp str {
+    self.src
+  }
+
+  fn span(&self) -> SimpleSpan {
+    SimpleSpan::new(self.tok_start, self.pos)
+  }
+
+  fn slice(&self) -> &'inp str {
+    &self.src[self.tok_start..self.pos]
+  }
+
+  fn lex(&mut self) -> Option<Result<Tok, LexErr>> {
+    if let Some(start) = self.state.0.take() {
+      self.tok_start = start;
+      return Some(Ok(Tok(b'.')));
+    }
+    let byte = *self.src.as_bytes().get(self.pos)?;
+    self.tok_start = self.pos;
+    self.pos += 1;
+    if byte.is_ascii_digit() {
+      self.state.0 = Some(self.tok_start);
+    }
+    Some(Ok(Tok(byte)))
+  }
+
+  fn read_frontier(&self) -> ReadFrontier<usize> {
+    ReadFrontier::SpanEnd
+  }
+
+  fn bump(&mut self, n: &usize) {
+    self.pos += *n;
+    self.tok_start = self.pos;
+  }
+}
+
 // ── The table ─────────────────────────────────────────────────────────────────────────────────
 
 /// The marker of the suites' table.

@@ -1270,16 +1270,6 @@ where
     }
   }
 
-  /// The regime generation now. With `span().end()`, it is the pair the flat expression driver
-  /// reads around a fold, to tell whether the head it classified before the fold still stands.
-  /// Two readings name one regime when `same_regime` says so, which no reading taken once the
-  /// allocator has run out does: an input re-keyed past that point reads as moved.
-  #[cfg(feature = "pratt")]
-  #[inline(always)]
-  pub(crate) fn regime_generation(&self) -> u64 {
-    *self.regime
-  }
-
   /// What the attempt that took `since` as its [`scanner_attempt`](Self::scanner_attempt) capture
   /// did to the scanner — the **root-loop guard**, and the reading a retrying loop must match on.
   ///
