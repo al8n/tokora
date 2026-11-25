@@ -15,6 +15,10 @@
 //! | `/`    | infix  | left  | 2          |
 //! | `-`    | prefix | —     | 3          |
 //! | `^`    | infix  | right | 4          |
+//!
+//! The token-level surface has no grouping idiom, so `(` and `)` have no row: a static floor
+//! cannot say that a frame ends at its `)`. The guide's chapter 5 puts brackets in an operand
+//! parser, on the flat driver.
 
 use tokora::{
   Emitter, EmitterView, InputRef, Parse, ParseContext, Parser, SimpleSpan, Token as TokenT,
@@ -204,12 +208,6 @@ struct Power(i32);
 
 impl PrattPower for Power {}
 
-// PREC_PAREN is below Power::default() (= Power(0)).
-// When `(` is a prefix, pratt_in is called with min_power = Power(-1).
-// `)` as a postfix with the same power satisfies power >= min_power inside
-// that recursive call, so it is consumed there. In the outer call
-// (min_power = Power(0)), Power(-1) < Power(0) so `)` is left alone.
-const PREC_PAREN: Power = Power(-1); // ( )
 const PREC_SUM: Power = Power(1); // + -
 const PREC_PROD: Power = Power(2); // * /
 const PREC_NEG: Power = Power(3); // unary -
@@ -226,10 +224,6 @@ impl PrattToken<'_, f64, Power> for Token {
     Some(match self {
       Token::Num(_) => PrattLHS::Operand(()),
       Token::Minus => PrattLHS::Prefix(Precedenced::new((), PREC_NEG)),
-      // `(` is a prefix with PREC_PAREN; the recursive pratt_in starts at
-      // min_power = PREC_PAREN so that `)` (postfix with the same power) is
-      // consumed inside that call rather than by the outer loop.
-      Token::LParen => PrattLHS::Prefix(Precedenced::new((), PREC_PAREN)),
       _ => return None,
     })
   }
@@ -241,8 +235,6 @@ impl PrattToken<'_, f64, Power> for Token {
       Token::Star => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(()), PREC_PROD)),
       Token::Slash => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(()), PREC_PROD)),
       Token::Caret => PrattRHS::Infix(Precedenced::new(PrattInfix::Right(()), PREC_EXP)),
-      // `)` is a postfix with PREC_PAREN; consumed only when min_power <= PREC_PAREN.
-      Token::RParen => PrattRHS::Postfix(Precedenced::new((), PREC_PAREN)),
       _ => return None,
     })
   }
@@ -272,7 +264,6 @@ fn fold_prefix<'inp, E>(
       };
       Ok(Spanned::new(span, Token::Num(-n)))
     }
-    Token::LParen => Ok(operand), // grouping: pass the inner result through
     _ => unreachable!(),
   }
 }
@@ -311,7 +302,7 @@ fn fold_postfix<'inp, E>(
   _op: Spanned<Token, SimpleSpan>,
   _: EmitterView<'_, 'inp, CalcLexer<'inp>, E>,
 ) -> Result<Spanned<Token, SimpleSpan>, CalcError> {
-  Ok(operand) // `)` consumed; pass the grouped result through
+  Ok(operand) // the table has no postfix row, so this fold never runs
 }
 
 // ── Expression entry point ────────────────────────────────────────────────────
@@ -344,7 +335,6 @@ where
 fn main() {
   let cases: &[(&str, f64)] = &[
     ("1 + 2 * 3", 7.0),   // precedence: * before +        → 1 + (2*3)
-    ("(1 + 2) * 3", 9.0), // parentheses override          → (1+2) * 3
     ("2 ^ 3 ^ 2", 512.0), // right-associative ^           → 2^(3^2) = 2^9
     ("-2 ^ 2", -4.0),     // unary minus < ^ in precedence → -(2^2)
     ("10 / 2 / 5", 1.0),  // left-associative /            → (10/2)/5

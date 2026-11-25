@@ -32,13 +32,12 @@ folds. The flat driver keeps its pending operators on a stack of its own instead
 
 | Syntax  | Position         | Associativity | Power |
 |---------|------------------|---------------|-------|
-| `( )`   | prefix + postfix | —             | `-1`  |
 | `+` `-` | infix            | left          | `1`   |
 | `*` `/` | infix            | left          | `2`   |
 | `-`     | prefix           | —             | `3`   |
 | `^`     | infix            | **right**     | `4`   |
 
-Two of those rows carry the chapter's whole design.
+One rule carries the chapter's whole design, and one idiom is missing from it.
 
 **Associativity is how strict the floor is, not a special case.** After a left-associative
 operator the engine recurses with a floor that admits only powers *strictly greater* than the
@@ -52,12 +51,13 @@ strictness is the engine's job. Note what it never does: step to a neighbouring 
 of the ladder, where `power ± 1` would have run out of room and silently swapped the two
 behaviours.
 
-**Grouping is an operator pair below the floor.** `(` is a *prefix* operator at power `-1` and
-`)` is a *postfix* operator at the same power. A top-level parse starts at the default floor
-(`0`, for an integer power), so a stray `)` there is *below* the floor: the loop leaves it on
-the input for the surrounding grammar. But the recursive call inside a `(` prefix runs with a
-floor of `-1`, and there `)` clears the floor and is consumed — closing exactly its own group.
-No bracket-matching code and no depth counter: the precedence rule already says it.
+**This surface has no grouping idiom.** The natural try is `(` as a *prefix* operator below the
+floor and `)` as a *postfix* operator at the same power, so that a stray `)` is below the
+top-level floor while one inside a group clears the group's. It does not close the group: a
+static floor cannot say that a frame ends at its `)`, so the frame `(` opened goes on past it.
+`2 * (1 + 2) + 3` would read as `2 * ((1 + 2) + 3)` and `-(1) + 2` as `-((1) + 2)`, and `(1))` and
+`(1` would be accepted. Brackets belong in an operand parser, which the flat driver takes: see
+*Grouping, in an operand parser* below.
 
 ## Binding powers are plain integers
 
@@ -170,10 +170,8 @@ use tokora::{
 };
 
 // ── The ladder. Plain `i64`s — no newtype, because `PrattPower` is implemented for the
-//    integers. The default floor is `i64::default()` = 0, and PREC_PAREN sits *below* it:
-//    that is what makes `)` invisible at the top level and consumable inside a group.
+//    integers. The default floor is `i64::default()` = 0, below every row.
 
-const PREC_PAREN: i64 = -1; // ( )
 const PREC_SUM: i64 = 1; //    + -
 const PREC_PROD: i64 = 2; //   * /
 const PREC_NEG: i64 = 3; //    unary -
@@ -188,7 +186,6 @@ impl PrattToken<'_, i64> for Tok {
     Some(match self {
       Tok::Int(_) => PrattLHS::Operand(()),
       Tok::Minus => PrattLHS::Prefix(Precedenced::new((), PREC_NEG)),
-      Tok::LParen => PrattLHS::Prefix(Precedenced::new((), PREC_PAREN)),
       _ => return None,
     })
   }
@@ -201,7 +198,6 @@ impl PrattToken<'_, i64> for Tok {
       Tok::Slash => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(()), PREC_PROD)),
       // The one right-associative row in the table.
       Tok::Caret => PrattRHS::Infix(Precedenced::new(PrattInfix::Right(()), PREC_EXP)),
-      Tok::RParen => PrattRHS::Postfix(Precedenced::new((), PREC_PAREN)),
       _ => return None,
     })
   }
@@ -218,10 +214,7 @@ fn fold_prefix<'inp, E>(
   let (span, op) = op.into_components();
   match op {
     Tok::Minus => Ok(Spanned::new(span, Tok::Int(-int(operand)?))),
-    // Grouping: the `(` prefix's "operand" is the whole parenthesised expression, already
-    // folded by the inner call (which also ate the `)`). Pass it through untouched.
-    Tok::LParen => Ok(operand),
-    _ => unreachable!("the LHS table admits only `-` and `(` as prefixes"),
+    _ => unreachable!("the LHS table admits only `-` as a prefix"),
   }
 }
 
@@ -258,7 +251,7 @@ fn fold_postfix<'inp, E>(
   _close: Spanned<Tok, SimpleSpan>,
   _: EmitterView<'_, 'inp, CalcLexer<'inp>, E>,
 ) -> Result<Spanned<Tok, SimpleSpan>, CalcError> {
-  Ok(operand) // `)` closed its group; the value flows on.
+  Ok(operand) // The table has no postfix row, so this fold never runs.
 }
 
 /// Unwrap a folded operand back to its integer.
@@ -295,10 +288,9 @@ where
 let eval = |src| Parser::new().apply(calc_expr).parse_str(src);
 
 assert_eq!(eval("1 + 2 * 3"), Ok(7)); //     `*` outranks `+`       → 1 + (2 * 3)
-assert_eq!(eval("(1 + 2) * 3"), Ok(9)); //   grouping overrides     → (1 + 2) * 3
 assert_eq!(eval("10 / 2 / 5"), Ok(1)); //    `/` is left-assoc      → (10 / 2) / 5
 assert_eq!(eval("2 ^ 3 ^ 2"), Ok(512)); //   `^` is RIGHT-assoc     → 2 ^ (3 ^ 2)
-assert_eq!(eval("-(1 + 2)"), Ok(-3)); //     prefix over a group
+assert_eq!(eval("-1 + 2"), Ok(1)); //        unary `-` outranks `+` → (-1) + 2
 assert_eq!(eval("-2 ^ 2"), Ok(-4)); //       `^` outranks unary `-` → -(2 ^ 2)
 
 // Nothing here is expression-shaped: the engine consumes nothing and says so.
@@ -341,7 +333,7 @@ where
 
 let binding = Parser::new()
   .apply(parse_let)
-  .parse_str("let x = -2 + 3 * (4 + 1) ;")
+  .parse_str("let x = -2 + 3 * 5 ;")
   .unwrap();
 assert_eq!(binding, ("x", 13));
 ```
@@ -574,6 +566,202 @@ assert_eq!(
 );
 ```
 
+### Grouping, in an operand parser
+
+A group is an operand. The operand parser takes the `(`, parses one expression, and takes the `)`
+that closes it, so each group closes exactly its own. The driver recurses nowhere, so the operand
+parser bounds the nesting itself, one level of the recursion budget for each group, with
+[`descending`](crate::InputRef::descending).
+
+```rust
+# use tokora::{Token as TokenT, logos::{self, Logos}};
+# use tokora::EmitterView;
+# #[derive(Clone, Debug, Default, PartialEq)]
+# struct LexError;
+# impl From<()> for LexError { fn from(_: ()) -> Self { LexError } }
+# #[derive(Debug, Clone, PartialEq, Logos)]
+# #[logos(crate = logos, skip r"[ \t\r\n]+", error = LexError)]
+# enum Tok {
+#   #[regex(r"[0-9]+", |lex| lex.slice().parse::<i64>().map_err(|_| LexError))]
+#   Int(i64),
+#   #[token("let")] Let,
+#   #[token("print")] Print,
+#   #[regex(r"[A-Za-z_][A-Za-z0-9_]*")] Ident,
+#   #[token("+")] Plus,
+#   #[token("-")] Minus,
+#   #[token("*")] Star,
+#   #[token("/")] Slash,
+#   #[token("^")] Caret,
+#   #[token("=")] Assign,
+#   #[token(";")] Semi,
+#   #[token(",")] Comma,
+#   #[token("(")] LParen,
+#   #[token(")")] RParen,
+# }
+# #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+# enum TokKind { Int, Let, Print, Ident, Plus, Minus, Star, Slash, Caret, Assign, Semi, Comma, LParen, RParen }
+# impl core::fmt::Display for TokKind {
+#   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+#     f.write_str(match self {
+#       Self::Int => "integer", Self::Let => "`let`", Self::Print => "`print`",
+#       Self::Ident => "identifier", Self::Plus => "`+`", Self::Minus => "`-`",
+#       Self::Star => "`*`", Self::Slash => "`/`", Self::Caret => "`^`",
+#       Self::Assign => "`=`", Self::Semi => "`;`", Self::Comma => "`,`",
+#       Self::LParen => "`(`", Self::RParen => "`)`",
+#     })
+#   }
+# }
+# impl core::fmt::Display for Tok {
+#   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+#     match self {
+#       Tok::Int(n) => write!(f, "{n}"),
+#       other => core::fmt::Display::fmt(&other.kind(), f),
+#     }
+#   }
+# }
+# impl TokenT<'_> for Tok {
+#   type Kind = TokKind;
+#   type Error = LexError;
+#   const SCAN_LOOKAHEAD: tokora::ScanLookahead = tokora::ScanLookahead::Unbounded;
+#   fn kind(&self) -> TokKind {
+#     match self {
+#       Tok::Int(_) => TokKind::Int, Tok::Let => TokKind::Let, Tok::Print => TokKind::Print,
+#       Tok::Ident => TokKind::Ident, Tok::Plus => TokKind::Plus, Tok::Minus => TokKind::Minus,
+#       Tok::Star => TokKind::Star, Tok::Slash => TokKind::Slash, Tok::Caret => TokKind::Caret,
+#       Tok::Assign => TokKind::Assign, Tok::Semi => TokKind::Semi, Tok::Comma => TokKind::Comma,
+#       Tok::LParen => TokKind::LParen, Tok::RParen => TokKind::RParen,
+#     }
+#   }
+#   fn is_trivia(&self) -> bool { false }
+# }
+# type CalcLexer<'a> = tokora::lexer::LogosLexer<'a, Tok>;
+# use tokora::error::{UnexpectedEnd, UnexpectedToken};
+# #[derive(Debug, Clone, PartialEq)]
+# enum CalcError { Lex, Unexpected, UnexpectedEnd, Overflow(tokora::SimpleSpan) }
+# impl From<LexError> for CalcError { fn from(_: LexError) -> Self { CalcError::Lex } }
+# impl<'a, T, K: Clone, S, Lang: ?Sized> From<UnexpectedToken<'a, T, K, S, Lang>> for CalcError {
+#   fn from(_: UnexpectedToken<'a, T, K, S, Lang>) -> Self { CalcError::Unexpected }
+# }
+# impl<H, O, Lang: ?Sized, Set: Clone + 'static> From<UnexpectedEnd<H, O, Lang, Set>> for CalcError {
+#   fn from(_: UnexpectedEnd<H, O, Lang, Set>) -> Self { CalcError::UnexpectedEnd }
+# }
+# impl<O, Lang: ?Sized> From<tokora::error::RecursionLimitReached<O, Lang>> for CalcError {
+#   fn from(_: tokora::error::RecursionLimitReached<O, Lang>) -> Self { CalcError::UnexpectedEnd }
+# }
+# impl<O, Lang: ?Sized> From<tokora::error::NonAssociativeChain<O, Lang>> for CalcError {
+#   fn from(_: tokora::error::NonAssociativeChain<O, Lang>) -> Self { CalcError::Unexpected }
+# }
+# impl<O, Lang: ?Sized> From<tokora::error::PrattStackFull<O, Lang>> for CalcError {
+#   fn from(_: tokora::error::PrattStackFull<O, Lang>) -> Self { CalcError::UnexpectedEnd }
+# }
+# impl<'inp, L: tokora::Lexer<'inp>, Lang: ?Sized> tokora::emitter::FromUnclosed<'inp, L, Lang> for CalcError {
+#   fn from_unclosed<D>(_: tokora::error::Unclosed<D, L::Span, Lang>) -> Self { CalcError::UnexpectedEnd }
+# }
+# impl tokora::error::MaybeIncomplete for CalcError {}
+use tokora::{
+  FatalContext, InputRef, ParseAttempt, ParseInput as _, Parser, SimpleSpan,
+  pratt::{PrattInfix, PrattLHS, PrattRHS, PrattTable, Precedenced, flat},
+  span::Spanned,
+  token::PrattToken,
+};
+
+type Ctx<'a> = FatalContext<'a, CalcLexer<'a>, CalcError>;
+type Op = Spanned<Tok, SimpleSpan>;
+
+/// The table's marker.
+struct Calc;
+const CALC: PrattTable<Calc, i64> = PrattTable::new();
+
+impl PrattToken<'_, Calc, i64> for Tok {
+  fn try_pratt_lhs(&self) -> Option<PrattLHS<(), (), i64>> {
+    match self {
+      Tok::Minus => Some(PrattLHS::Prefix(Precedenced::new((), 3))),
+      _ => None,
+    }
+  }
+
+  fn try_pratt_rhs(&self) -> Option<PrattRHS<(), (), (), (), i64>> {
+    Some(match self {
+      Tok::Plus | Tok::Minus => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(()), 1)),
+      Tok::Star => PrattRHS::Infix(Precedenced::new(PrattInfix::Left(()), 2)),
+      _ => return None,
+    })
+  }
+}
+
+// An integer, or a group: `(`, one expression, and the `)` that closes it.
+fn operand<'a>(
+  inp: &mut InputRef<'a, '_, CalcLexer<'a>, Ctx<'a>>,
+) -> Result<ParseAttempt<i64>, CalcError> {
+  if inp.try_expect(|t| matches!(t.data(), Tok::LParen))?.is_some() {
+    let value = inp.descending(expr)?;
+    return match inp.try_expect(|t| matches!(t.data(), Tok::RParen))? {
+      Some(_) => Ok(ParseAttempt::Accept(value)),
+      None => Err(CalcError::Unexpected),
+    };
+  }
+  let literal = inp.try_expect(|t| matches!(t.data(), Tok::Int(_)))?;
+  Ok(match literal.map(Spanned::into_data) {
+    Some(Tok::Int(n)) => ParseAttempt::Accept(n),
+    _ => ParseAttempt::Decline,
+  })
+}
+
+fn negate<'a>(
+  _: &mut InputRef<'a, '_, CalcLexer<'a>, Ctx<'a>>,
+  operand: i64,
+  _: Precedenced<Op, i64>,
+) -> Result<i64, CalcError> {
+  Ok(-operand)
+}
+
+fn arithmetic<'a>(
+  _: &mut InputRef<'a, '_, CalcLexer<'a>, Ctx<'a>>,
+  left: i64,
+  right: i64,
+  operator: Precedenced<PrattInfix<Op, Op, Op>, i64>,
+) -> Result<i64, CalcError> {
+  let (PrattInfix::Left(op) | PrattInfix::Right(op) | PrattInfix::Neither(op)) =
+    operator.into_data();
+  Ok(match op.into_data() {
+    Tok::Plus => left + right,
+    Tok::Minus => left - right,
+    Tok::Star => left * right,
+    _ => unreachable!("the table has no other infix row"),
+  })
+}
+
+// The table has no postfix row, so this fold never runs.
+fn keep<'a>(
+  _: &mut InputRef<'a, '_, CalcLexer<'a>, Ctx<'a>>,
+  operand: i64,
+  _: Precedenced<Op, i64>,
+) -> Result<i64, CalcError> {
+  Ok(operand)
+}
+
+// One expression, for the whole input and for each group.
+fn expr<'a>(inp: &mut InputRef<'a, '_, CalcLexer<'a>, Ctx<'a>>) -> Result<i64, CalcError> {
+  flat(CALC, operand).folding(negate, arithmetic, keep).parse_input(inp)
+}
+
+// The whole input: one expression, and nothing after it.
+fn calc<'a>(inp: &mut InputRef<'a, '_, CalcLexer<'a>, Ctx<'a>>) -> Result<i64, CalcError> {
+  let value = expr(inp)?;
+  match inp.try_expect(|_| true)? {
+    Some(_) => Err(CalcError::Unexpected),
+    None => Ok(value),
+  }
+}
+
+let eval = |src| Parser::with_parser(calc).parse_str(src);
+assert_eq!(eval("2 * (1 + 2) + 3"), Ok(9));
+assert_eq!(eval("-(1) + 2"), Ok(1));
+// A `)` after a closed group closes nothing, and a group with no `)` is not closed.
+assert_eq!(eval("(1))"), Err(CalcError::Unexpected));
+assert_eq!(eval("(1"), Err(CalcError::Unexpected));
+```
+
 ### What the flat driver promises
 
 - **Each token is lexed once** under a cache with room for the head, which the default context
@@ -716,7 +904,7 @@ skipping to a sync point, counting holes — see [chapter 8](super::ch08_recover
 [`pratt`](crate::InputRef::pratt) starts at `Power::default()`.
 [`pratt_with_min_precedence`](crate::InputRef::pratt_with_min_precedence) lets you name the
 floor instead — parse only what binds at least as tightly as some level and leave the rest to
-the caller's loop. It is the same knob the `(` prefix turns; here you turn it by hand.
+the caller's loop.
 
 Calc parses and evaluates real expressions now. Everything so far has been *deterministic*:
 one look at the next token decides everything, and no parser ever un-does work. The next
