@@ -872,7 +872,7 @@ A **grammar** error becomes a hole and the parse continues. A **resource** error
 [`inplace_recover`](crate::ParseInput::inplace_recover) re-raises it instead of spending it —
 deliberately, because a depth budget a recovery point could swallow would not bound anything.
 There is no position to resume from and no error node to synthesize, and the default budget is
-shallower than it sounds: 64 frames, which 64 nested parentheses reach.
+shallower than it sounds: 32 frames, which 31 nested groups fill, so a 32nd trips it.
 
 **Terminal is a property of the attempt, not a switch thrown on the parse.** The trip is counted
 on a monotone cell of the input session, so an error type that discards the payload — `()` does —
