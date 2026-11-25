@@ -524,10 +524,13 @@ impl Lineage {
 
   /// Records a token entering the parked front slot that the slot did not just hand out. Only the
   /// cold park path reaches it, once for each such token, and the count saturates rather than wrap.
-  #[cfg(feature = "pratt")]
+  /// Without the `pratt` feature nothing reads the id, and there is nothing to record.
   #[inline(always)]
   pub(crate) fn record_park(&mut self) {
-    self.parks = self.parks.saturating_add(1);
+    #[cfg(feature = "pratt")]
+    {
+      self.parks = self.parks.saturating_add(1);
+    }
   }
 
   /// Rewinds the cache-push counter to a checkpoint's saved value on restore.

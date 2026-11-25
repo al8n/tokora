@@ -699,14 +699,9 @@ where
       "a `Cache` refused a front push into a non-empty cache — the parked token would sit \
        behind entries that are newer than it",
     );
-    #[cfg(feature = "pratt")]
-    {
-      if !matches!(origin, Origin::Parked) {
-        self.session.lineage.record_park();
-      }
+    if !matches!(origin, Origin::Parked) {
+      self.session.lineage.record_park();
     }
-    #[cfg(not(feature = "pratt"))]
-    let _ = origin;
     *self.pending = Some(tok);
   }
 
