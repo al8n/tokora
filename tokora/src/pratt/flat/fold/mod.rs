@@ -49,6 +49,11 @@ mod tests;
 #[cfg(not(any(feature = "std", feature = "alloc")))]
 const GROWN_CAP: usize = 32;
 
+// `GROWN_CAP` is the shipped recursion budget: the default depth cannot move without this line, and
+// whoever moves it decides what the cap does.
+#[cfg(not(any(feature = "std", feature = "alloc")))]
+const _: () = assert!(GROWN_CAP == crate::state::RecursionLimiter::PARSE_DEFAULT_DEPTH);
+
 /// An operator a fold is handed: its committed token, with the token's span.
 type Tk<'inp, L> = Spanned<<L as Lexer<'inp>>::Token, <L as Lexer<'inp>>::Span>;
 
