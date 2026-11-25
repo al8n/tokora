@@ -101,10 +101,10 @@ impl<Expr: ?Sized, Power, Operand, L, O, Ctx, Lang: ?Sized, Cst, B>
     DefaultPrattStack<
       PrattFrame<
         O,
-        Spanned<L::Token, L::Span>,
-        Spanned<L::Token, L::Span>,
-        Spanned<L::Token, L::Span>,
-        Spanned<L::Token, L::Span>,
+        Spanned<<L as Lexer<'inp>>::Token, <L as Lexer<'inp>>::Span>,
+        Spanned<<L as Lexer<'inp>>::Token, <L as Lexer<'inp>>::Span>,
+        Spanned<<L as Lexer<'inp>>::Token, <L as Lexer<'inp>>::Span>,
+        Spanned<<L as Lexer<'inp>>::Token, <L as Lexer<'inp>>::Span>,
         Power,
       >,
     >,
