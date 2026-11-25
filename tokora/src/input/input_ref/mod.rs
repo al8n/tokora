@@ -500,27 +500,27 @@ where
   }
 
   /// Which token stands at the front of the stream, by an identity two reads can compare: a cache
-  /// entry by its index in the cache's push order, a parked token by the count of items lexed while
-  /// it stood there. `None` when nothing is staged.
+  /// entry by its index in the cache's push order, a parked token by the id it took when it entered
+  /// the slot. `None` when nothing is staged.
   ///
   /// Two equal readings on either side of caller code name one token, which that code may have
   /// peeked behind but has neither consumed nor replaced, by a token with the same span either. An
   /// entry's index is the push count less the entries resident: a pop off the front moves it, a
   /// push behind the front does not, and a restore that keeps the front keeps it, since it rewinds
-  /// the count by exactly the entries it drops from the back. A token parks only where the cache
-  /// refuses it, and a cache refuses only when full, so only a cache that holds nothing parks one:
-  /// then the one token that can take the slot without a lex is the one that left it, and every lex
-  /// is charged to the token budget. The flat expression driver reads this around a fold, to keep
-  /// the classification of the head it staged. It reads counters the input keeps anyway, and adds
-  /// nothing per token.
+  /// the count by exactly the entries it drops from the back. A parked token's id moves whenever a
+  /// token enters the slot other than by coming back from it, and a peek reads the slot without
+  /// writing it. The flat expression driver reads this around a fold, to keep the classification
+  /// of the head it staged. A cache with room pays nothing for it, since the push count is kept
+  /// anyway; the park id is bumped on the cold park path alone, once for each token that enters
+  /// the slot.
   #[cfg(feature = "pratt")]
   #[inline(always)]
   pub(crate) fn staged_entry(&self) -> Option<StagedEntry> {
     if Self::can_park() && self.has_front_parked() {
-      // The count saturates at its sentinel, where it stops telling one token from the next.
-      return match self.token_budget.spent() {
-        usize::MAX => None,
-        lexed => Some(StagedEntry::Parked(lexed)),
+      // The id saturates at its sentinel, where it stops telling one token from the next.
+      return match self.session.lineage.parks() {
+        u64::MAX => None,
+        id => Some(StagedEntry::Parked(id)),
       };
     }
     match self.cache().len() {
@@ -673,16 +673,19 @@ where
           self.session.lineage.record_cache_push();
         }
       }
-      Err(tok) => self.park(tok),
+      Err(tok) => self.park(tok, origin),
     }
   }
 
   /// Cold half of [`hold_front`](Self::hold_front): the cache refused the put-back, so the token
   /// parks in the slot outside it. Out of line so the put-back sites stay small — see
   /// [`front_parked`](Self::front_parked).
+  ///
+  /// A token the slot did not just hand out takes a new id there, and the one it handed out comes
+  /// back with its own: one saturating add, here and nowhere else.
   #[cold]
   #[inline(never)]
-  fn park(&mut self, tok: CachedTokenOf<'inp, L>) {
+  fn park(&mut self, tok: CachedTokenOf<'inp, L>, origin: Origin) {
     // A refusing cache under `RETAINS_FRONT` is lying about its contract: fail loudly at the cause
     // instead of silently losing the token (the parked-slot reads are compiled out under that
     // declaration, so the slot would never be consulted again).
@@ -695,6 +698,14 @@ where
       "a `Cache` refused a front push into a non-empty cache — the parked token would sit \
        behind entries that are newer than it",
     );
+    #[cfg(feature = "pratt")]
+    {
+      if !matches!(origin, Origin::Parked) {
+        self.session.lineage.record_park();
+      }
+    }
+    #[cfg(not(feature = "pratt"))]
+    let _ = origin;
     *self.pending = Some(tok);
   }
 
@@ -5089,9 +5100,8 @@ where
 pub(crate) enum StagedEntry {
   /// A cache entry, by its index in the cache's push order.
   Cached(u64),
-  /// The token parked outside a cache that holds none, by the count of items lexed while it stood
-  /// there.
-  Parked(usize),
+  /// The token parked outside the cache, by the id it took when it entered the slot.
+  Parked(u64),
 }
 
 /// Where a token being put back came from — the *only* thing [`InputRef::hold_front`] needs to

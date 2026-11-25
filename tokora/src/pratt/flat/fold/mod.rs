@@ -392,7 +392,7 @@ enum Seen<Offset, Power> {
   /// No token at all: the end of input, confirmed at a position and a regime.
   End(AtEnd<Offset>),
   /// A token the read classified and staged, by the identity the input gives the front: a cache
-  /// entry's place in the push order, or the parked token's count of items lexed. Its
+  /// entry's place in the push order, or the id the parked token took when it entered the slot. Its
   /// classification is reused while that token is the front, so a long token a table spells out
   /// is classified once, however many folds it waits for. A fold that took it, or left another
   /// token in its place, a token with the same span among them, leaves another identity.

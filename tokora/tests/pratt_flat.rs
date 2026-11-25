@@ -1490,3 +1490,63 @@ fn a_staged_token_is_classified_once_across_the_folds_it_waits_behind() {
     }
   }
 }
+
+/// A prefix fold that looks two tokens ahead, and takes nothing: the value is its operand's.
+fn peeks_two(
+  input: &mut BareCacheIr<'_, '_, true>,
+  operand: String,
+  _operator: Precedenced<Tk, u8>,
+) -> Result<String, Fail> {
+  let _ = input.peek::<U2>()?;
+  Ok(operand)
+}
+
+/// A prefix fold that takes the head and gives it back: its attempt rolls back, so the next read
+/// lexes the head again, a token with the span of the one taken, in its place.
+fn retakes(
+  input: &mut BareCacheIr<'_, '_, true>,
+  operand: String,
+  _operator: Precedenced<Tk, u8>,
+) -> Result<String, Fail> {
+  let _ = input.attempt(|input| {
+    input.try_expect(|_| true).ok().flatten()?;
+    None::<()>
+  });
+  Ok(operand)
+}
+
+/// Under a cache that holds nothing, the parked head keeps its classification across folds that
+/// look past it: over N prefix operators that each peek two tokens ahead, `x` in `1x;` is
+/// classified once, though every peek lexes `;` again. A fold that takes the parked token and
+/// gives it back leaves one with an equal span in its place, and that one is classified afresh,
+/// after each of the N folds.
+#[test]
+fn a_parked_head_keeps_its_classification_across_lookahead_but_not_a_replacement() {
+  for n in [16, 64] {
+    let src = format!("{}1x;", "-".repeat(n));
+    let (result, calls) = uncached::<true, _>(&src, |input| {
+      forget_classified();
+      let result = flat(TABLE, Operand::STRICT)
+        .folding(peeks_two, first_infix, first)
+        .parse_input(input);
+      Ok((result, classified()))
+    });
+    assert_eq!(result, Ok(String::from("1")), "{n}, peeking");
+    assert!(
+      calls <= 2,
+      "{n} folds that peek past the parked token: {calls} classifications"
+    );
+    let (result, calls) = uncached::<true, _>(&src, |input| {
+      forget_classified();
+      let result = flat(TABLE, Operand::STRICT)
+        .folding(retakes, first_infix, first)
+        .parse_input(input);
+      Ok((result, classified()))
+    });
+    assert_eq!(result, Ok(String::from("1")), "{n}, replacing");
+    assert!(
+      calls > n,
+      "{n} folds that replace the parked token: {calls} classifications"
+    );
+  }
+}
