@@ -1305,3 +1305,50 @@ fn a_fold_that_takes_a_token_ending_at_the_same_offset_moves_the_input() {
     assert_eq!(got, Ok(String::from("((-1.)+2)")), "folding: {folding}");
   }
 }
+
+/// `~` peeks two tokens ahead after its operand, and `-` takes a `.` that follows it: both fold to
+/// the fixture's tree.
+fn peeks_or_takes<'inp, const SKIP: bool, Ctx>(
+  input: &mut InputRef<'inp, '_, ByteLexer<'inp, SKIP>, Ctx>,
+  operand: String,
+  operator: Precedenced<Tk, u8>,
+) -> Result<String, Fail>
+where
+  Ctx: ParseContext<'inp, ByteLexer<'inp, SKIP>>,
+  Ctx::Emitter: Emitter<'inp, ByteLexer<'inp, SKIP>, Error = Fail>,
+{
+  match operator.token_ref().data().0 {
+    b'~' => {
+      let _ = input.peek::<U2>()?;
+    }
+    b'-' => {
+      let _ = input.try_expect(|tok| tok.data().0 == b'.')?;
+    }
+    _ => {}
+  }
+  fold_prefix(input, operand, operator)
+}
+
+/// A stop a fold met is terminal before the next fold runs, where the ending stood. Over `-~1.2`
+/// within four items the `.` ends the expression and is staged. The `~`'s fold peeks two ahead,
+/// trips on `2` and returns. The ending stands, and the `-`'s fold, which would take the `.`, never
+/// runs: the parse ends in the terminal stop at 3, where a fresh read of the ending would.
+#[test]
+fn a_stop_a_fold_met_is_terminal_before_the_next_fold_runs() {
+  let got = within::<true, _>("-~1.2", 4, |input| {
+    let result = flat(TABLE, Operand::STRICT)
+      .folding(peeks_or_takes, fold_infix, first)
+      .parse_input(input);
+    Ok((result, input.span().end()))
+  });
+  assert_eq!(
+    got,
+    (
+      Err(Fail::Eot {
+        at: 3,
+        terminal: true
+      }),
+      3
+    )
+  );
+}

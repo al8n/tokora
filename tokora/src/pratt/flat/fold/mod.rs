@@ -591,7 +591,7 @@ where
           match stood {
             Stood::Read => standing = None,
             Stood::Close => {
-              close(&mut machine);
+              close(&mut machine, input, scans)?;
               continue;
             }
             Stood::Chain => return Err(chain(input, scans)),
@@ -681,26 +681,18 @@ where
               }
             }
             // The token is staged, or there is none. A trip since the expression began answers
-            // for an ending and for a refusal: an operand parser or a fold that read on may have
-            // left the head it stopped behind.
+            // for an ending, a reduction and a refusal alike: an operand parser or a fold that
+            // read on may have left the head it stopped behind.
             None => match answer {
               Answer::Ending => {
-                if input.scanner_tripped_during_attempt(scans) {
-                  return Err(terminal_stop(input));
-                }
                 standing = Some(Standing::Ending);
-                close(&mut machine);
+                close(&mut machine, input, scans)?;
               }
               Answer::Reduce(rhs) => {
                 standing = Some(Standing::Operator(rhs));
-                close(&mut machine);
+                close(&mut machine, input, scans)?;
               }
-              Answer::Decline => {
-                if input.scanner_tripped_during_attempt(scans) {
-                  return Err(terminal_stop(input));
-                }
-                close(&mut machine);
-              }
+              Answer::Decline => close(&mut machine, input, scans)?,
               Answer::Chain => return Err(chain(input, scans)),
               Answer::Adjacent => return Err(adjacent(input, scans)),
             },
@@ -851,17 +843,45 @@ fn drained<V, State, Power>(exit: Exit<V, State, Power>) -> (State, Option<Stand
   }
 }
 
-/// One sub-expression closed: in the `Operator` phase, which every caller is in.
+/// One sub-expression closed, in the `Operator` phase, which every caller is in. What follows is
+/// a fold, unless the expression is over: so a trip since the expression began makes this point
+/// terminal first, whether the classification behind it was read just now or stood, and no fold
+/// runs over a stop it could move past.
 #[inline]
-fn close<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Post, Power, St>(
+fn close<
+  'inp,
+  'closure,
+  L,
+  Ctx,
+  Lang,
+  V,
+  Pre,
+  LeftAssoc,
+  RightAssoc,
+  NeitherAssoc,
+  Post,
+  Power,
+  St,
+>(
   machine: &mut PrattResolver<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Post, Power, St>,
-) where
+  input: &InputRef<'inp, 'closure, L, Ctx, Lang>,
+  scans: ScannerTripBaseline<'closure>,
+) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+where
+  L: Lexer<'inp>,
+  Ctx: ParseContext<'inp, L, Lang>,
+  Lang: ?Sized,
   Power: PrattPower,
   St: Stack<PrattFrame<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Power>>,
+  <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
 {
+  if input.scanner_tripped_during_attempt(scans) {
+    return Err(terminal_stop(input));
+  }
   if let Err(why) = machine.close() {
     unreachable!("the flat driver's machine refused to close in its `Operator` phase: {why:?}");
   }
+  Ok(())
 }
 
 /// The operator repeats a non-associative chain, unless a trip since the expression began makes
