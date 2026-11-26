@@ -9382,20 +9382,20 @@ fn the_two_completeness_routes_are_pinned_apart_on_an_interrupted_eof_settle() {
   );
 }
 
-/// **`skip_while`'s end-of-input settle after a resume past an error tail.** The complete-input
-/// route commits the resumed lexer's span when it meets the end of input. A lexer resumed past a
-/// run of lexer errors, at the end of the source, must report that end, so that lexing nothing
-/// leaves the settle where lexing the run would have left it.
+/// **`skip_while`'s end-of-input settle where the memo answers an error tail.** The complete-input
+/// route commits the lexer's span when it meets the end of input. Where the end-of-input memo
+/// answers instead, the lexer lexed nothing, and the settle must still land where lexing the run
+/// would have left it.
 ///
 /// `1??`: consume `1`, then a two-token peek lexes both `?` and the end of input, and the input
-/// keeps an end-of-input memo of the run. The skip that follows resumes past the run, lexes
-/// nothing, and settles at `(3, 3)` with the input exhausted. The control is the same skip with no
-/// peek in front of it, which lexes the run itself and settles at the same place.
+/// keeps an end-of-input memo of the run. The skip that follows meets the memo at the end of `1`,
+/// lexes nothing, and settles at `(3, 3)` with the input exhausted. The control is the same skip
+/// with no peek in front of it, which lexes the run itself and settles at the same place.
 ///
-/// Falsifying output before the memo: the peeked row spends 2 as well. The skip resumed at the end
+/// Falsifying output before the memo: the peeked row spends 2 as well. The skip started at the end
 /// of `1` and lexed both `?` again.
 #[test]
-fn skip_while_settles_at_the_end_of_input_after_a_resume_past_an_error_tail() {
+fn skip_while_settles_at_the_end_of_input_where_the_memo_answers_an_error_tail() {
   // `(the settled span, the cursor, what the skip spent, exhausted)`.
   fn settle(peek_first: bool) -> ((usize, usize), usize, usize, bool) {
     use hybrid_arraydeque::typenum::U2;
@@ -9468,6 +9468,293 @@ fn the_error_tail_memo_stands_down_on_a_re_key_with_the_watermark_still_covering
     "a resume under a new regime is not answered by a memo the old one wrote: both `?` are \
      lexed again"
   );
+}
+
+// ── Every path that lexes, at a memoised error tail ──────────────────────────
+//
+// The end-of-input memo is read at the single lexing site, so it answers every driver that lexes:
+// at its first step and at any step after it, whichever offset the driver started from. The
+// cells below drive each path to the offset a memoised run begins at, under a ceiling the peek
+// that wrote the memo has met, so that a path which lexed the run again would be refused there.
+
+/// Every way into the lexer: the peek fill behind each peek surface, the one-token consumes, the
+/// close probe, the complete-input trivia skip, and the shared scanner behind the three syncs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TailPath {
+  Peek,
+  PeekOne,
+  PeekKind,
+  Next,
+  NextOrStop,
+  TryExpect,
+  TryExpectOrStop,
+  TryExpectMap,
+  TryExpectMapOrStop,
+  TryExpectAndThen,
+  ProbeClose,
+  SkipWhile,
+  SyncTo,
+  SyncThrough,
+  SyncBalanced,
+}
+
+const TAIL_PATHS: [TailPath; 15] = [
+  TailPath::Peek,
+  TailPath::PeekOne,
+  TailPath::PeekKind,
+  TailPath::Next,
+  TailPath::NextOrStop,
+  TailPath::TryExpect,
+  TailPath::TryExpectOrStop,
+  TailPath::TryExpectMap,
+  TailPath::TryExpectMapOrStop,
+  TailPath::TryExpectAndThen,
+  TailPath::ProbeClose,
+  TailPath::SkipWhile,
+  TailPath::SyncTo,
+  TailPath::SyncThrough,
+  TailPath::SyncBalanced,
+];
+
+/// A recovering input over `src` under a token budget of `ceiling`.
+fn tail_input<'a>(
+  src: &'a str,
+  ceiling: usize,
+) -> Input<'a, ProbeLexer<'a>, ProbeVerboseCtx<'a>, ()> {
+  Input::<ProbeLexer<'a>, ProbeVerboseCtx<'a>, ()>::with_state_and_context(
+    src,
+    ProbeLimiter::with_limit(usize::MAX),
+    crate::input::InputContext::new(
+      Verbose::<ProbeErr>::new(),
+      DefaultCache::<'a, ProbeLexer<'a>>::default(),
+    )
+    .with_token_budget(crate::input::TokenBudget::with_limitation(ceiling)),
+  )
+}
+
+/// Drives `path` once from wherever `inp` stands. Returns how many tokens it handed back, the
+/// committed span afterwards, what it charged, and whether the budget has refused an item.
+fn drive_tail_path<'a>(
+  path: TailPath,
+  inp: &mut InputRef<'a, '_, ProbeLexer<'a>, ProbeVerboseCtx<'a>>,
+) -> (usize, (usize, usize), usize, bool) {
+  use hybrid_arraydeque::typenum::U2;
+
+  let before = inp.token_budget().spent();
+  let items = match path {
+    TailPath::Peek => inp.peek::<U2>().unwrap().len(),
+    TailPath::PeekOne => usize::from(inp.peek_one().unwrap().is_some()),
+    TailPath::PeekKind => usize::from(inp.peek_kind().unwrap().is_some()),
+    TailPath::Next => usize::from(inp.next().unwrap().is_some()),
+    TailPath::NextOrStop => usize::from(inp.next_or_stop().unwrap().is_some()),
+    TailPath::TryExpect => usize::from(inp.try_expect(|_| true).unwrap().is_some()),
+    TailPath::TryExpectOrStop => usize::from(inp.try_expect_or_stop(|_| true).unwrap().is_some()),
+    TailPath::TryExpectMap => usize::from(inp.try_expect_map(|_| Some(())).unwrap().is_some()),
+    TailPath::TryExpectMapOrStop => {
+      usize::from(inp.try_expect_map_or_stop(|_| Some(())).unwrap().is_some())
+    }
+    TailPath::TryExpectAndThen => {
+      usize::from(inp.try_expect_and_then(|_| Some(Ok(()))).unwrap().is_some())
+    }
+    TailPath::ProbeClose => usize::from(!matches!(
+      inp.probe_close(|_| true).unwrap(),
+      super::CloseStatus::Eof
+    )),
+    TailPath::SkipWhile => {
+      inp.skip_while(|_| true).unwrap();
+      0
+    }
+    TailPath::SyncTo => usize::from(inp.sync_to(|_| false, || None).unwrap().is_some()),
+    TailPath::SyncThrough => usize::from(inp.sync_through(|_| false, || None).unwrap().is_some()),
+    TailPath::SyncBalanced => usize::from(
+      inp
+        .sync_balanced(|_: &ProbeKind| Balance::<()>::Neutral, |_| false)
+        .unwrap()
+        .is_some(),
+    ),
+  };
+  let span = inp.span();
+  (
+    items,
+    (span.start, span.end),
+    inp.token_budget().spent() - before,
+    inp.token_budget().refused_an_item(),
+  )
+}
+
+/// **Every path that lexes is answered by a memoised error tail**, at the tail's start and partway
+/// through a run that reaches it.
+///
+/// At the start: `1??` with `1` consumed, then a two-token peek over both `?`, which meets the
+/// ceiling of 3 and leaves a memo of the run from offset 1. Every path then stands at 1. Each one
+/// meets the end of input without lexing the run, charging for it or being refused, and the two
+/// that commit at the end of input commit `(2, 3)`, the last `?`: the met-ceiling settle a replay
+/// of the run would end in. The rewinding syncs rewind to `(0, 1)`.
+///
+/// Partway through: the same peek from the start, and then a declined `attempt` that consumed the
+/// cached `1`, so the cache is empty and the position is back at 0 with the reports still standing.
+/// The ceiling is 4, room for `1` alone. Every path that lexes past a token on its way, the wide
+/// peek and the four scans, lexes `1` again for one charge and meets the memo at 1, before the
+/// budget preflight that would otherwise refuse the first `?`. The one-token consumes stop at `1`
+/// and never get that far, so they are cells of the first kind only.
+///
+/// Falsifying output before the memo: every row refuses. With the memo read only where a fill or a
+/// consume resumed (`aeb8b2c2`): the three syncs refuse at the start, every row partway through
+/// refuses, and the trivia skip commits `(0, 3)`, the span of a lexer that lexed nothing.
+#[test]
+fn every_path_that_lexes_is_answered_by_a_memoised_error_tail() {
+  use hybrid_arraydeque::typenum::U2;
+
+  for path in TAIL_PATHS {
+    let mut input = tail_input("1??", 3);
+    let mut inp = input.as_ref();
+    assert!(inp.next().unwrap().is_some(), "`1`");
+    let _ = inp.peek::<U2>().unwrap();
+    let settled = match path {
+      TailPath::SkipWhile | TailPath::SyncTo => (2, 3),
+      _ => (0, 1),
+    };
+    assert_eq!(
+      drive_tail_path(path, &mut inp),
+      (0, settled, 0, false),
+      "{path:?} at the tail's start: (tokens, committed span, charge, refused)"
+    );
+  }
+
+  for path in [
+    TailPath::Peek,
+    TailPath::SkipWhile,
+    TailPath::SyncTo,
+    TailPath::SyncThrough,
+    TailPath::SyncBalanced,
+  ] {
+    let mut input = tail_input("1??", 4);
+    let mut inp = input.as_ref();
+    let _ = inp.peek::<U2>().unwrap();
+    let declined: Option<()> = inp.attempt(|txn| {
+      assert!(txn.next().unwrap().is_some(), "`1`, from the cache");
+      None
+    });
+    assert!(declined.is_none(), "the attempt declined");
+    let (tokens, settled) = match path {
+      TailPath::Peek => (1, (0, 0)),
+      TailPath::SkipWhile | TailPath::SyncTo => (0, (2, 3)),
+      _ => (0, (0, 0)),
+    };
+    assert_eq!(
+      drive_tail_path(path, &mut inp),
+      (tokens, settled, 1, false),
+      "{path:?} partway through: (tokens, committed span, charge, refused)"
+    );
+  }
+}
+
+/// **Codex R1, the first finding: a skip settles where lexing the tail again would.** `1?` under a
+/// ceiling of 3: a two-token peek caches `1`, reports `?` and asks the lexer for the end of input,
+/// two charges in all. The trivia skip that follows takes `1` and meets the memo. Lexing `?` again
+/// would have been the third charge, met the ceiling at the end of the source, and settled at `?`
+/// without asking the lexer for anything: `(1, 2)`, whose slice is `"?"`. The memo has to settle
+/// there too.
+///
+/// Falsifying output with the memo resumed at the end of the source (`aeb8b2c2`): `(2, 2)` and
+/// `""`, the span of a lexer asked for the end of input with one charge to spare.
+#[test]
+fn a_skip_after_a_peek_over_an_error_tail_settles_where_lexing_the_tail_again_would() {
+  use hybrid_arraydeque::typenum::U2;
+
+  let mut input = tail_input("1?", 3);
+  let mut inp = input.as_ref();
+  assert_eq!(inp.peek::<U2>().unwrap().len(), 1, "the window holds `1`");
+  inp.skip_while(|_| true).unwrap();
+  let span = inp.span();
+  assert_eq!(
+    (span.start, span.end),
+    (1, 2),
+    "settled at `?`, where the met ceiling leaves a replay"
+  );
+  assert_eq!(inp.slice(), "?");
+  assert_eq!(inp.token_budget().spent(), 2, "and `?` was charged once");
+  assert!(!inp.token_budget().refused_an_item());
+}
+
+/// **Codex R1, the second finding: a fill that starts before a live tail.** `1?` under a one-slot
+/// cache and a ceiling of 3. The first two-token peek spends 2 and leaves a memo from offset 1. A
+/// declined `attempt` that consumed the cached `1` puts the position back at 0 with the cache
+/// empty and the report standing. The second peek then lexes `1` again, the third and last charge,
+/// and reaches offset 1 with the ceiling met: the memo has to answer there, ahead of the budget
+/// preflight that would otherwise probe the `?` it already reported and refuse it.
+///
+/// Falsifying output with the memo read only at the fill's entry (`aeb8b2c2`): the second peek
+/// refuses, `refused_an_item` reads `true`.
+#[test]
+fn a_fill_that_reaches_a_memoised_error_tail_partway_through_is_answered_before_the_preflight() {
+  use hybrid_arraydeque::typenum::U2;
+
+  let cache: ProbeOptionCache<'_> = None;
+  let mut input = Input::<ProbeLexer<'_>, ProbeOptionVerboseCtx<'_>, ()>::with_state_and_context(
+    "1?",
+    ProbeLimiter::with_limit(usize::MAX),
+    crate::input::InputContext::new(Verbose::<ProbeErr>::new(), cache)
+      .with_token_budget(crate::input::TokenBudget::with_limitation(3)),
+  );
+  let mut inp = input.as_ref();
+  assert_eq!(inp.peek::<U2>().unwrap().len(), 1, "the window holds `1`");
+  assert_eq!(inp.token_budget().spent(), 2);
+  let declined: Option<()> = inp.attempt(|txn| {
+    assert!(txn.next().unwrap().is_some(), "`1`, from the cache");
+    None
+  });
+  assert!(declined.is_none(), "the attempt declined");
+  assert_eq!(
+    inp.peek::<U2>().unwrap().len(),
+    1,
+    "`1` again, lexed for the third and last charge"
+  );
+  assert_eq!(inp.token_budget().spent(), 3);
+  assert!(
+    !inp.token_budget().refused_an_item(),
+    "the second peek met the memo at the end of `1`, and the `?` behind it was not refused"
+  );
+}
+
+/// **Codex R1, the third finding: a recovery scan at a memoised tail.** `?` under a ceiling of 1:
+/// `peek_one` reports the error, spends the ceiling and leaves a memo from offset 0. Each sync then
+/// starts there through the shared scanner and its own frontier. It must meet the end of input as
+/// `next_or_stop` does from the same place, refusing nothing, and keep its own end-of-input
+/// settle: `sync_to` commits at `?`, where the met ceiling leaves a replay, and the two rewinding
+/// syncs rewind.
+///
+/// Falsifying output with the memo read only by the resume that fills and consumes use
+/// (`aeb8b2c2`): each sync refuses the `?`, and `refused_an_item` reads `true`.
+#[test]
+fn a_recovery_scan_at_a_memoised_error_tail_ends_the_input_and_refuses_nothing() {
+  for path in [
+    TailPath::SyncTo,
+    TailPath::SyncThrough,
+    TailPath::SyncBalanced,
+  ] {
+    let mut input = tail_input("?", 1);
+    let mut inp = input.as_ref();
+    assert!(
+      inp.peek_one().unwrap().is_none(),
+      "`?` is reported, and is no token"
+    );
+    let settled = if path == TailPath::SyncTo {
+      (0, 1)
+    } else {
+      (0, 0)
+    };
+    assert_eq!(
+      drive_tail_path(path, &mut inp),
+      (0, settled, 0, false),
+      "{path:?}: (tokens, committed span, charge, refused)"
+    );
+    assert!(
+      inp.next_or_stop().unwrap().is_none(),
+      "{path:?}: a genuine end of input"
+    );
+    assert!(!inp.token_budget().refused_an_item(), "{path:?}");
+  }
 }
 
 /// A consume whose committed-token **observer** panics, on a warm cache. `driver` picks which
