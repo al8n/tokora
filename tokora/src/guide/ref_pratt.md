@@ -218,10 +218,10 @@ numbers bound different resources and meet by coincidence; where they meet the a
 refusal rather than an abort.
 
 - **`stacker` is not a substitute for the budget.** The feature puts a fresh heap stack segment
-  under each frame of the AST-level driver, and under each native frame the token-level driver
-  enters for four more pending operators, when the native stack is nearly exhausted, which is what
-  makes `SEGMENTED_PRATT_DEPTH` defensible; it does not make a too-deep input refusable. Without a
-  budget a segmented run ends when the machine's memory does.
+  under each frame of the AST-level driver, and under the token-level driver's own frame and each
+  native frame it enters for four more pending operators, when the native stack is nearly exhausted,
+  which is what makes `SEGMENTED_PRATT_DEPTH` defensible; it does not make a too-deep input
+  refusable. Without a budget a segmented run ends when the machine's memory does.
 - **One budget per input, not per parser.** Two pratt parsers composed into one grammar share the
   depth, because what the limit protects — the native stack — is shared too. The root expression
   counts as one level.

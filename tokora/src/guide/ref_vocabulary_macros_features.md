@@ -615,7 +615,7 @@ CAS-free fallback.
 | `trace` | [`traced`](crate::combinator::traced) + combinator instrumentation | **`std`** | requires `std`; zero-cost when off |
 | `conformance` | the `conformance` lexer test kit | **`alloc`** | requires `alloc` |
 | `fuzz` | the `fuzz` operation-script harness | **`std`** | requires `std` |
-| `stacker` | runs each **frame of the AST-level Pratt driver**, and each native frame the token-level driver enters for four more pending operators, on a fresh heap stack segment when the native stack is nearly exhausted. It does not raise the recursion budget — see [Recursion limits](super::ref_pratt#recursion-limits) | `dep:stacker`, **`std`**, `pratt` | requires `std` |
+| `stacker` | runs each **frame of the AST-level Pratt driver**, and the token-level driver's own frame and each native frame it enters for four more pending operators, on a fresh heap stack segment when the native stack is nearly exhausted. It does not raise the recursion budget — see [Recursion limits](super::ref_pratt#recursion-limits) | `dep:stacker`, **`std`**, `pratt` | requires `std` |
 
 ### no_std posture, in brief
 

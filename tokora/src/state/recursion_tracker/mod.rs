@@ -1452,10 +1452,10 @@ impl RecursionLimiter {
   /// # The precondition, stated as narrowly as it actually is
   ///
   /// `stacker` puts `stacker::maybe_grow` in tokora's **two Pratt engines**, and in nothing else:
-  /// on the typed driver's frame prologue, and on each native frame the token-level driver's loop
-  /// enters for four more pending operators. A frame that enters within 256 KiB of the end of its
-  /// stack continues on a fresh 2 MiB heap segment, so for those frames the ceiling stops being a
-  /// hardware constant.
+  /// on the typed driver's frame prologue, and on the token-level driver's own frame and each
+  /// native frame its loop enters for four more pending operators. A frame that enters within
+  /// 256 KiB of the end of its stack continues on a fresh 2 MiB heap segment, so for those frames
+  /// the ceiling stops being a hardware constant.
   ///
   /// It is **not** on [`InputRef::descend`](crate::InputRef::descend) or
   /// [`descending`](crate::InputRef::descending) as a consumer calls them from their own

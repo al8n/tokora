@@ -276,10 +276,11 @@ copy, and `unused_must_use` reports it. **The remedy is UFCS**:
   four in a native frame it enters for them and leaves once they are reduced. So it enters a
   native frame once for each four pending operators past the first four, where it entered one for
   each, and it allocates nothing. Under `stacker` it asks for room on the native stack once for
-  each of those frames, where it asked once for each level. Its results are unchanged: the value
-  and the order of the folds, the three recovery postures and their diagnostics, and the
-  recursion budget's refusal, at the same operator, offset, depth and limit. The budget is still
-  its one bound: the expression holds one level of it, and each pending operator one more.
+  its own frame and once for each of those it enters, where it asked once for each level. Its
+  results are unchanged: the value and the order of the folds, the three recovery postures and
+  their diagnostics, and the recursion budget's refusal, at the same operator, offset, depth and
+  limit. The budget is still its one bound: the expression holds one level of it, and each
+  pending operator one more.
 
 ### Added
 

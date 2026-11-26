@@ -409,22 +409,24 @@ fn count(hay: &str, needle: &str) -> usize {
 }
 
 /// The production file takes the budget's level once, for the expression's own, and asks the
-/// native stack for room once, where it makes a segment. The oracle is a file of its own, so the
-/// count is of the loop alone; and the oracle takes a level for each frame, with no `stacker`
-/// segment, as the recursive driver took one.
+/// native stack for room twice: for the expression's own native frame, and for each segment it
+/// makes. The oracle is a file of its own, so the count is of the loop alone; and the oracle takes
+/// a level for each frame, with no `stacker` segment, as the recursive driver took one.
 #[test]
 #[cfg_attr(
   miri,
   ignore = "reads crate source and string-matches: no UB surface, and miri interprets every byte"
 )]
-fn the_driver_takes_one_level_and_asks_for_the_native_stack_once() {
+fn the_driver_takes_one_level_and_asks_for_the_native_stack_twice() {
   const DRIVER: &str = include_str!("../pratt.rs");
   const ORACLE: &str = include_str!("oracle.rs");
   assert_eq!(count(DRIVER, ".descend("), 1, "the expression's own level");
   assert_eq!(
     count(DRIVER, "maybe_grow("),
-    1,
-    "in `pratt_grow`, around each new segment"
+    2,
+    "two sites ask: `pratt_in`, around the expression's own native frame, as the recursive \
+     driver's root frame asked at its prologue, so that a parse that keeps no more than four \
+     operators pending is checked too; and `pratt_grow`, around each new segment"
   );
   assert_eq!(count(ORACLE, ".descend("), 1, "one for each frame");
   assert_eq!(count(ORACLE, "maybe_grow("), 0);

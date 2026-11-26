@@ -3,12 +3,13 @@
 //! and `RecursionLimiter::SEGMENTED_PRATT_DEPTH` come from.
 //!
 //! Gated on `pratt` because the two Pratt engines are its only callers, the typed driver at each
-//! frame's prologue and the token-level driver at each segment its loop grows — `descend` has
-//! other ones, this does not. **`stacker` therefore implies `pratt`**: without that implication a
-//! `stacker` build resolved the dependency, built `psm`'s `cc` script, and compiled nothing able
-//! to call any of it. The `--each-feature` `stacker` leg consequently builds this module and both
-//! callers, which is the library half of the pair; the manifest's `std,logos,combinators,stacker`
-//! entry is what additionally compiles the suites that exercise them.
+//! frame's prologue and the token-level driver at its own frame and at each segment its loop grows
+//! — `descend` has other ones, this does not. **`stacker` therefore implies `pratt`**: without that
+//! implication a `stacker` build resolved the dependency, built `psm`'s `cc` script, and compiled
+//! nothing able to call any of it. The `--each-feature` `stacker` leg consequently builds this
+//! module and both callers, which is the library half of the pair; the manifest's
+//! `std,logos,combinators,stacker` entry is what additionally compiles the suites that exercise
+//! them.
 //!
 //! The **native call stack** a Pratt frame sits on, and the two things that bound how many of them
 //! fit: the recursion budget, which refuses, and the optional `stacker` feature, which moves where
@@ -82,8 +83,10 @@
 //! inherits the check for free, which a per-site placement cannot promise.
 //!
 //! The token-level driver has no frame for each level: it is one loop over the precedence machine,
-//! which holds its pending operators four to a native frame. It asks once for each of those frames,
-//! where its loop grows one, around the native frame the new four live in.
+//! which holds its pending operators four to a native frame. It asks once for the expression's own
+//! native frame, before its first read, as the recursive driver's root frame asked at its
+//! prologue, so that a parse that keeps few operators pending is checked too; and once for each
+//! further frame, where its loop grows one, around the native frame the new four live in.
 //!
 //! # THE MEASUREMENTS
 //!

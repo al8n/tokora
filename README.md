@@ -376,7 +376,7 @@ build on is unconditional: `Parser`, `Parse` and the `parse` drivers, the `Parse
 
 | Feature | Effect |
 | --- | --- |
-| `stacker` | Runs each **frame of the AST-level Pratt driver**, and each native frame the token-level driver enters for four more pending operators, on a fresh heap stack segment when the native stack is nearly exhausted; implies `std` and `pratt`. It does not raise the recursion budget; see [What `stacker` segments](#what-stacker-segments). |
+| `stacker` | Runs each **frame of the AST-level Pratt driver**, and the token-level driver's own frame and each native frame it enters for four more pending operators, on a fresh heap stack segment when the native stack is nearly exhausted; implies `std` and `pratt`. It does not raise the recursion budget; see [What `stacker` segments](#what-stacker-segments). |
 | `trace` | Turns `combinator::traced` into a wrapper that prints an indented enter, exit, and rollback transcript to stderr, and instruments Tokora's own combinators; implies `std`. Without it, `traced` is the identity. |
 | `unstable-raw` | Exposes the unstable raw checkpoint API: `InputRef::save`, `restore` and `commit`, and `Checkpoint` construction. |
 | `conformance` | Enables the `tokora::conformance` test kits for custom lexers, caches and emitters; implies `alloc`. |
@@ -385,12 +385,12 @@ build on is unconditional: `Parser`, `Parse` and the `parse` drivers, the `Parse
 ### What `stacker` segments
 
 `stacker` puts a fresh heap stack segment under Tokora's **two Pratt engines**, and under nothing
-else: under each frame of the AST-level driver, and under each native frame the token-level driver,
-which runs on the precedence machine, enters for four more pending operators. Your own `descend` /
-`descending` frames are ordinary native frames and are untouched, so the feature does **not** move
-`RecursionLimiter::PARSE_DEFAULT_DEPTH`, the [budget they share](#recursion-budget).
-`RecursionLimiter::SEGMENTED_PRATT_DEPTH` is the larger figure it does justify, for a caller whose
-whole descent is Pratt frames to opt into.
+else: under each frame of the AST-level driver; and under the token-level driver, which runs on the
+precedence machine, at its own frame and at each native frame it enters for four more pending
+operators. Your own `descend` / `descending` frames are ordinary native frames and are untouched, so
+the feature does **not** move `RecursionLimiter::PARSE_DEFAULT_DEPTH`, the
+[budget they share](#recursion-budget). `RecursionLimiter::SEGMENTED_PRATT_DEPTH` is the larger
+figure it does justify, for a caller whose whole descent is Pratt frames to opt into.
 
 It is not a substitute for the recursion budget: a segment is an `mmap`, so a deep enough input
 still ends the process with nothing on any `Result` channel.

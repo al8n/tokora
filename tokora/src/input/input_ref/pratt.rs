@@ -1,10 +1,12 @@
 //! The token-level Pratt driver, `InputRef::pratt`: one loop over the precedence machine.
 //!
 //! The machine keeps one frame for each operator that waits for its operand, and the loop keeps
-//! those frames in segments of `K` on the native stack: the first in the method's own frame, and
-//! each further one in a deeper native frame, made when the one below is full and left once its
-//! own frames are gone. The recursion budget is the machine's cap. The expression holds one level
-//! of it for itself, as the recursive driver's root frame did, and each pending operator one more.
+//! those frames in segments of `K` on the native stack: the first in the expression's own native
+//! frame, and each further one in a deeper native frame, made when the one below is full and left
+//! once its own frames are gone. Under `stacker` each of those native frames asks for room before
+//! it is entered, the expression's own included. The recursion budget is the machine's cap. The
+//! expression holds one level of it for itself, as the recursive driver's root frame did, and each
+//! pending operator one more.
 
 use hybrid_arraydeque::{ArraySize, typenum::U4};
 
@@ -250,8 +252,8 @@ where
   /// the first four in its own, and each further four in a deeper one, which it leaves once they
   /// are reduced. So the native stack a parse takes grows with how many operators it keeps
   /// pending at once, and not with the expression's length, and the driver allocates nothing of
-  /// its own. With the `stacker` feature, each of those deeper frames asks for room on the native
-  /// stack before it is entered.
+  /// its own. With the `stacker` feature, its own frame asks for room on the native stack before
+  /// it is entered, and so does each of those deeper frames.
   pub fn pratt<FoldPrefix, FoldInfix, FoldPostfix, Expr, Power>(
     &mut self,
     fold_prefix: FoldPrefix,
@@ -368,34 +370,42 @@ where
       .recursion()
       .limitation()
       .saturating_sub(this.recursion().depth());
-    // Four frames in this native frame, written only as frames are pushed, and nothing to drop at
-    // the end but their own count. The floor is the caller's, and no `Power` is built from
-    // `Default` for it.
-    let mut first: Segment<'_, Frame<'inp, L, Power>, K> = Segment::root();
-    let machine: Machine<'inp, L, Power, &mut Segment<'_, Frame<'inp, L, Power>, K>> =
-      PrattResolver::with_stack_and_floor(&mut first, min_precedence).max_depth(cap);
-    let mut folds = Folds {
-      prefix: fold_prefix,
-      infix: fold_infix,
-      postfix: fold_postfix,
-      cap,
-    };
-    match Self::pratt_run::<FoldPrefix, FoldInfix, FoldPostfix, Expr, Power, _, false, K>(
-      machine,
-      Next::Term,
-      this,
-      &mut folds,
-    )? {
-      Exit::Done(value) => Ok(value),
-      Exit::Drained(..) => {
-        unreachable!("the first segment has nothing below it, so its loop never drains")
-      }
-    }
+    // The expression's own native frame asks for room on the native stack before it is entered,
+    // as the recursive driver's root frame asked at its prologue: a parse entered with little
+    // stack left runs on a new one under `stacker`, however few operators it keeps pending. Each
+    // deeper frame `pratt_grow` makes asks again for its own.
+    crate::native_stack::maybe_grow(
+      move || -> Result<Option<Tok<'inp, L>>, ErrorOf<'inp, L, Ctx, Lang>> {
+        // Four frames in this native frame, written only as frames are pushed, and nothing to drop
+        // at the end but their own count. The floor is the caller's, and no `Power` is built from
+        // `Default` for it.
+        let mut first: Segment<'_, Frame<'inp, L, Power>, K> = Segment::root();
+        let machine: Machine<'inp, L, Power, &mut Segment<'_, Frame<'inp, L, Power>, K>> =
+          PrattResolver::with_stack_and_floor(&mut first, min_precedence).max_depth(cap);
+        let mut folds = Folds {
+          prefix: fold_prefix,
+          infix: fold_infix,
+          postfix: fold_postfix,
+          cap,
+        };
+        match Self::pratt_run::<FoldPrefix, FoldInfix, FoldPostfix, Expr, Power, _, false, K>(
+          machine,
+          Next::Term,
+          this,
+          &mut folds,
+        )? {
+          Exit::Done(value) => Ok(value),
+          Exit::Drained(..) => {
+            unreachable!("the first segment has nothing below it, so its loop never drains")
+          }
+        }
+      },
+    )
   }
 
-  /// The loop, over one segment: the first, in the method's own frame, or one `pratt_grow` made
-  /// over a full one. `UPPER` says which. It returns once its own frames are gone with frames
-  /// below, and hands the frame below the machine's state and what to do next.
+  /// The loop, over one segment: the first, in the expression's own native frame, or one
+  /// `pratt_grow` made over a full one. `UPPER` says which. It returns once its own frames are
+  /// gone with frames below, and hands the frame below the machine's state and what to do next.
   #[inline]
   fn pratt_run<FoldPrefix, FoldInfix, FoldPostfix, Expr, Power, St, const UPPER: bool, K>(
     mut machine: Machine<'inp, L, Power, St>,

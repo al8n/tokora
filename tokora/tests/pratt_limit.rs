@@ -2842,7 +2842,8 @@ fn with_stacker_the_same_chain_parses_past_the_thread_it_runs_on() {
 
   // And the token engine, on the same thread under the same raised budget. It has no frame for
   // each level any more: it holds its pending operators four to a native frame, and asks for room
-  // on the native stack once for each four, so this cell pins nothing of where its frames run.
+  // on the native stack once for its own frame and once for each four more, so this cell pins
+  // nothing of where its frames run.
   // What it pins is that the raised budget is honoured there too: the chain parses.
   let token: TokOutcome = on_a_2mib_stack(|| {
     let src = prefix_chain(FAR_PAST_THE_CEILING);
