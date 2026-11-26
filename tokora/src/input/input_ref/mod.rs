@@ -338,9 +338,11 @@ where
   /// The **token budget**, borrowed from the owning [`Input`](super::Input) — see that field for
   /// why a rollback does not refund it. Read through [`token_budget`](Self::token_budget); its
   /// only writers are [`lex_within_boundary`](Self::lex_within_boundary), which charges the one
-  /// item an authorized step produced, and its cold sibling
+  /// item an authorized step produced, its cold sibling
   /// [`settle_met_ceiling`](Self::settle_met_ceiling), which spends the one-shot probe that tells
-  /// a met ceiling from an end of input. There is no `token_budget_mut`.
+  /// a met ceiling from an end of input, and [`install_look_ahead`](Self::install_look_ahead), a
+  /// [look-ahead](Self::look_ahead)'s settle, which raises the count of what look-aheads lexed.
+  /// There is no `token_budget_mut`.
   ///
   /// It is the input's [`TokenBudgetTally`](super::TokenBudgetTally) and not the
   /// [`TokenBudget`](super::TokenBudget) its context carried: the configuration is a ceiling a
@@ -511,8 +513,8 @@ where
   /// token enters the slot other than by coming back from it, and a peek reads the slot without
   /// writing it. The flat expression driver reads this around a fold, to keep the classification
   /// of the head it staged. A cache with room pays nothing for it, since the push count is kept
-  /// anyway; the park id is bumped on the cold park path alone, once for each token that enters
-  /// the slot.
+  /// anyway; the park id is bumped on the cold park path and by a look-ahead's re-park, once for
+  /// each token that enters the slot.
   #[cfg(feature = "pratt")]
   #[inline(always)]
   pub(crate) fn staged_entry(&self) -> Option<StagedEntry> {
@@ -683,7 +685,8 @@ where
   /// [`front_parked`](Self::front_parked).
   ///
   /// A token the slot did not just hand out takes a new id there, and the one it handed out comes
-  /// back with its own: one saturating add, here and nowhere else.
+  /// back with its own: one saturating add. The one other place a token enters the slot,
+  /// [`install_look_ahead`](Self::install_look_ahead), re-parks a copy under the same rule.
   #[cold]
   #[inline(never)]
   fn park(&mut self, tok: CachedTokenOf<'inp, L>, origin: Origin) {
@@ -1415,11 +1418,12 @@ where
   /// The **token budget** this parse's lexer produces items against: the ceiling, and what has
   /// been charged toward it.
   ///
-  /// Read-only, deliberately. There is no `token_budget_mut` — the cell is written only by the
-  /// crate-internal lexing chokepoint (`lex_within_boundary`'s charge and `settle_met_ceiling`'s
-  /// one-shot latch), which is on the driver's side of the seam, so a budget cannot be lowered,
-  /// refunded or re-seeded by grammar code. The same absence [`recursion`](Self::recursion) relies
-  /// on.
+  /// Read-only, deliberately. There is no `token_budget_mut` — the cell is written only on the
+  /// driver's side of the seam, by the crate-internal lexing chokepoint (`lex_within_boundary`'s
+  /// charge and `settle_met_ceiling`'s one-shot latch) and by a [`look_ahead`](Self::look_ahead)'s
+  /// settle, which raises the count of what look-aheads lexed and lowers nothing. So a budget
+  /// cannot be lowered, refunded or re-seeded by grammar code. The same absence
+  /// [`recursion`](Self::recursion) relies on.
   ///
   /// Configure it with
   /// [`InputContext::with_token_budget`](crate::input::InputContext::with_token_budget) or
@@ -2489,6 +2493,9 @@ where
   /// [`attempt_parse`](Self::attempt_parse), which speaks the crate's
   /// [`ParseAttempt`](crate::ParseAttempt) vocabulary instead of making a
   /// decline borrow `Option`'s or `Result`'s.
+  ///
+  /// For speculation that is always taken back, see [`look_ahead`](Self::look_ahead): it also
+  /// puts back the tokens the cache held, and reports what it lexed apart from the rest.
   ///
   /// # Contract: the closure owns its span of the timeline
   ///

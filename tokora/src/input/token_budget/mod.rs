@@ -86,6 +86,11 @@
 /// - **not the cost of an item.** A lexer that scans a kilobyte to decide one token spends one
 ///   charge for it. A bound denominated in attempt cost is a different budget with a different
 ///   charging site, and this crate does not have one;
+/// - **not the work a parse kept.** What a [look-ahead](crate::InputRef::look_ahead) lexes is
+///   charged like every other item, and the ceiling refuses it like every other item. The tally
+///   reports that share apart, as
+///   [`look_ahead_spent`](TokenBudgetTally::look_ahead_spent), for a caller that bounds its own
+///   rescans against the work it kept; the ceiling itself is not one of those bounds;
 /// - **not a session.** The ceiling is per `Input`, the tally is per `Input`, and a
 ///   [`PartialSession`](crate::input::PartialSession) builds a fresh `Input` — and therefore a
 ///   fresh tally, at zero — for every redrive. What stops a session is the terminal latch this
@@ -160,8 +165,10 @@
 /// # No mutator
 ///
 /// There is no `Input::token_budget_mut` and no `InputRef::token_budget_mut`, for the same reason
-/// there is no `recursion_mut` and no `emitter_mut`: the cell has exactly one writer, and it is on
-/// the driver's side of the seam. Configure it once, at
+/// there is no `recursion_mut` and no `emitter_mut`: every writer of the cell is on the driver's
+/// side of the seam. The lexing site charges it, its cold sibling latches the one-shot probe, and
+/// a look-ahead's settle raises the look-ahead count; none of them lowers anything. Configure it
+/// once, at
 /// [`InputContext::with_token_budget`](super::InputContext::with_token_budget) or
 /// [`ParserContext::with_token_budget`](crate::ParserContext::with_token_budget); read the tally
 /// through [`InputRef::token_budget`](crate::InputRef::token_budget).
@@ -229,13 +236,15 @@ impl TokenBudget {
   }
 }
 
-/// What **one `Input`** has spent against its [`TokenBudget`], and whether that input's one-shot
-/// at-limit probe has already been spent on a refused item.
+/// What **one `Input`** has spent against its [`TokenBudget`], whether that input's one-shot
+/// at-limit probe has already been spent on a refused item, and how much of the spend was a
+/// look-ahead's.
 ///
 /// Read it through [`InputRef::token_budget`](crate::InputRef::token_budget). It is the driver's
 /// cell: `InputRef::lex_within_boundary` charges it, `InputRef::settle_met_ceiling` latches its
-/// probe, and there is no `token_budget_mut` on either [`InputRef`](crate::InputRef) or the input
-/// behind it.
+/// probe, a [look-ahead](crate::InputRef::look_ahead)'s settle raises
+/// [`look_ahead_spent`](Self::look_ahead_spent), and there is no `token_budget_mut` on either
+/// [`InputRef`](crate::InputRef) or the input behind it.
 ///
 /// # It is per input, and it cannot be moved between inputs
 ///
@@ -253,8 +262,9 @@ impl TokenBudget {
 ///
 /// # Deliberately outside the rollback set
 ///
-/// Both halves are durable, by the same four arguments, and those arguments are about the *cell*
-/// this type occupies rather than about either field:
+/// All three of its parts are durable — the spend, the probe latch and the look-ahead count — by
+/// the same four arguments, and those arguments are about the *cell* this type occupies rather than
+/// about any one field:
 ///
 /// - it is not a [`Checkpoint`](super::Checkpoint) field, so a rollback does not put it back;
 /// - it is not reached by the state re-key behind [`set_state`](crate::InputRef::set_state) or
@@ -267,6 +277,10 @@ impl TokenBudget {
 /// adversary who forces speculation unbounded free work. What that costs is stated rather than
 /// hidden — a re-lex after a rollback is charged again, so the ceiling bounds produce-events and
 /// not distinct document tokens. See [`TokenBudget`].
+///
+/// The look-ahead count is durable for the spend's sake: it witnesses part of `spent`, and a
+/// witness shares the rollback semantics of the fact it witnesses. Restored by a rollback that
+/// keeps the charge, it would drop the exclusion while the spend it excluded stayed.
 #[derive(Debug)]
 pub struct TokenBudgetTally {
   /// The configured ceiling, copied in at construction. Immutable for the life of the input:
@@ -396,8 +410,8 @@ impl TokenBudgetTally {
   /// Charges the one item [`is_exhausted`](Self::is_exhausted) authorized.
   ///
   /// **Precondition: `!is_exhausted()`**, established by the driver's preflight immediately before
-  /// it invoked the lexer, with nothing between the two that could spend (the tally has exactly
-  /// one writer and it is reached through `&mut`).
+  /// it invoked the lexer, with nothing between the two that could spend (this is the only writer
+  /// of `spent`, and the tally is reached through `&mut`).
   ///
   /// The increment **saturates**, and that is a consequence of the sentinel being excluded from the
   /// gate above rather than a belt-and-braces addition: `!is_exhausted()` no longer implies

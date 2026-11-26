@@ -616,6 +616,11 @@ where
   /// parked token's start, so the region re-lexes and — by the `Lexer` determinism contract —
   /// reproduces it. The extra scan a drop costs is the *baseline* behaviour of the only cache that
   /// can park anything.
+  ///
+  /// One rollback puts it back instead: an [`InputRef::look_ahead`]'s. The look-ahead copies the
+  /// slot when it begins, and once its own rollback has cleared the slot, its settle re-parks the
+  /// copy, under a new park id, so the read that follows serves the token rather than re-lexing
+  /// it.
   pending: Option<CachedTokenOf<'inp, L>>,
   /// The completeness finality (`is_final`) storage: the zero-sized `()` for [`Complete`] — so the
   /// complete input has the identical layout it had before this typestate existed — and a `bool`
@@ -844,14 +849,16 @@ where
   /// Configured at [`with_state_and_context`](Self::with_state_and_context) from
   /// [`InputContext::with_token_budget`] and defaulting to [`TokenBudget::unlimited`].
   ///
-  /// Its one writer is `InputRef::lex_within_boundary`, the single lexing site both lexing
-  /// drivers reach, which tests the ceiling *before* it invokes the lexer — a check taken after
-  /// the work, behind a stop a rollback can refund, bounds nothing — and charges one item after a
-  /// step produces one. Its cold sibling `InputRef::settle_met_ceiling` writes the other half: a
-  /// met ceiling is not an end of input, and where the two differ it spends a **one-shot probe**
-  /// latched in this same value. There is no
-  /// `token_budget_mut` on either this type or [`InputRef`], so grammar code has no route to lower
-  /// it — the same absence [`recursion`](Self::recursion) and [`emitter`](Self::emitter) rely on.
+  /// The charge's one writer is `InputRef::lex_within_boundary`, the single lexing site both
+  /// lexing drivers reach, which tests the ceiling *before* it invokes the lexer — a check taken
+  /// after the work, behind a stop a rollback can refund, bounds nothing — and charges one item
+  /// after a step produces one. Its cold sibling `InputRef::settle_met_ceiling` writes the second
+  /// half: a met ceiling is not an end of input, and where the two differ it spends a **one-shot
+  /// probe** latched in this same value. A third half counts what was charged while a
+  /// [look-ahead](InputRef::look_ahead) was open, and that look-ahead's settle is its one writer.
+  /// There is no `token_budget_mut` on either this type or [`InputRef`], so grammar code has no
+  /// route to lower it — the same absence [`recursion`](Self::recursion) and
+  /// [`emitter`](Self::emitter) rely on.
   ///
   /// # Deliberately outside the rollback set
   ///
