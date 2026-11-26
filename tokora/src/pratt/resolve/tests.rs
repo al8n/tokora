@@ -4,8 +4,8 @@
 //! the tables.
 //!
 //! Every cell runs in each of the crate's three tiers but the three that pin one tier's storage.
-//! They name `core` alone, but for the two that catch an unwind, which reach the `std` a test
-//! harness always links through `host`.
+//! They name `core` alone, but for those that catch an unwind or keep a flag for one thread, which
+//! reach the `std` a test harness always links through `host`.
 
 extern crate std as host;
 
@@ -657,6 +657,43 @@ fn the_latch_refuses_a_repeated_non_associative_power_and_nothing_else() {
   assert_eq!(m.handle_infix(neither(1, 5)), Ok(()));
 }
 
+/// A latch stays with the sub-expression it belongs to, and a push gives its operator's frame none:
+/// pushing `+` after `1 == 2` was reduced leaves the storage as pushing `+` over a fresh value
+/// does, whatever the root's latch.
+#[test]
+fn a_push_after_a_latching_reduction_stores_the_frame_a_fresh_push_stores() {
+  let mut latched = machine();
+  latched.handle_operand(1).unwrap();
+  latched.handle_infix(neither(0, 5)).unwrap();
+  latched.handle_operand(2).unwrap();
+  reduce_once(&mut latched, 0);
+  latched.handle_infix(left(1, 3)).unwrap();
+
+  let mut fresh = machine();
+  fresh.handle_operand(0).unwrap();
+  fresh.handle_infix(left(1, 3)).unwrap();
+
+  assert_eq!(latched.into_stack(), fresh.into_stack());
+}
+
+/// A push whose storage unwinds before it takes the frame leaves the latch where it was. After
+/// `1 == 2` is reduced at the root, the unwind takes the value with it and the sub-expression
+/// starts over, but its latch stands: a repeated `==` is still a chain.
+#[test]
+fn a_push_that_unwinds_leaves_the_latch_where_it_was() {
+  use host::panic::{AssertUnwindSafe, catch_unwind};
+
+  let mut m: Machine<Flaky> = PrattResolver::with_stack(Flaky::default());
+  m.handle_operand(1).unwrap();
+  m.handle_infix(neither(0, 5)).unwrap();
+  m.handle_operand(2).unwrap();
+  reduce_once(&mut m, 12);
+  m.stack.push_unwinds = true;
+  assert!(catch_unwind(AssertUnwindSafe(|| m.handle_infix(left(1, 7)))).is_err());
+  m.handle_operand(12).unwrap();
+  assert_eq!(m.offer(&offered(Rhs::Infix(5))), PrattOffer::Chain);
+}
+
 /// `Adjacent` is a left-associative infix operator at its power: the offer applies the floor to it,
 /// and fed as `PrattInfix::Left` its reduction never arms the latch.
 #[test]
@@ -1039,11 +1076,10 @@ fn into_parts_and_from_parts_give_the_same_machine_back_in_every_phase() {
   }
 }
 
-/// A non-associative operator that is a segment's only frame, reduced, latches the sub-expression
-/// below it, the right operand of the frame below the link, and nothing is written through the
-/// link: the machine keeps that latch, and the frame below still holds the root's.
+/// A non-associative operator that is a segment's only frame, reduced, latches the frame below: the
+/// one write that crosses a link. The machine's copy of the innermost latch follows it.
 #[test]
-fn a_reduction_that_empties_a_segment_latches_the_operand_below_it() {
+fn a_latch_set_through_the_link_latches_the_frame_below() {
   let mut root: Segment<'_, Frame, U1> = Segment::root();
   let mut m: Machine<&mut Segment<'_, Frame, U1>> = PrattResolver::with_stack(&mut root);
   m.handle_operand(1).unwrap();
@@ -1072,8 +1108,8 @@ fn a_reduction_that_empties_a_segment_latches_the_operand_below_it() {
 
   let m = PrattResolver::from_parts(state, segment);
   assert_eq!(m.depth(), 1);
+  assert_eq!(m.stack.last().map(|frame| frame.latch), Some(Some(5)));
   assert_eq!(m.state.latch, Some(5));
-  assert_eq!(m.stack.last().map(|frame| frame.latch), Some(None));
   assert_eq!(m.offer(&offered(Rhs::Infix(5))), PrattOffer::Chain);
   assert_eq!(m.offer(&offered(Rhs::Infix(4))), PrattOffer::Take);
 }
@@ -1236,11 +1272,20 @@ where
   let before = m.clone();
   let phase = answer(&before);
   let outcome = apply(m, event);
-  // The floor an offer reads is the one the frames give, read back off the storage: the drive's
-  // own expectations come from the machine's offer, so they cannot catch a floor kept wrong.
+  // The floor and the latch an offer reads are copies of the ones the frames hold, read back off
+  // the storage: the drive's own expectations come from the machine's offer, so they cannot catch
+  // a copy kept wrong.
   assert!(
     m.floor_is_kept(),
     "{event:?} in {phase:?}: the floor kept is the frame on top's"
+  );
+  let innermost_latch = match m.top() {
+    None => m.state.root_latch,
+    Some(frame) => frame.latch,
+  };
+  assert_eq!(
+    m.state.latch, innermost_latch,
+    "{event:?} in {phase:?}: the latch kept is the one the innermost sub-expression has"
   );
   match (event, &outcome) {
     (Event::Poll, Outcome::Polled(poll)) => {
@@ -1290,13 +1335,12 @@ where
         assert!(pending.is_none());
         assert_eq!(*m, before, "a `retract` that takes nothing changes nothing");
       } else {
-        // One frame fewer, and nothing else moved: the frames below stay, and the latch is the one
-        // the popped frame kept, the latch the sub-expression had before the operator was taken.
+        // One frame fewer, and nothing else moved: the frames below and the root's latch stay.
         let mut below = before.stack.clone();
         let top = below.pop().unwrap();
         assert_eq!(m.stack, below);
         assert_eq!(m.depth() + 1, before.depth());
-        assert_eq!(m.state.latch, top.latch);
+        assert_eq!(m.state.root_latch, before.state.root_latch);
         match top.operator {
           FrameOperator::Prefix(operator) => {
             assert_eq!(*pending, Some(PrattPending::Prefix(operator)));
