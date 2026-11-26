@@ -439,7 +439,8 @@ fn peek_then_consume_single_lexer_error() {
 
 #[test]
 fn peek_trailing_then_consume_single_lexer_error() {
-  // Error trails the cached token (no later cached token). Consume re-lexes it.
+  // Error trails the cached token and runs to the end of input (no later cached token). The
+  // consume resumes past it, through the end-of-input memo the peek left.
   let n = count_lexer_errors("a @", |inp| {
     use hybrid_arraydeque::typenum::U2;
     {
