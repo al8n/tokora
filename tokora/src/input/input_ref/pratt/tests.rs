@@ -1,12 +1,14 @@
 //! The token-level driver against the recursive body it replaced, and alone.
 //!
 //! The oracle is that body, kept in `oracle.rs`. Where the crate has `std`, the two are run over
-//! generated token lists and every outcome is compared: the value or the error, with its offset,
-//! its depth and its limit; the folds, the emissions and the lexer errors the input reported, as
-//! one ordered log, each with the spans or the offset it was handed; the position the input is
-//! left at; the token after it; and the token budget's charge. The loop runs with segments of one,
-//! two and four frames, the segment's size being a type parameter of the crate-private loop, and
-//! every one of those is the oracle's. The cells that name `core` alone run in every tier.
+//! generated token lists, with a plain table and with one that keeps state, whose answers the folds
+//! change, and every outcome is compared: the value or the error, with its offset, its depth and
+//! its limit; the classifications the table was asked for, the folds, the emissions and the lexer
+//! errors the input reported, as one ordered log, each with the token, the spans or the offset it
+//! was handed; the position the input is left at; the token after it; and the token budget's
+//! charge. The loop runs with segments of one, two and four frames, the segment's size being a type
+//! parameter of the crate-private loop, and every one of those is the oracle's. The cells that name
+//! `core` alone run in every tier.
 
 use hybrid_arraydeque::{ArraySize, typenum::U4};
 
@@ -170,6 +172,8 @@ fn adjacent(power: u8) -> Option<PrattRHS<(), (), (), (), u8>> {
 /// associativity at each of two powers, and a zero-token operator at each.
 impl PrattToken<'_, Expr, u8> for Tok {
   fn try_pratt_lhs(&self) -> Option<PrattLHS<(), (), u8>> {
+    #[cfg(feature = "std")]
+    log::push(log::Event::Lhs(self.0));
     match self.0 {
       b'0'..=b'9' => Some(PrattLHS::Operand(())),
       b'-' => Some(PrattLHS::Prefix(Precedenced::new((), 40))),
@@ -180,6 +184,8 @@ impl PrattToken<'_, Expr, u8> for Tok {
   }
 
   fn try_pratt_rhs(&self) -> Option<PrattRHS<(), (), (), (), u8>> {
+    #[cfg(feature = "std")]
+    log::push(log::Event::Rhs(self.0));
     match self.0 {
       b'+' | b'-' => infix(PrattInfix::Left(()), 10),
       b'&' => infix(PrattInfix::Right(()), 10),
@@ -287,6 +293,8 @@ fn fold_prefix<'inp, E>(
 ) -> Result<Op, Fail> {
   #[cfg(feature = "std")]
   log::push(log::Event::Prefix(operator.span(), operand.span()));
+  #[cfg(feature = "std")]
+  flip::folded(operator.data().0);
   Ok(over(&[operator.span(), operand.span()]))
 }
 
@@ -307,6 +315,10 @@ fn fold_infix<'inp, E>(
     right.span(),
     operator.span(),
   ));
+  #[cfg(feature = "std")]
+  flip::folded(match operator.data() {
+    PrattInfix::Left(token) | PrattInfix::Right(token) | PrattInfix::Neither(token) => token.0,
+  });
   Ok(over(&[left.span(), right.span(), operator.span()]))
 }
 
@@ -317,6 +329,8 @@ fn fold_postfix<'inp, E>(
 ) -> Result<Op, Fail> {
   #[cfg(feature = "std")]
   log::push(log::Event::Postfix(operand.span(), operator.span()));
+  #[cfg(feature = "std")]
+  flip::folded(operator.data().0);
   Ok(over(&[operand.span(), operator.span()]))
 }
 
@@ -434,7 +448,8 @@ fn the_driver_takes_one_level_and_asks_for_the_native_stack_twice() {
 
 // ── With `std`: the differential, and the native stack ────────────────────────────────────────
 
-/// The ordered log: what the folds were handed, what was emitted, and what the input reported.
+/// The ordered log: what the table was asked, what the folds were handed, what was emitted, and
+/// what the input reported.
 #[cfg(feature = "std")]
 mod log {
   use core::cell::RefCell;
@@ -444,6 +459,10 @@ mod log {
   /// One entry.
   #[derive(Debug, Clone, Copy, PartialEq, Eq)]
   pub(super) enum Event {
+    /// The table classified the token with this byte at a term's position.
+    Lhs(u8),
+    /// The table classified the token with this byte at an operator's position.
+    Rhs(u8),
     /// A prefix fold: the operator's span, and the operand's.
     Prefix(SimpleSpan, SimpleSpan),
     /// An infix fold: its associativity, and the spans of its left operand, right operand and
@@ -473,6 +492,82 @@ mod log {
   }
 }
 
+/// What the folds have changed of the stateful table, [`Flip`]: one switch for each operator whose
+/// fold flips it, kept on the thread and reset before each parse the differential runs.
+#[cfg(feature = "std")]
+mod flip {
+  use core::cell::Cell;
+
+  /// Flipped by each fold of `*`.
+  pub(super) const STAR: u8 = 1;
+  /// Flipped by each fold of `!`.
+  pub(super) const BANG: u8 = 2;
+  /// Flipped by each fold of `~`.
+  pub(super) const TILDE: u8 = 4;
+
+  std::thread_local! {
+    static ON: Cell<u8> = const { Cell::new(0) };
+  }
+
+  /// A fold of the operator `byte` was performed.
+  pub(super) fn folded(byte: u8) {
+    let switch = match byte {
+      b'*' => STAR,
+      b'!' => BANG,
+      b'~' => TILDE,
+      _ => return,
+    };
+    ON.with(|on| on.set(on.get() ^ switch));
+  }
+
+  /// Whether `switch` is on.
+  pub(super) fn is(switch: u8) -> bool {
+    ON.with(|on| (on.get() & switch) != 0)
+  }
+
+  /// Every switch off.
+  pub(super) fn reset() {
+    ON.with(|on| on.set(0));
+  }
+}
+
+/// [`Expr`]'s table, with answers the folds change: a classifier that keeps state, which the
+/// token-level driver's contract allows.
+///
+/// | flipped by each fold of | while on |
+/// |---|---|
+/// | `*` | `+` is no operator, and `;` a postfix operator at 50 |
+/// | `!` | `^` is left-associative |
+/// | `~` | `<` is left-associative, and `,` an infix operator, left, at 10 |
+///
+/// So a token's answer can change between the read that meets it below a pending operator and the
+/// read after that operator's fold: an operator becomes none, none becomes one, a zero-token
+/// operator becomes a spelled one, and an operator changes its associativity, which moves the floor
+/// of its right operand and the chain it may repeat.
+#[cfg(feature = "std")]
+struct Flip;
+
+#[cfg(feature = "std")]
+impl PrattToken<'_, Flip, u8> for Tok {
+  fn try_pratt_lhs(&self) -> Option<PrattLHS<(), (), u8>> {
+    <Self as PrattToken<'_, Expr, u8>>::try_pratt_lhs(self)
+  }
+
+  /// [`Expr`]'s answer, asked first so that the log records the classification once, and then
+  /// changed while a switch is on.
+  fn try_pratt_rhs(&self) -> Option<PrattRHS<(), (), (), (), u8>> {
+    let plain = <Self as PrattToken<'_, Expr, u8>>::try_pratt_rhs(self);
+    match self.0 {
+      b'+' if flip::is(flip::STAR) => None,
+      b';' if flip::is(flip::STAR) => postfix(50),
+      b'^' if flip::is(flip::BANG) => infix(PrattInfix::Left(()), 30),
+      b'<' if flip::is(flip::TILDE) => infix(PrattInfix::Left(()), 15),
+      b',' if flip::is(flip::TILDE) => infix(PrattInfix::Left(()), 10),
+      _ => plain,
+    }
+  }
+}
+
 #[cfg(feature = "std")]
 mod with_std {
   use hybrid_arraydeque::{
@@ -482,13 +577,15 @@ mod with_std {
 
   use core::cell::Cell;
 
-  use super::{ByteLexer, Expr, Fail, Op, Tok, fold_infix, fold_postfix, fold_prefix, log};
+  use super::{
+    ByteLexer, Expr, Fail, Flip, Op, Tok, flip, fold_infix, fold_postfix, fold_prefix, log,
+  };
   use crate::{
     InputRef, SimpleSpan,
     cache::{Cache, DefaultCache},
     emitter::{Emitter, PrattEmitter},
     error::{UnexpectedEoLhs, UnexpectedEoRhs, UnexpectedTokenOf},
-    input::{Cursor, Input, InputContext},
+    input::{Cursor, Input, InputContext, TokenBudget},
     pratt::{PrattInfix, PrattLHS, PrattPower, PrattRHS, Precedenced},
     span::Spanned,
     state::RecursionLimiter,
@@ -559,10 +656,27 @@ mod with_std {
   }
 
   /// Parses `src` with `driver` under a budget of `limit`, none when `None`, at the floor `floor`,
-  /// over the cache `C`.
-  fn run<'inp, C>(src: &'inp str, driver: Driver, limit: Option<usize>, floor: u8) -> Outcome
+  /// over the cache `C`, with the table `X`.
+  fn run<'inp, C, X>(src: &'inp str, driver: Driver, limit: Option<usize>, floor: u8) -> Outcome
   where
     C: Cache<'inp, ByteLexer<'inp>>,
+    Tok: PrattToken<'inp, X, u8>,
+  {
+    budgeted::<C, X>(src, driver, limit, floor, TokenBudget::unlimited())
+  }
+
+  /// [`run`], under the token budget `tokens`. The stateful table's switches are reset first, so
+  /// that every parse of a source starts from the same table.
+  fn budgeted<'inp, C, X>(
+    src: &'inp str,
+    driver: Driver,
+    limit: Option<usize>,
+    floor: u8,
+    tokens: TokenBudget,
+  ) -> Outcome
+  where
+    C: Cache<'inp, ByteLexer<'inp>>,
+    Tok: PrattToken<'inp, X, u8>,
   {
     let limiter = limit.map_or(
       RecursionLimiter::unlimited(),
@@ -571,20 +685,23 @@ mod with_std {
     let mut input = Input::<ByteLexer<'_>, (Logged, C), ()>::with_state_and_context(
       src,
       (),
-      InputContext::new(Logged, C::new()).with_recursion_limiter(limiter),
+      InputContext::new(Logged, C::new())
+        .with_recursion_limiter(limiter)
+        .with_token_budget(tokens),
     );
     let mut inp = input.as_ref();
     log::take();
+    flip::reset();
     let result = match driver {
-      Driver::Oracle => inp.pratt_oracle::<_, _, _, Expr, u8>(
+      Driver::Oracle => inp.pratt_oracle::<_, _, _, X, u8>(
         fold_prefix::<Logged>,
         fold_infix::<Logged>,
         fold_postfix::<Logged>,
         floor,
       ),
-      Driver::Loop(1) => looped::<C, U1>(&mut inp, floor),
-      Driver::Loop(2) => looped::<C, U2>(&mut inp, floor),
-      Driver::Loop(_) => inp.pratt_with_min_precedence::<_, _, _, Expr, u8>(
+      Driver::Loop(1) => looped::<C, X, U1>(&mut inp, floor),
+      Driver::Loop(2) => looped::<C, X, U2>(&mut inp, floor),
+      Driver::Loop(_) => inp.pratt_with_min_precedence::<_, _, _, X, u8>(
         fold_prefix::<Logged>,
         fold_infix::<Logged>,
         fold_postfix::<Logged>,
@@ -604,12 +721,13 @@ mod with_std {
     }
   }
 
-  fn looped<'inp, C, K>(inp: &mut Ir<'inp, '_, C>, floor: u8) -> Result<Option<Op>, Fail>
+  fn looped<'inp, C, X, K>(inp: &mut Ir<'inp, '_, C>, floor: u8) -> Result<Option<Op>, Fail>
   where
     C: Cache<'inp, ByteLexer<'inp>>,
+    Tok: PrattToken<'inp, X, u8>,
     K: ArraySize,
   {
-    inp.pratt_in::<_, _, _, Expr, u8, K>(
+    inp.pratt_in::<_, _, _, X, u8, K>(
       floor,
       &mut fold_prefix::<Logged>,
       &mut fold_infix::<Logged>,
@@ -706,22 +824,24 @@ mod with_std {
   const FLOORS: [u8; 3] = [0, 10, 16];
 
   /// Compares every driver with the oracle on one source, under every budget and floor, over the
-  /// cache `C`, and counts the segments each size grew.
-  fn compare<'inp, C>(src: &'inp str, grown: &mut [usize; 3])
+  /// cache `C`, with the table `X`, and counts the segments each size grew.
+  fn compare<'inp, C, X>(src: &'inp str, grown: &mut [usize; 3])
   where
     C: Cache<'inp, ByteLexer<'inp>>,
+    Tok: PrattToken<'inp, X, u8>,
   {
+    let table = core::any::type_name::<X>();
     for limit in LIMITS {
       for floor in FLOORS {
-        let want = run::<C>(src, Driver::Oracle, limit, floor);
+        let want = run::<C, X>(src, Driver::Oracle, limit, floor);
         super::super::probe::take();
         for (size, grew) in [1, 2, 4].into_iter().zip(grown.iter_mut()) {
-          let got = run::<C>(src, Driver::Loop(size), limit, floor);
+          let got = run::<C, X>(src, Driver::Loop(size), limit, floor);
           *grew += super::super::probe::take().0;
           assert_eq!(
             got, want,
-            "`{src}` under a budget of {limit:?} at the floor {floor}, in segments of {size}: the \
-             loop's outcome, then the recursive driver's"
+            "`{src}` with the table `{table}` under a budget of {limit:?} at the floor {floor}, in \
+             segments of {size}: the loop's outcome, then the recursive driver's"
           );
         }
       }
@@ -730,8 +850,9 @@ mod with_std {
 
   /// Every outcome the loop gives is the recursive driver's, over generated token lists, in
   /// segments of one, two and four frames, under the default cache and under the one that holds
-  /// nothing, where a declined token waits in the parked slot. And the comparison cannot pass
-  /// without growing: each size grows a segment somewhere in the set.
+  /// nothing, where a declined token waits in the parked slot; with the plain table, and with the
+  /// stateful one, whose answers the folds change. And the comparison cannot pass without growing:
+  /// each size grows a segment somewhere in the set.
   #[test]
   fn every_outcome_of_the_loop_is_the_recursive_driver_s() {
     // Miri interprets each step, and `trace` writes a line for every read of the input: both
@@ -740,7 +861,7 @@ mod with_std {
     let cases = if whole {
       1000
     } else if cfg!(miri) {
-      2
+      1
     } else {
       40
     };
@@ -748,8 +869,10 @@ mod with_std {
     let mut grown = [0usize; 3];
     for _ in 0..cases {
       let src = generate(&mut rng);
-      compare::<DefaultCache<'_, ByteLexer<'_>>>(&src, &mut grown);
-      compare::<()>(&src, &mut grown);
+      compare::<DefaultCache<'_, ByteLexer<'_>>, Expr>(&src, &mut grown);
+      compare::<(), Expr>(&src, &mut grown);
+      compare::<DefaultCache<'_, ByteLexer<'_>>, Flip>(&src, &mut grown);
+      compare::<(), Flip>(&src, &mut grown);
     }
     if whole {
       assert!(
@@ -781,11 +904,119 @@ mod with_std {
       "- - - - - 1 = 2",
     ] {
       for limit in [None, Some(4)] {
-        let want = run::<DefaultCache<'_, ByteLexer<'_>>>(src, Driver::Oracle, limit, 0);
-        let got = run::<DefaultCache<'_, ByteLexer<'_>>>(src, Driver::Loop(1), limit, 0);
+        let want = run::<DefaultCache<'_, ByteLexer<'_>>, Expr>(src, Driver::Oracle, limit, 0);
+        let got = run::<DefaultCache<'_, ByteLexer<'_>>, Expr>(src, Driver::Loop(1), limit, 0);
         assert_eq!(got, want, "`{src}` under a budget of {limit:?}");
       }
     }
+  }
+
+  /// One source with the stateful table, under a budget of 4 and a token budget of 32: the
+  /// oracle's outcome, which every loop's is, over both caches and in segments of one, two and four
+  /// frames.
+  fn flipped(src: &str) -> Outcome {
+    let want = budgeted::<DefaultCache<'_, ByteLexer<'_>>, Flip>(
+      src,
+      Driver::Oracle,
+      Some(4),
+      0,
+      TokenBudget::with_limitation(32),
+    );
+    for size in [1, 2, 4] {
+      let cached = budgeted::<DefaultCache<'_, ByteLexer<'_>>, Flip>(
+        src,
+        Driver::Loop(size),
+        Some(4),
+        0,
+        TokenBudget::with_limitation(32),
+      );
+      assert_eq!(
+        cached, want,
+        "`{src}` over the default cache, in segments of {size}"
+      );
+    }
+    let parked = budgeted::<(), Flip>(
+      src,
+      Driver::Oracle,
+      Some(4),
+      0,
+      TokenBudget::with_limitation(32),
+    );
+    for size in [1, 2, 4] {
+      let got = budgeted::<(), Flip>(
+        src,
+        Driver::Loop(size),
+        Some(4),
+        0,
+        TokenBudget::with_limitation(32),
+      );
+      assert_eq!(got, parked, "`{src}` over no cache, in segments of {size}");
+    }
+    want
+  }
+
+  /// A classifier may keep state, and a fold may change what it answers. A token that waits below
+  /// a pending operator is classified again after that operator's fold, as the recursive driver's
+  /// frame classified it on its return, and its new answer is the one offered: no classification
+  /// outlives the read that made it. The log shows each token classified where the recursive
+  /// driver classified it, and as often.
+  #[test]
+  fn a_token_that_waits_for_a_fold_is_classified_again_after_it() {
+    use log::Event::{Infix, Lhs, Postfix, Prefix, Rhs};
+    fn span(start: usize, end: usize) -> SimpleSpan {
+      SimpleSpan::new(start, end)
+    }
+    // `+` waits below `*`, and the fold of `1 * 2` makes it no operator: the value is `1 * 2`, and
+    // `+` is left on the input.
+    let plus = flipped("1*2+3");
+    assert_eq!(plus.result, Ok(Some(Spanned::new(span(0, 3), Tok(b'#')))));
+    assert_eq!(
+      plus.log,
+      [
+        Lhs(b'1'),
+        Rhs(b'*'),
+        Lhs(b'2'),
+        Rhs(b'+'),
+        Infix(b'L', span(0, 1), span(2, 3), span(1, 2)),
+        Rhs(b'+'),
+      ]
+    );
+    assert_eq!(plus.at, 3);
+    assert_eq!(plus.next, Ok(Some(Spanned::new(span(3, 4), Tok(b'+')))));
+    // `;` waits below `*` as no operator, and the fold makes it a postfix one, which the root
+    // takes.
+    let semi = flipped("1*2;");
+    assert_eq!(semi.result, Ok(Some(Spanned::new(span(0, 4), Tok(b'#')))));
+    assert_eq!(
+      semi.log,
+      [
+        Lhs(b'1'),
+        Rhs(b'*'),
+        Lhs(b'2'),
+        Rhs(b';'),
+        Infix(b'L', span(0, 1), span(2, 3), span(1, 2)),
+        Rhs(b';'),
+        Postfix(span(0, 3), span(3, 4)),
+      ]
+    );
+    assert_eq!(semi.at, 4);
+    assert_eq!(semi.next, Ok(None));
+    // `,` waits below `~` as a zero-token operator, and the fold of `~ 1` makes it a spelled
+    // infix one, which the root takes: no diagnostic.
+    let comma = flipped("~1,2");
+    assert_eq!(comma.result, Ok(Some(Spanned::new(span(0, 4), Tok(b'#')))));
+    assert_eq!(
+      comma.log,
+      [
+        Lhs(b'~'),
+        Lhs(b'1'),
+        Rhs(b','),
+        Prefix(span(0, 1), span(1, 2)),
+        Rhs(b','),
+        Lhs(b'2'),
+        Infix(b'L', span(0, 2), span(3, 4), span(2, 3)),
+      ]
+    );
   }
 
   /// A power whose `Default` is counted, on the thread.
@@ -950,7 +1181,7 @@ mod with_std {
       .stack_size(STACK)
       .spawn(move || {
         let src = right_chain(100);
-        let outcome = run::<DefaultCache<'_, ByteLexer<'_>>>(&src, driver, Some(128), 0);
+        let outcome = run::<DefaultCache<'_, ByteLexer<'_>>, Expr>(&src, driver, Some(128), 0);
         let (frames, marks) = super::super::probe::take();
         (outcome.result, frames, marks)
       })

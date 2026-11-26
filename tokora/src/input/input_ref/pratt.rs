@@ -7,6 +7,11 @@
 //! it is entered, the expression's own included. The recursion budget is the machine's cap. The
 //! expression holds one level of it for itself, as the recursive driver's root frame did, and each
 //! pending operator one more.
+//!
+//! The reads are the recursive driver's. A classification is offered only by the read that made
+//! it: a token the innermost sub-expression does not take stays staged, and is read and classified
+//! again after the reduction, as the recursive driver's frame below read it on its return, since a
+//! fold may change what a classifier that keeps state answers.
 
 use hybrid_arraydeque::{ArraySize, typenum::U4};
 
@@ -109,9 +114,6 @@ type Reduction<'inp, L, Power> = PrattReduction<
   Power,
 >;
 
-/// The table's classification of a token at an operator's position.
-type Rhs<Power> = PrattRHS<(), (), (), (), Power>;
-
 /// An operator the read's own offer took: the read commits its token.
 enum Taken<Power> {
   Infix(PrattInfix<(), (), ()>, Power),
@@ -121,17 +123,14 @@ enum Taken<Power> {
 /// Why the read at an operator's position committed nothing: the far side of its `None`, which
 /// alone cannot tell the endings apart. No offset rides in it: an offset is read off the input
 /// itself, after the read, for the reason given where the errors are raised.
-enum Parked<Power> {
-  /// The read was handed no token: the end of input. Its closure never answers this; it is the
-  /// answer while that closure has not run.
-  End,
-  /// The token is no operator of the table: it ends the expression, and stays staged.
-  NoOperator,
-  /// An operator the innermost sub-expression does not admit, below a pending one. Its
-  /// classification stands while the reductions it waits for are performed.
-  Reduce(Rhs<Power>),
-  /// An operator the root does not admit: it is not this expression's.
-  Decline,
+enum Parked {
+  /// One sub-expression ends here: the read was handed no token, at the end of input; or the token
+  /// is no operator of the table; or the innermost sub-expression does not admit it, below a
+  /// pending operator or at the root. The token, if there is one, stays staged, and is read and
+  /// classified again after the reduction, as the recursive driver's returning frame read it.
+  /// The closure never answers this: it is the answer while that closure has not run, or where
+  /// it declines without saying why.
+  Close,
   /// The operator repeats a non-associative chain.
   Chain,
   /// A zero-token continuation the machine would take, which this driver cannot serve: its
@@ -144,31 +143,25 @@ enum Parked<Power> {
 
 /// What a loop does next. Kept here where the loop knows it, so that the machine is asked only for
 /// a reduction it owes, or for the value.
-enum Next<Power> {
+enum Next {
   /// A term is wanted: a prefix operator or an operand is read.
   Term,
-  /// An operator or an ending is wanted: the head is read, and offered.
+  /// An operator or an ending is wanted: the head is read, classified, and offered.
   Operator,
-  /// One reduction is owed, by `close` or by a postfix operator, and after it an operator.
+  /// One reduction is owed, by `close` or by a postfix operator, or the value is; after a
+  /// reduction an operator is wanted.
   Reduce,
-  /// The staged head waits for the reduction `close` owes, and its classification is offered
-  /// again after it.
-  Settle(Rhs<Power>),
-  /// The staged head's classification, offered again with no read.
-  Offer(Rhs<Power>),
-  /// `finish` owes every pending reduction, one for each poll, and then the value.
-  Finish,
 }
 
 /// How a loop over one segment ends without an error.
-enum Exit<V, S, Power> {
+enum Exit<V, S> {
   /// The expression's value, `None` where no term began it. Only the first segment's loop gets
   /// here: a segment is made only above a full one, so its loop returns before the count can reach
   /// zero.
   Done(Option<V>),
   /// The loop's segment is drained: the machine's state, and what the loop below does next, over
   /// its own segment.
-  Drained(S, Next<Power>),
+  Drained(S, Next),
 }
 
 /// A push the full segment refused below the cap, fed again on the next one.
@@ -409,10 +402,10 @@ where
   #[inline]
   fn pratt_run<FoldPrefix, FoldInfix, FoldPostfix, Expr, Power, St, const UPPER: bool, K>(
     mut machine: Machine<'inp, L, Power, St>,
-    mut next: Next<Power>,
+    mut next: Next,
     this: &mut Self,
     folds: &mut Folds<'_, FoldPrefix, FoldInfix, FoldPostfix>,
-  ) -> Result<Exit<Tok<'inp, L>, State<'inp, L, Power>, Power>, ErrorOf<'inp, L, Ctx, Lang>>
+  ) -> Result<Exit<Tok<'inp, L>, State<'inp, L, Power>>, ErrorOf<'inp, L, Ctx, Lang>>
   where
     L::Token: PrattToken<'inp, Expr, Power>,
     Ctx::Emitter: PrattEmitter<'inp, L, Lang>,
@@ -426,11 +419,12 @@ where
     St: Stack<Frame<'inp, L, Power>>,
     K: ArraySize,
   {
-    // No progress guard, and none is needed. Every step commits a token, performs one reduction,
-    // or ends. A committed token has nonzero width by the lexer's contract, and an operator is
-    // accepted only by the read that commits it, so no position can be admitted twice. Each
-    // reduction pops a frame, each frame was pushed for a committed operator, and no fold is
-    // handed the input, so none can move it.
+    // No progress guard, and none is needed. Every read commits a token, or closes a
+    // sub-expression, after which one reduction is performed or the value is returned. A
+    // committed token has nonzero width by the lexer's contract, and an operator is accepted only
+    // by the read that commits it, so no position can be admitted twice. Each reduction pops a
+    // frame, each frame was pushed for a committed operator, and no fold is handed the input, so
+    // none can move it.
     loop {
       next = match next {
         // A term. A terminal scanner stop is surfaced, so a tripped limit cannot pass for an
@@ -507,13 +501,11 @@ where
         // accept, it says why, and the token stays staged. A terminal scanner stop is surfaced
         // first, ahead of every ending and every refusal.
         Next::Operator => {
-          let mut parked = Parked::End;
+          let mut parked = Parked::Close;
           let head = this.try_expect_map_or_stop(|tok| {
             let rhs = match tok.try_pratt_rhs() {
-              Some(PrattRHS::End) | None => {
-                parked = Parked::NoOperator;
-                return None;
-              }
+              // No operator of the table: nothing admits it, so it is offered to nothing.
+              Some(PrattRHS::End) | None => return None,
               Some(rhs) => rhs,
             };
             match (machine.offer(&rhs), rhs) {
@@ -530,21 +522,13 @@ where
                 parked = Parked::Adjacent;
                 None
               }
-              (PrattOffer::Reduce, rhs) => {
-                parked = Parked::Reduce(rhs);
-                None
-              }
-              (PrattOffer::Decline, _) => {
-                parked = Parked::Decline;
-                None
-              }
               (PrattOffer::Chain, _) => {
                 parked = Parked::Chain;
                 None
               }
-              // `End` was answered above, and nothing admits it.
-              (PrattOffer::Take, PrattRHS::End) => {
-                parked = Parked::NoOperator;
+              // Not taken here: one sub-expression ends, and the token stays staged. `End` was
+              // answered above, and nothing admits it.
+              (PrattOffer::Take, PrattRHS::End) | (PrattOffer::Reduce | PrattOffer::Decline, _) => {
                 None
               }
             }
@@ -571,22 +555,15 @@ where
               Next::Reduce
             }
             None => match parked {
-              // Nothing is staged at the end of input, and the recursive driver's every returning
-              // frame scanned again there, re-lexing whatever lexer errors stand before the end.
-              // So one sub-expression ends, and the head is read again after its reduction.
-              Parked::End => {
+              // One sub-expression ends here, as the recursive driver's innermost frame returned,
+              // and its reduction is next. No classification outlives the read that made it: a
+              // fold may change what the classifier answers, so the head is read and classified
+              // again after the reduction, as the frame below read it on its return. At the end of
+              // input that read scans again, as the frame below scanned, re-lexing whatever lexer
+              // errors stand before the end.
+              Parked::Close => {
                 close(&mut machine);
                 Next::Reduce
-              }
-              // A staged token that ends the expression, which no fold can move: every pending
-              // reduction, and no read between them.
-              Parked::NoOperator | Parked::Decline => {
-                finish(&mut machine);
-                Next::Finish
-              }
-              Parked::Reduce(rhs) => {
-                close(&mut machine);
-                Next::Settle(rhs)
               }
               // The offset is read off the input after the handback, not off the parked token:
               // `NonAssociativeChain`'s offset is the position the input is handed back at, and
@@ -594,8 +571,8 @@ where
               // token's own start differs wherever the lexer skipped anything to reach it.
               Parked::Chain => return Err(NonAssociativeChain::of(this.span().end()).into()),
               // The same posture as a missing right operand: a diagnostic on the RHS channel,
-              // read at the handback, and the sub-expression ends with its left side. The
-              // sub-expression around it is offered the same token again, after the reduction.
+              // read at the handback, and the sub-expression ends with its left side. The head is
+              // read again after the reduction, as any other.
               Parked::Adjacent => {
                 this
                   .session
@@ -608,62 +585,9 @@ where
           }
         }
 
-        // The staged head's classification stands: no fold is handed the input, so nothing can
-        // have moved it, and it is offered again with no read. Where the machine now takes it, one
-        // more read takes it as it was classified.
-        Next::Offer(rhs) => match machine.offer(&rhs) {
-          PrattOffer::Reduce => {
-            close(&mut machine);
-            Next::Settle(rhs)
-          }
-          PrattOffer::Decline => {
-            finish(&mut machine);
-            Next::Finish
-          }
-          PrattOffer::Chain => return Err(NonAssociativeChain::of(this.span().end()).into()),
-          PrattOffer::Take => {
-            if let PrattRHS::Adjacent(_) = rhs {
-              this
-                .session
-                .emitter
-                .emit_unexpected_end_of_rhs(UnexpectedEoRhs::eorhs_of(this.span().end()))?;
-              close(&mut machine);
-              Next::Reduce
-            } else {
-              let tok = Self::pratt_take_staged::<Expr, Power>(this, &rhs)?;
-              match rhs {
-                PrattRHS::Infix(infix) => {
-                  let (associativity, power) = infix.into_components();
-                  match machine.push_infix(Precedenced::new(infix_of(associativity, tok), power)) {
-                    Ok(()) => Next::Term,
-                    Err(operator) => {
-                      let (seated, after) =
-                        Self::pratt_grow::<FoldPrefix, FoldInfix, FoldPostfix, Expr, Power, St, K>(
-                          machine,
-                          Refed::Infix(operator),
-                          this,
-                          folds,
-                        )?;
-                      machine = seated;
-                      after
-                    }
-                  }
-                }
-                PrattRHS::Postfix(postfix) => {
-                  machine.take_postfix(Precedenced::new(tok, postfix.into_precedence()));
-                  Next::Reduce
-                }
-                PrattRHS::Adjacent(_) | PrattRHS::End => unreachable!(
-                  "only an infix or a postfix classification stands to be taken from the front"
-                ),
-              }
-            }
-          }
-        },
-
         // A reduction is owed, or the value. One reduction, folded by today's three folds with
-        // today's arguments, and its value handed back.
-        waiting @ (Next::Reduce | Next::Settle(_) | Next::Finish) => match machine.poll() {
+        // today's arguments, and its value handed back; then an operator is wanted.
+        Next::Reduce => match machine.poll() {
           PrattPoll::Reduce(reduction) => {
             let value = Self::pratt_fold(reduction, this, folds)?;
             if let Err(refused) = machine.handle_reduced(value) {
@@ -672,18 +596,13 @@ where
                 refused.why()
               );
             }
-            let after = match waiting {
-              Next::Reduce => Next::Operator,
-              Next::Settle(rhs) => Next::Offer(rhs),
-              finishing => finishing,
-            };
             // The return test, before the loop next reads its stack: a segment whose own frames
             // are gone hands the machine to the loop below, which goes on over its own segment,
-            // full, with the classification that stands if one does.
+            // full.
             if UPPER && machine.storage().is_empty() {
-              return Ok(Exit::Drained(machine.into_parts().0, after));
+              return Ok(Exit::Drained(machine.into_parts().0, Next::Operator));
             }
-            after
+            Next::Operator
           }
           PrattPoll::Done(value) => return Ok(Exit::Done(Some(value))),
           PrattPoll::Term | PrattPoll::Operator | PrattPoll::Reducing => unreachable!(
@@ -711,7 +630,7 @@ where
     refed: Refed<Tok<'inp, L>, Power>,
     this: &mut Self,
     folds: &mut Folds<'_, FoldPrefix, FoldInfix, FoldPostfix>,
-  ) -> Result<(Machine<'inp, L, Power, St>, Next<Power>), ErrorOf<'inp, L, Ctx, Lang>>
+  ) -> Result<(Machine<'inp, L, Power, St>, Next), ErrorOf<'inp, L, Ctx, Lang>>
   where
     L::Token: PrattToken<'inp, Expr, Power>,
     Ctx::Emitter: PrattEmitter<'inp, L, Lang>,
@@ -800,33 +719,6 @@ where
       }
     }
   }
-
-  /// Takes the staged head as it was classified: one more read, whose closure accepts and
-  /// classifies nothing. A debug build classifies it again, and compares.
-  #[inline(always)]
-  fn pratt_take_staged<Expr, Power>(
-    this: &mut Self,
-    rhs: &Rhs<Power>,
-  ) -> Result<Tok<'inp, L>, ErrorOf<'inp, L, Ctx, Lang>>
-  where
-    L::Token: PrattToken<'inp, Expr, Power>,
-    Power: PrattPower,
-    <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
-  {
-    let taken = this.try_expect_map_or_stop(|tok| {
-      debug_assert!(
-        same_classification(tok.try_pratt_rhs(), rhs),
-        "the staged head is not the token its standing classification is of"
-      );
-      Some(())
-    })?;
-    match taken {
-      Some(((), tok)) => Ok(tok),
-      None => unreachable!(
-        "the head a standing classification is of stays staged until the read that takes it"
-      ),
-    }
-  }
 }
 
 /// The committed token, as the infix operator its classification names.
@@ -836,15 +728,6 @@ fn infix_of<T>(associativity: PrattInfix<(), (), ()>, token: T) -> PrattInfix<T,
     PrattInfix::Left(()) => PrattInfix::Left(token),
     PrattInfix::Right(()) => PrattInfix::Right(token),
     PrattInfix::Neither(()) => PrattInfix::Neither(token),
-  }
-}
-
-/// Whether a token read again is classified as the standing classification it is taken by.
-fn same_classification<Power: PartialEq>(read: Option<Rhs<Power>>, standing: &Rhs<Power>) -> bool {
-  match (read, standing) {
-    (Some(PrattRHS::Infix(read)), PrattRHS::Infix(standing)) => read == *standing,
-    (Some(PrattRHS::Postfix(read)), PrattRHS::Postfix(standing)) => read == *standing,
-    _ => false,
   }
 }
 
@@ -863,24 +746,9 @@ fn close<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Post, Power, St>(
   }
 }
 
-/// The expression ended, in the `Operator` phase every caller is in.
-#[inline(always)]
-fn finish<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Post, Power, St>(
-  machine: &mut PrattResolver<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Post, Power, St>,
-) where
-  Power: PrattPower,
-  St: Stack<PrattFrame<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Power>>,
-{
-  if let Err(why) = machine.finish() {
-    unreachable!(
-      "the token-level driver's machine refused to finish in its `Operator` phase: {why:?}"
-    );
-  }
-}
-
 /// The state, and what to do next, that a drained segment handed back.
 #[inline(always)]
-fn drained<V, S, Power>(exit: Exit<V, S, Power>) -> (S, Next<Power>) {
+fn drained<V, S>(exit: Exit<V, S>) -> (S, Next) {
   match exit {
     Exit::Drained(state, next) => (state, next),
     Exit::Done(_) => unreachable!(

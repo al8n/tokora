@@ -279,8 +279,10 @@ copy, and `unused_must_use` reports it. **The remedy is UFCS**:
   its own frame and once for each of those it enters, where it asked once for each level. Its
   results are unchanged: the value and the order of the folds, the three recovery postures and
   their diagnostics, and the recursion budget's refusal, at the same operator, offset, depth and
-  limit. The budget is still its one bound: the expression holds one level of it, and each
-  pending operator one more.
+  limit. So are its reads: a token it does not take is read and classified again after each
+  reduction, as each returning frame read it, so a classifier whose answers a fold changes is
+  answered as before. The budget is still its one bound: the expression holds one level of it,
+  and each pending operator one more.
 
 ### Added
 
