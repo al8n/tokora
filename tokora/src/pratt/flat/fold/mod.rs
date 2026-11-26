@@ -519,10 +519,10 @@ where
       growth: &mut self.growth,
       _segment: PhantomData,
     };
-    // `with_stack` empties the storage too, by its own length, and finds it empty.
-    let machine = PrattResolver::with_stack(stack.get())
-      .min_precedence(self.floor.clone())
-      .max_depth(cap);
+    // The machine empties the storage too, by its own length, and finds it empty. It is built at
+    // the driver's floor, so no default floor is built to be replaced.
+    let machine =
+      PrattResolver::with_stack_and_floor(stack.get(), self.floor.clone()).max_depth(cap);
     // The scanner's trip count as the expression begins, for every point at which the loop ends
     // or refuses, at every depth: a trip since, under user code or a read of the loop's own, makes
     // that point terminal whatever followed it. Recovering by re-keying is the caller's.

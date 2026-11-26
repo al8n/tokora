@@ -202,11 +202,21 @@ impl<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Post, Power: Default>
   /// Nothing pending, no latch, no cap, and the floor at `Power::default()`.
   #[inline]
   fn new() -> Self {
+    Self::floored(Power::default())
+  }
+}
+
+impl<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Post, Power>
+  ResolverState<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Post, Power>
+{
+  /// Nothing pending, no latch, no cap, and the floor at `floor`: no `Power` is built here.
+  #[inline]
+  fn floored(floor: Power) -> Self {
     Self {
       phase: Phase::Term,
       depth: 0,
       max_depth: usize::MAX,
-      floor: Power::default(),
+      floor,
       root_latch: None,
       _frames: PhantomData,
     }
@@ -540,16 +550,33 @@ where
   /// them, grows past what was reserved. `&mut S` is a storage too, so a caller that wants no
   /// allocation after the first reserves one, reads its capacity back, and lends it to each
   /// machine with [`max_depth`](Self::max_depth) set to that capacity.
-  pub fn with_stack(mut stack: S) -> Self {
+  pub fn with_stack(stack: S) -> Self {
+    Self {
+      stack: Self::emptied(stack),
+      state: ResolverState::new(),
+    }
+  }
+
+  /// [`with_stack`](Self::with_stack) with the root's floor at `floor`, inclusive: for an adapter
+  /// whose caller has named the floor, which [`min_precedence`](Self::min_precedence) would set
+  /// only once a `Power::default()` had been built and dropped. No `Power` is built here.
+  #[inline]
+  pub(crate) fn with_stack_and_floor(stack: S, floor: Power) -> Self {
+    Self {
+      stack: Self::emptied(stack),
+      state: ResolverState::floored(floor),
+    }
+  }
+
+  /// `stack`, emptied without trusting it: its length read once, and that many popped.
+  #[inline]
+  fn emptied(mut stack: S) -> S {
     for _ in 0..stack.len() {
       if stack.pop().is_none() {
         break;
       }
     }
-    Self {
-      stack,
-      state: ResolverState::new(),
-    }
+    stack
   }
 
   /// Sets the root's floor, the minimum binding power, inclusive: an infix or postfix operator below
