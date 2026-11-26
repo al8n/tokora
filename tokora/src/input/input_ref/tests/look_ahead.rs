@@ -182,7 +182,12 @@ type LaCtx<'a> = (BombEmitter, DefaultCache<'a, LaLexer<'a>>);
 type LaRef<'inp, 'cl> = InputRef<'inp, 'cl, LaLexer<'inp>, LaCtx<'inp>, ()>;
 
 fn context<'a>() -> InputContext<BombEmitter, DefaultCache<'a, LaLexer<'a>>> {
-  InputContext::new(BombEmitter::default(), DefaultCache::default())
+  // Named in full: the alias's lexer parameter is reachable only through the projections the
+  // entry type is built from, so nothing could infer it from the expected type.
+  InputContext::new(
+    BombEmitter::default(),
+    DefaultCache::<'a, LaLexer<'a>>::default(),
+  )
 }
 
 fn complete(src: &str) -> Input<'_, LaLexer<'_>, LaCtx<'_>, ()> {
