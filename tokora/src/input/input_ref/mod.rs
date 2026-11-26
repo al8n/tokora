@@ -495,10 +495,19 @@ where
   }
 
   /// FRONT_CENSUS — whether a token is parked in the front slot. The scanner asks through this
-  /// rather than reading the slot, so `scan.rs` keeps no direct reader of its own.
+  /// rather than reading the slot, so `scan.rs` keeps no direct reader of its own, and so does the
+  /// fuzz harness's look-ahead oracle.
   #[inline(always)]
-  pub(super) fn has_front_parked(&self) -> bool {
+  pub(crate) fn has_front_parked(&self) -> bool {
     self.pending.is_some()
+  }
+
+  /// The cache-push count, for the fuzz harness's look-ahead oracle: a look-ahead must leave it
+  /// where it found it, or an enclosing restore prunes the wrong entries. Gated to that one reader.
+  #[cfg(all(feature = "fuzz", feature = "std"))]
+  #[inline(always)]
+  pub(crate) fn cache_pushes(&self) -> u64 {
+    self.session.lineage.cache_pushes()
   }
 
   /// Which token stands at the front of the stream, by an identity two reads can compare: a cache
