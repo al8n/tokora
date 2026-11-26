@@ -172,11 +172,12 @@ impl<Power: PrattPower, B> ModeSteps<Power> for Checked<Power, B> {
     Self: 'a;
 
   /// Lends the stack to a machine with the driver's floor and cap, and builds no default floor
-  /// to replace. The machine empties the stack first: a parse that unwound left its frames there.
+  /// to replace. The machine empties the stack first, before it clones the floor: a parse that
+  /// unwound left its frames there.
   #[inline]
   fn begin(&mut self) -> CheckedRun<'_, Power> {
     CheckedRun {
-      machine: PrattResolver::with_stack_and_floor(&mut self.stack, self.floor.clone())
+      machine: PrattResolver::with_stack_and_floor(&mut self.stack, &self.floor)
         .max_depth(self.cap.unwrap_or(usize::MAX)),
     }
   }

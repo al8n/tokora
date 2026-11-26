@@ -624,14 +624,17 @@ where
     }
   }
 
-  /// [`with_stack`](Self::with_stack) with the root's floor at `floor`, inclusive: for an adapter
-  /// whose caller has named the floor, which [`min_precedence`](Self::min_precedence) would set
-  /// only once a `Power::default()` had been built and dropped. No `Power` is built here.
+  /// [`with_stack`](Self::with_stack) with the root's floor at a clone of `floor`, inclusive: for
+  /// an adapter whose caller has named the floor, which [`min_precedence`](Self::min_precedence)
+  /// would set only once a `Power::default()` had been built and dropped. No default is built
+  /// here, and the clone is taken once the storage is emptied, so the frames a parse that unwound
+  /// left there are dropped before it.
   #[inline]
-  pub(crate) fn with_stack_and_floor(stack: S, floor: Power) -> Self {
+  pub(crate) fn with_stack_and_floor(stack: S, floor: &Power) -> Self {
+    let stack = Self::emptied(stack);
     Self {
-      stack: Self::emptied(stack),
-      state: ResolverState::floored(floor),
+      stack,
+      state: ResolverState::floored(floor.clone()),
     }
   }
 

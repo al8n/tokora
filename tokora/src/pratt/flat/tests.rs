@@ -2,8 +2,8 @@
 //! whichever way it returns. A parse that unwinds leaves its frames, and the next one's start
 //! removes them.
 
-use core::panic::AssertUnwindSafe;
-use std::{format, panic, string::String, vec, vec::Vec};
+use core::{cell::RefCell, panic::AssertUnwindSafe};
+use std::{format, panic, string::String, thread_local, vec, vec::Vec};
 
 use crate::{
   InputRef, Lexer, ParseAttempt, ReadFrontier, ScanLookahead, SimpleSpan, Token,
@@ -14,7 +14,7 @@ use crate::{
     UnexpectedToken,
   },
   input::{Input, InputContext},
-  pratt::{PrattInfix, PrattLHS, PrattRHS, PrattTable, Precedenced, flat},
+  pratt::{PrattInfix, PrattLHS, PrattPower, PrattRHS, PrattTable, Precedenced, flat},
   span::Spanned,
   token::PrattToken,
 };
@@ -330,4 +330,114 @@ fn a_kept_checked_driver_holds_nothing_once_a_parse_returns() {
     ]
   );
   assert_eq!(driver.mode.held(), 0, "an `Ok` empties the stack too");
+}
+
+thread_local! {
+  /// Each clone and each drop of a `Logged` power on this thread, in order, with its rank.
+  static LOG: RefCell<Vec<(char, u8)>> = const { RefCell::new(Vec::new()) };
+}
+
+/// A power that writes down each clone of itself, as `'c'`, and each drop, as `'d'`.
+#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+struct Logged(u8);
+
+impl Clone for Logged {
+  fn clone(&self) -> Self {
+    LOG.with_borrow_mut(|log| log.push(('c', self.0)));
+    Logged(self.0)
+  }
+}
+
+impl Drop for Logged {
+  fn drop(&mut self) {
+    LOG.with_borrow_mut(|log| log.push(('d', self.0)));
+  }
+}
+
+impl PrattPower for Logged {}
+
+/// The marker of a table whose powers are `Logged`.
+struct Logs;
+
+const LOGGED: PrattTable<Logs, Logged> = PrattTable::new();
+
+/// Digits are operands, and `-` is a prefix operator at 9.
+impl PrattToken<'_, Logs, Logged> for Tok {
+  fn try_pratt_lhs(&self) -> Option<PrattLHS<(), (), Logged>> {
+    match self.0 {
+      b'0'..=b'9' => Some(PrattLHS::Operand(())),
+      b'-' => Some(PrattLHS::Prefix(Precedenced::new((), Logged(9)))),
+      _ => None,
+    }
+  }
+
+  fn try_pratt_rhs(&self) -> Option<PrattRHS<(), (), (), (), Logged>> {
+    None
+  }
+}
+
+/// Panics when it is told of a prefix operator.
+struct PanicsAtPrefix;
+
+impl crate::pratt::PrattHandler<'static, Logged, Lex, u8, Ctx> for PanicsAtPrefix {
+  fn on_prefix(
+    &mut self,
+    _input: &mut InputRef<'static, '_, Lex, Ctx>,
+    _operator: Precedenced<Spanned<Tok, SimpleSpan>, Logged>,
+  ) -> Result<(), Fail> {
+    panic!("the handler panics at a prefix operator, as asked");
+  }
+
+  fn on_operand(
+    &mut self,
+    _input: &mut InputRef<'static, '_, Lex, Ctx>,
+    _operand: u8,
+  ) -> Result<(), Fail> {
+    Ok(())
+  }
+
+  fn on_infix(
+    &mut self,
+    _input: &mut InputRef<'static, '_, Lex, Ctx>,
+    _operator: Precedenced<
+      PrattInfix<Spanned<Tok, SimpleSpan>, Spanned<Tok, SimpleSpan>, Spanned<Tok, SimpleSpan>>,
+      Logged,
+    >,
+  ) -> Result<(), Fail> {
+    Ok(())
+  }
+
+  fn on_postfix(
+    &mut self,
+    _input: &mut InputRef<'static, '_, Lex, Ctx>,
+    _operator: Precedenced<Spanned<Tok, SimpleSpan>, Logged>,
+  ) -> Result<(), Fail> {
+    Ok(())
+  }
+}
+
+/// A parse drops the frames an unwound one left before it clones the driver's floor for its
+/// machine: no code of the new floor's runs while a power of the stale frames is still held.
+#[test]
+fn a_parse_drops_the_frames_an_unwound_one_left_before_it_clones_the_floor() {
+  let mut driver = flat(LOGGED, digit);
+  let unwound = panic::catch_unwind(AssertUnwindSafe(|| {
+    over("-1;", |inp| driver.parse_into(inp, &mut PanicsAtPrefix))
+  }));
+  assert!(unwound.is_err(), "the handler panicked");
+  assert_eq!(driver.mode.held(), 1, "the frame of the `-` stays");
+
+  LOG.with_borrow_mut(Vec::clear);
+  let parsed = over("1;", |inp| driver.parse_into(inp, &mut ()));
+  assert_eq!(parsed, Ok(()));
+  let log = LOG.take();
+  let stale_dropped = log.iter().rposition(|&event| event == ('d', 9));
+  let floor_cloned = log.iter().position(|&event| event == ('c', 0));
+  assert!(
+    matches!(
+      (stale_dropped, floor_cloned),
+      (Some(dropped), Some(cloned)) if dropped < cloned
+    ),
+    "the stale `-`'s power is dropped before the floor is cloned: {log:?}"
+  );
 }
