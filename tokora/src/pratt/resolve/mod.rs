@@ -1329,7 +1329,8 @@ pub(crate) enum Closed<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Power> {
 /// - **What each assumes.** `put_operand` and `push_prefix` assume `Term`, and leave `Operator` and
 ///   `Term`. `push_infix`, `take_postfix` and `close_and_reduce` assume `Operator`, and the first
 ///   two that the adapter's own offer answered `Take` for the operator with nothing fed since.
-///   `push_infix` leaves `Term`.
+///   `push_infix` leaves `Term`. `reduce_pending` is `close_and_reduce` where that offer answered
+///   `Reduce` instead, so an operator is pending.
 /// - **A fold runs in `Term`.** `take_postfix` and `close_and_reduce` move the value out into the
 ///   reduction they hand back, which leaves `Term`. The adapter folds, and `put_reduced` puts the
 ///   value back, which leaves `Operator`.
@@ -1492,6 +1493,38 @@ where
       self.state.latches = 0;
       return Closed::Done(right);
     }
+    self.reduce_top_frame(right)
+  }
+
+  /// [`close_and_reduce`](Self::close_and_reduce) where an offer has just answered
+  /// [`Reduce`](PrattOffer::Reduce), which it answers only under a pending operator: the
+  /// operator's reduction, and never the root's value.
+  ///
+  /// Out of line, for `parse_into`'s loop, which reduces inside the read that commits an operator.
+  /// Inlined there, a reduction makes that read too large to inline into the loop, and the unit
+  /// machine then lives in memory for every operator the loop reads. Out of line, the read stays
+  /// inlined, and a reduction alone pays a call.
+  #[inline(never)]
+  pub(crate) fn reduce_pending(
+    &mut self,
+  ) -> Closed<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Power> {
+    debug_assert!(
+      self.state.depth > 0,
+      "a pending reduction with no operator pending"
+    );
+    let Some(right) = self.take_value() else {
+      unreachable!("a reduction outside the `Operator` phase");
+    };
+    self.reduce_top_frame(right)
+  }
+
+  /// The reduction of the frame on top, whose right operand is `right`: popped, the floor read off
+  /// the frame left on top, and the latch rule applied.
+  #[inline(always)]
+  fn reduce_top_frame(
+    &mut self,
+    right: V,
+  ) -> Closed<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Power> {
     let PrattFrame { operator, latch } = self.pop_raw();
     self.forget_latch(&latch);
     drop(latch);

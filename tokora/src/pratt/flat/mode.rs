@@ -201,15 +201,15 @@ impl<Power: PrattPower> CheckedRun<'_, Power> {
 
 impl<Power: PrattPower> RunSteps<Power> for CheckedRun<'_, Power> {
   /// The offer. On `Reduce` the one reduction is performed where the head is classified, and the
-  /// operator is offered again, until the answer changes. The close hands the reduction straight
-  /// back, and a unit reduction builds nothing and needs no input: it is dropped, and the unit is
-  /// its value. `Reduce` is answered only under a pending operator, so the close never ends the
+  /// operator is offered again, until the answer changes. The reduction is handed straight back,
+  /// and a unit reduction builds nothing and needs no input: it is dropped, and the unit is its
+  /// value. `Reduce` is answered only under a pending operator, so the reduction never ends the
   /// root here.
   #[inline]
   fn admit(&mut self, rhs: &PrattRHS<(), (), (), (), Power>) -> PrattOffer {
     loop {
       match self.machine.offer(rhs) {
-        PrattOffer::Reduce => match self.machine.close_and_reduce() {
+        PrattOffer::Reduce => match self.machine.reduce_pending() {
           Closed::Prefix(_) | Closed::Infix(_) => self.machine.put_reduced(()),
           Closed::Done(()) => {
             unreachable!(
