@@ -203,11 +203,11 @@ pub(crate) struct ResolverState<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Pos
   /// each latch the rule writes keeps it so, so it is a function of the frames and the root's latch
   /// alone, and the latches themselves stay where they live.
   latch: Option<Power>,
-  /// The floor the frame on top gives its operand, kept so that an offer reads no frame: taken
-  /// from the operator by each push, and from the frame left on top by each pop. `None` at the
-  /// root, whose floor is `floor` itself, so that `min_precedence` has nothing here to change. It
-  /// is a function of the frames and the count alone, so two machines that hold the same frames
-  /// keep the same one.
+  /// The floor the frame on top gives its operand, kept so that an offer reads no frame: read back
+  /// off the frame each push leaves on top, once the storage has taken it, and off the frame each
+  /// pop leaves on top. `None` at the root, whose floor is `floor` itself, so that `min_precedence`
+  /// has nothing here to change. It is a function of the frames and the count alone, so two
+  /// machines that hold the same frames keep the same one.
   frame_floor: Option<Floor<Power>>,
   /// The operator payloads of the frames, which only the storage holds.
   _frames: PhantomData<fn() -> (Pre, LeftAssoc, RightAssoc, NeitherAssoc)>,
@@ -798,13 +798,7 @@ where
     };
     match self.stack.push(frame) {
       Ok(()) => {
-        // Raised only once the storage has taken the frame. It cannot overflow: it was below
-        // `max_depth`, at most `usize::MAX`, a moment ago.
-        self.state.depth += 1;
-        // The new operand has no latch yet, and its floor is read back off the frame the storage
-        // took, so that a refusal runs no code of the power's but its comparisons.
-        self.state.latch = None;
-        self.state.frame_floor = self.floor_of_top();
+        self.pushed();
         Ok(())
       }
       Err(PrattFrame {
@@ -868,11 +862,7 @@ where
     };
     match self.stack.push(frame) {
       Ok(()) => {
-        // Raised only once the storage has taken the frame, and bounded as in `handle_prefix`.
-        self.state.depth += 1;
-        // As in `handle_prefix`.
-        self.state.latch = None;
-        self.state.frame_floor = self.floor_of_top();
+        self.pushed();
         Ok(())
       }
       Err(PrattFrame {
@@ -1169,6 +1159,18 @@ where
     self.top().map(|frame| frame.operator.floor())
   }
 
+  /// Every push's last step, once the storage has taken the frame: the count is raised before any
+  /// code of the power's runs, and the copies the machine keeps are of the new operand, which has
+  /// no latch yet and the floor the frame gives, read back off it. So a refusal runs no code of the
+  /// power's but its comparisons.
+  #[inline]
+  fn pushed(&mut self) {
+    // It cannot overflow: the count was below `max_depth`, at most `usize::MAX`, a moment ago.
+    self.state.depth += 1;
+    self.state.latch = None;
+    self.state.frame_floor = self.floor_of_top();
+  }
+
   /// Keeps a copy of what the innermost sub-expression is, read where it lives: the floor the frame
   /// on top gives its operand and the latch that frame holds for it, or, at the root, no floor and
   /// the root's latch.
@@ -1300,8 +1302,8 @@ where
 
   /// [`handle_prefix`](Self::handle_prefix) in the `Term` phase, which the adapter stands in. A
   /// refusal is `Full`, and hands the operator back: the stack is at its cap, or its storage
-  /// refused the frame. The floor kept is cloned out of the operator before the push, so that no
-  /// frame is read back, and a refusal by the storage drops that clone.
+  /// refused the frame. The floor kept is read back off the frame once the storage has taken it,
+  /// as `handle_prefix` reads it, so a refusal runs no code of the power's.
   #[inline]
   pub(crate) fn push_prefix(
     &mut self,
@@ -1318,13 +1320,9 @@ where
       operator: FrameOperator::Prefix(operator),
       latch: None,
     };
-    let floor = frame.operator.floor();
     match self.stack.push(frame) {
       Ok(()) => {
-        // Raised only once the storage has taken the frame, and bounded as in `handle_prefix`.
-        self.state.depth += 1;
-        self.state.latch = None;
-        self.state.frame_floor = Some(floor);
+        self.pushed();
         Ok(())
       }
       Err(PrattFrame {
@@ -1338,7 +1336,7 @@ where
   /// [`handle_infix`](Self::handle_infix) for an operator the adapter's own
   /// [`offer`](Self::offer) has just answered [`Take`](PrattOffer::Take) for, in the `Operator`
   /// phase. A refusal is `Full`, hands the operator back, and leaves the value the machine's. The
-  /// floor kept is taken as in [`push_prefix`](Self::push_prefix).
+  /// floor kept is read back as in [`push_prefix`](Self::push_prefix).
   #[inline]
   pub(crate) fn push_infix(
     &mut self,
@@ -1359,13 +1357,9 @@ where
       operator: FrameOperator::Infix(InfixFrame { left, operator }),
       latch: None,
     };
-    let floor = frame.operator.floor();
     match self.stack.push(frame) {
       Ok(()) => {
-        // Raised only once the storage has taken the frame, and bounded as in `handle_prefix`.
-        self.state.depth += 1;
-        self.state.latch = None;
-        self.state.frame_floor = Some(floor);
+        self.pushed();
         Ok(())
       }
       Err(PrattFrame {
