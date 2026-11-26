@@ -395,10 +395,11 @@
 //! are the `wall clock (advisory)` job's readings (`wallclock-readings`, the `ns_per_iter` of each
 //! id) on the head side, five rounds. Each is a ratio of two cells of one shape, taken round by
 //! round and read as the file's header reads a pair: the median over the rounds that were not
-//! contended, with its range in parentheses. No round was contended under that rule (any cell more
-//! than 10% above its own median across the rounds), so all five are kept. The job cannot say
-//! more than its population: a range that straddles 1.0 is a pair this run does not separate, and
-//! the figures are advisory.
+//! contended, with its range in parentheses. A round is contended when any head-side id of the
+//! `pratt_typed` target is more than 10% above that id's own five-round median. No round was
+//! contended under that rule, so all five are kept. The job cannot say more than its population:
+//! a range that straddles 1.0 is a pair this run does not separate, and the figures are
+//! advisory.
 //!
 //! | shape | `fold/` over `pratt/typed/` | `fold_kept/` over `fold/` | `collect/` over `collect_bare/` | `collect_kind/` over `collect/` |
 //! |---|---|---|---|---|
