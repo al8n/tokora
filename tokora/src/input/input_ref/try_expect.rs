@@ -29,10 +29,10 @@ where
   /// `separated`/`separated_while`), and the commit re-lexes nothing in any cache
   /// capacity — including the blackhole `()`.
   Close(ClosePayload<'inp, L>),
-  /// A non-closer token sits where the closer belongs. It is left **unconsumed**
-  /// (the downstream parse still sees it); the owned clone drives the
-  /// unexpected-token / expected-close diagnostic.
-  WrongToken(Spanned<L::Token, L::Span>),
+  /// A non-closer token sits where the closer belongs. It is left **unconsumed** at the front of
+  /// the stream in every cache capacity, the parked slot included (the downstream parse still sees
+  /// it). The [`CloseMiss`] carries no copy of it: a driver that reports the miss reads it there.
+  WrongToken(CloseMiss<'inp, L>),
   /// Genuine end of input with the opener still open — the one and only `Unclosed`
   /// path.
   Eof,
@@ -55,8 +55,10 @@ where
 {
   /// Carried out of the **scan** path by value (its post-token lexer state included). The scan
   /// never advanced the committed cursor, so the token is already out of the input and neutral;
-  /// [`commit_probed`](InputRef::commit_probed) settles it by value with no re-lex — the
-  /// cache-independent path a blackhole `()` needs (a pushed-back closer would be dropped).
+  /// [`commit_probed`](InputRef::commit_probed) settles it by value with no re-lex, in every
+  /// cache capacity. A pushed-back closer would not be lost either: under the blackhole `()` it
+  /// goes to the parked slot, and the next read takes it without lexing. Carrying it saves the
+  /// push-back and the re-take, not a re-scan.
   Scanned {
     /// The probed closer, carried out of the scan by value.
     carried: CachedTokenOf<'inp, L>,
@@ -83,6 +85,39 @@ where
     probed_at: L::Offset,
   },
 }
+
+/// What [`probe_close`](InputRef::probe_close) hands back with
+/// [`WrongToken`](CloseStatus::WrongToken): that a token which is not the closer stands at the
+/// front of the stream, and nothing else.
+///
+/// The token is not in here. It stays where the probe left it, and a driver whose list goes on
+/// never asks for it, so a probe that misses clones nothing. A driver that reports the miss spends
+/// this on [`close_miss_token`](InputRef::close_miss_token), or on `report_close_miss`, which
+/// reads the front then. It is the [`ClosePayload`] of a miss, and its contract is the same one:
+/// it is good while the committed cursor stands where the probe left it.
+pub(crate) struct CloseMiss<'inp, L>
+where
+  L: Lexer<'inp>,
+{
+  /// The committed offset at probe time; see [`Scanned`](ClosePayload::Scanned).
+  #[cfg(debug_assertions)]
+  probed_at: L::Offset,
+  _lexer: PhantomData<fn() -> (&'inp (), L)>,
+}
+
+/// The debug panic of a [`ClosePayload`] committed after the committed cursor moved.
+#[cfg(debug_assertions)]
+const COMMIT_PROBED_MOVED: &str = "commit_probed: the committed cursor moved between \
+  `probe_close` and the commit. A `ClosePayload` is only valid while the cursor sits where the \
+  probe left it, so the token about to be settled is not the one that was probed. Something in \
+  the gap consumed or rewound — the end-state pass must be cursor-neutral.";
+
+/// The debug panic of a [`CloseMiss`] read after the committed cursor moved.
+#[cfg(debug_assertions)]
+const CLOSE_MISS_MOVED: &str = "close_miss_token: the committed cursor moved between \
+  `probe_close` and the read of the token it missed. A `CloseMiss` is only valid while the \
+  cursor sits where the probe left it, so the token at the front is not the one that was \
+  probed. Something in the gap consumed or rewound.";
 
 macro_rules! try_expect_punct {
   ($($punct:ident $(:$alias:ident)? :$punct_char:literal),+$(,)?) => {
@@ -401,9 +436,11 @@ where
   /// (peeked, not popped) on the cache path. The caller settles it later with
   /// [`commit_probed`](Self::commit_probed) at its own program point — immediately, or
   /// deferred past an end-of-list pass — and that commit re-lexes nothing, in any cache
-  /// capacity (including the blackhole `()`, where pushing a scanned closer back would be
-  /// dropped and force a re-scan). On [`WrongToken`](CloseStatus::WrongToken) the token is
-  /// left in place for the downstream parse.
+  /// capacity, the blackhole `()` included. A scanned closer pushed back under `()` would go to
+  /// the parked slot, where the next read takes it without lexing, so carrying it out saves the
+  /// push-back and the re-take, not a re-scan. On [`WrongToken`](CloseStatus::WrongToken) the
+  /// token is left at the front for the downstream parse, and the [`CloseMiss`] carries no copy
+  /// of it.
   ///
   /// This is the structural counterpart to a close classifier built on `try_expect`,
   /// whose `Ok(None)` folds a genuine end of input together with a terminal stop:
@@ -426,8 +463,8 @@ where
       // PEEK — do NOT pop it here: the probe stays cursor-neutral so a deferred commit
       // (`separated`/`separated_while`, which run `handle_end` before committing) spans the
       // elements correctly and keeps the closer in the cache if that pass errors. It is popped
-      // and settled later by `commit_probed`. `Spanned<&_, &_>` is `Copy`, so `pred` and the
-      // owned clone read the same peeked reference.
+      // and settled later by `commit_probed`. A miss copies nothing out: the token stays at the
+      // front, where a driver that reports it reads it.
       let peeked = self.front().expect("a front token is present").token;
       return Ok(if pred(peeked) {
         CloseStatus::Close(ClosePayload::AtFront {
@@ -435,7 +472,7 @@ where
           probed_at: self.span.end_ref().clone(),
         })
       } else {
-        CloseStatus::WrongToken(peeked.cloned())
+        CloseStatus::WrongToken(self.close_miss())
       });
     }
     // A budget refusal already on record, or a latched poison boundary at the cursor: either is a
@@ -448,7 +485,9 @@ where
       Scan::Token(tok) => {
         if pred(tok.as_ref()) {
           // Close (scan origin): carry the scanned closer OUT by value (token + post-token
-          // state) rather than push it to a cache the blackhole `()` would drop. The scan never
+          // state) rather than push it back. Pushed back, it would go to the cache front, or to
+          // the parked slot under the blackhole `()`, and the commit would take it from there
+          // without lexing; carrying it saves that push-back and re-take. The scan never
           // advanced the committed cursor, so this is already neutral; `commit_probed` settles
           // it by value with no second scan, in every cache capacity.
           let (span, token) = tok.into_components();
@@ -462,15 +501,13 @@ where
             probed_at,
           }))
         } else {
-          // WrongToken: unchanged — best-effort push-back, owned clone for the
-          // diagnostic. (The push-back is still a no-op under `()`; that is the
-          // downstream parse's re-scan of the wrong token, not the close commit's — see
-          // the out-of-scope note in the spec.)
-          let wrong = Spanned::new(tok.span_ref().clone(), tok.data().clone());
+          // Not the closer. It goes back to the front of the stream, where the next read finds
+          // it: the cache front, or the parked slot under a cache that holds nothing. The answer
+          // carries no copy of it.
           let (span, token) = tok.into_components();
           let ct = CachedToken::new(Spanned::new(span, token), resume.lexer().state().clone());
           self.hold_front(ct, Origin::Lexer);
-          Ok(CloseStatus::WrongToken(wrong))
+          Ok(CloseStatus::WrongToken(self.close_miss()))
         }
       }
       // A fresh trip whose diagnostic a recovering emitter accepted. (A fatal emitter
@@ -488,14 +525,50 @@ where
     }
   }
 
+  /// The answer of a probe that missed: empty in release, and stamped in a debug build with the
+  /// committed offset its contract keys on. The probe is cursor-neutral, so the stamp reads the
+  /// same offset on either arm.
+  #[inline(always)]
+  fn close_miss(&self) -> CloseMiss<'inp, L> {
+    CloseMiss {
+      #[cfg(debug_assertions)]
+      probed_at: self.span.end_ref().clone(),
+      _lexer: PhantomData,
+    }
+  }
+
+  /// The temporal half of the contract a probe's answer carries, [`ClosePayload`]'s and
+  /// [`CloseMiss`]'s alike, made checkable.
+  ///
+  /// An answer is valid only while the committed cursor sits where `probe_close` left it.
+  /// Everything between the probe and the answer's use — the end-state pass the deferred drivers
+  /// run before a commit, the absence gates a close-miss arm runs before its report — must be
+  /// cursor-neutral. Nothing enforced that; the contract was prose, and a future edit that
+  /// consumed or rewound in the gap would commit, or report, the wrong token silently.
+  ///
+  /// It keys on the **committed** position — `span().end()` — and on nothing else, deliberately.
+  /// `offset()` is the newest lexed token's end and `cursor()` is the cache-front position;
+  /// both move under ordinary lookahead, which is legal in the gap. Asserting on either would
+  /// fire on legal histories, which is the defect class this check exists to avoid becoming.
+  /// Measured, not assumed: keyed on `offset()`, the misuse cell does not fire, because a peek
+  /// has already moved it before the probe runs.
+  ///
+  /// `misuse` is the panic message, which names the caller and the answer it was spending.
+  #[cfg(debug_assertions)]
+  #[inline]
+  fn assert_probe_still_current(&self, probed_at: &L::Offset, misuse: &str) {
+    debug_assert!(self.span.end_ref() == probed_at, "{misuse}");
+  }
+
   /// Commits a closer classified by [`probe_close`](Self::probe_close), advancing the cursor
   /// over it **without re-lexing** — dispatching on the [`ClosePayload`] origin. Both origins
   /// converge on the one [`commit_token`](Self::commit_token) settle + the per-site state
   /// write, so the closer is committed **exactly once**, cache-independently:
   ///
   /// - [`Scanned`](ClosePayload::Scanned): the token carried out of the scan is settled by
-  ///   value — the path a blackhole `()` needs (a pushed-back closer would be dropped and
-  ///   re-lexed).
+  ///   value. A pushed-back closer would not be re-lexed either: under the blackhole `()` it
+  ///   goes to the parked slot, where the next read takes it without lexing. Carrying it saves
+  ///   the push-back and the re-take.
   /// - [`AtFront`](ClosePayload::AtFront): the closer was left at the front of the stream by the
   ///   probe; take it now (`try_expect`'s front arm, which never re-lexes) and settle it. Taking
   ///   it here — not at probe time — keeps `cursor` neutral until this commit point, so the
@@ -504,31 +577,6 @@ where
   ///
   /// The caller runs this immediately (immediate-commit drivers) or deferred past the
   /// end-of-list pass (`separated`/`separated_while`).
-  /// The temporal half of [`ClosePayload`]'s contract, made checkable.
-  ///
-  /// A `ClosePayload` is valid only while the committed cursor sits where `probe_close` left
-  /// it. Everything between the probe and the commit — the end-state pass the deferred drivers
-  /// run there — must be cursor-neutral. Nothing enforced that; the contract was prose, and a
-  /// future edit that consumed or rewound in the gap would commit the wrong token silently.
-  ///
-  /// It keys on the **committed** position — `span().end()` — and on nothing else, deliberately.
-  /// `offset()` is the newest lexed token's end and `cursor()` is the cache-front position;
-  /// both move under ordinary lookahead, which is legal in the gap. Asserting on either would
-  /// fire on legal histories, which is the defect class this check exists to avoid becoming.
-  /// Measured, not assumed: keyed on `offset()`, the misuse cell does not fire, because a peek
-  /// has already moved it before the probe runs.
-  #[cfg(debug_assertions)]
-  #[inline]
-  fn assert_probe_still_current(&self, probed_at: &L::Offset) {
-    debug_assert!(
-      self.span.end_ref() == probed_at,
-      "commit_probed: the committed cursor moved between `probe_close` and the commit. A \
-       `ClosePayload` is only valid while the cursor sits where the probe left it, so the \
-       token about to be settled is not the one that was probed. Something in the gap \
-       consumed or rewound — the end-state pass must be cursor-neutral."
-    );
-  }
-
   #[inline]
   pub(crate) fn commit_probed(
     &mut self,
@@ -541,7 +589,7 @@ where
         probed_at,
       } => {
         #[cfg(debug_assertions)]
-        self.assert_probe_still_current(&probed_at);
+        self.assert_probe_still_current(&probed_at, COMMIT_PROBED_MOVED);
         carried
       }
       // The probe left the closer at the front of the stream; take it at the commit point (never
@@ -551,7 +599,7 @@ where
         probed_at,
       } => {
         #[cfg(debug_assertions)]
-        self.assert_probe_still_current(&probed_at);
+        self.assert_probe_still_current(&probed_at, COMMIT_PROBED_MOVED);
         self
           .take_front()
           .expect("commit_probed(AtFront): the probed closer is still at the front")
@@ -561,6 +609,56 @@ where
     let (span, tok) = lexed.into_components();
     self.commit_token(&tok, &span, state);
     Spanned::new(span, tok)
+  }
+
+  /// The token a close probe found where the closer belongs, cloned from the front of the stream,
+  /// where the probe left it in every cache capacity. It is the miss's twin of
+  /// [`commit_probed`](Self::commit_probed): it spends the answer, and it lexes nothing.
+  ///
+  /// # Panics
+  ///
+  /// If the front of the stream is empty. The read needs the front to still hold the probed
+  /// token, and nothing in a miss arm's gap re-keys, restores or clears the stream; the debug
+  /// stamp checks only that the committed cursor has not moved since the probe.
+  #[cold]
+  #[inline(never)]
+  pub(crate) fn close_miss_token(&self, miss: CloseMiss<'inp, L>) -> Spanned<L::Token, L::Span> {
+    let CloseMiss {
+      #[cfg(debug_assertions)]
+      probed_at,
+      ..
+    } = miss;
+    #[cfg(debug_assertions)]
+    self.assert_probe_still_current(&probed_at, CLOSE_MISS_MOVED);
+    self
+      .front()
+      .expect("close_miss_token: the probed token is still at the front of the stream")
+      .token
+      .cloned()
+  }
+
+  /// Reports a close miss as `make` words it, unless the emitter already holds a live report
+  /// naming that very token: *one junk token, one report*. The token is read from the front by
+  /// [`close_miss_token`](Self::close_miss_token), and the suppression is keyed on the end of its
+  /// span.
+  // `many`'s delimited/separated drivers are the only callers of the one-junk-token-one-report
+  // pair, and so of this.
+  #[cfg(feature = "many")]
+  #[cold]
+  #[inline(never)]
+  pub(crate) fn report_close_miss<F>(
+    &mut self,
+    miss: CloseMiss<'inp, L>,
+    make: F,
+  ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    F: FnOnce(Spanned<L::Token, L::Span>) -> crate::error::UnexpectedTokenOf<'inp, L, Lang>,
+  {
+    let wrong = self.close_miss_token(miss);
+    if self.front_report_live(wrong.span_ref().end_ref()) {
+      return Ok(());
+    }
+    self.emitter().emit_unexpected_token(make(wrong))
   }
 
   /// Advances to the next valid token and expects it to satisfy the predicate.

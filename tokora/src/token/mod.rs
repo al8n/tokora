@@ -38,6 +38,12 @@ mod pratt;
 /// - `Clone`: Tokens need to be cloneable for backtracking in parsers
 /// - `Debug`: For debugging and error messages
 ///
+/// The input holds a lexed token it has not consumed, in the cache or in its own slot when the
+/// cache refuses one, and may read it again later: for a predicate that declined it, for a
+/// probe, or for a report. It assumes a held token does not change. A token whose observable
+/// value changes after lexing, through interior mutability a callback reaches for example, is
+/// read as it is at each read.
+///
 /// ## Examples
 ///
 /// ## Basic Implementation

@@ -1544,6 +1544,38 @@ impl RecursionLimiter {
     Self::with_limitation(usize::MAX)
   }
 
+  /// Returns this tracker standing at `depth`, with its limitation unchanged: the tracker that
+  /// `depth` calls of [`increase`](Self::increase) from zero would have left.
+  ///
+  /// It is for a caller that keeps the depth somewhere else, in a lexer state packed into fewer
+  /// words say, and needs the tracker back: to hand to code that takes one, or for the
+  /// [`RecursionLimitExceeded`] only [`check`](Self::check) makes.
+  ///
+  /// The depth may be above the limitation. A tracker stands there after any `increase` past its
+  /// limit, since `increase` counts and does not refuse, and `check` then answers `Err`.
+  ///
+  /// # Example
+  ///
+  /// ```rust
+  /// use tokora::state::RecursionLimiter;
+  ///
+  /// let mut stepped = RecursionLimiter::with_limitation(3);
+  /// for _ in 0..4 {
+  ///   stepped.increase();
+  /// }
+  /// let built = RecursionLimiter::with_limitation(3).with_depth(4);
+  /// assert_eq!(built, stepped);
+  /// assert_eq!(built.check().unwrap_err().depth(), 4);
+  /// ```
+  #[must_use]
+  #[inline(always)]
+  pub const fn with_depth(self, depth: usize) -> Self {
+    Self {
+      max: self.max,
+      current: depth,
+    }
+  }
+
   /// Returns the current depth of the recursion.
   #[inline(always)]
   pub const fn depth(&self) -> usize {
