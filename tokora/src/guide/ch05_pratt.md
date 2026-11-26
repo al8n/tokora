@@ -362,15 +362,15 @@ It has two adapters, and the rule for choosing between them is the one thing to 
 - **Driving the machine yourself** does what `folding` does, for an operator a table cannot
   classify.
 
-Measured, over one table and one source, `folding` takes TBD(icount: pratt_flat_fold_left over
-pratt_typed_left) of the instructions the typed driver takes on a left-associative chain of 63
-operators, and TBD(icount: pratt_flat_fold_right over pratt_typed_right) on a right-associative
-one. In time, the same comparison over `tokora-benches`' `pratt/flat` cells reads
-TBD(wall clock: fold/ over pratt/typed/). `parse_into` with
-[`bare`](crate::pratt::Flat::bare) takes TBD(icount: pratt_flat_bare over pratt_flat_control) of the
-instructions of the first design's loop, written out by hand over the same reads. The figures are
-for the lexer state those cells carry, 64 bytes, which a checkpoint and a staged token clone, and
-they move with it.
+Measured, over one table, `folding` takes 0.81 of the instructions the typed driver takes on a
+source of four left-associative chains of 63 operators each, and 0.75 of them on four
+right-associative ones. In time, the full-parse comparison against the handwritten typed channels in
+`tokora-benches`' `pratt/flat` cells, a different typed parser from the instruction counts'
+table-driven one, reads 0.61 to 0.70. Those timed figures are the five-round medians of the eleven
+shapes in one advisory CI run, and they include how each parser reads the next token. These are the
+only ratios this section gives, and each reads below one. The figures are for the 64-byte lexer
+state those cells carry, which a checkpoint and a staged token clone, and no other size is
+measured.
 
 A calculator over `i64` on `folding`, whose infix fold checks its arithmetic, refuses an overflow
 at its operator:

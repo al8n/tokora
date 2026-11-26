@@ -13,10 +13,11 @@
 //!   probe for the next operator inside a transaction it can restore.
 //!
 //! `parser_combinators.rs`'s `pratt_expr` calls `inp.pratt(...)` — the **token-level** one.
-//! No other benchmark in this repository constructs the typed [`Pratt`] combinator, so without
-//! this file a change that rewrote the typed driver end to end could not move a single benchmark
-//! number: a harness running only `pratt_expr` compiles byte-identical across a wholesale
-//! replacement of the typed driver's transaction structure.
+//! No other criterion bench in this repository constructs the typed [`Pratt`] combinator
+//! (`tokora-icount`'s `pratt_typed_*` rows count its instructions, over the table's channels), so
+//! without this file a change that rewrote the typed driver end to end could not move a single
+//! wall-clock number: a harness running only `pratt_expr` compiles byte-identical across a
+//! wholesale replacement of the typed driver's transaction structure.
 //!
 //! Everything in group `pratt/typed` drives the typed combinator and nothing else. A second group,
 //! `pratt/flat`, drives the flat driver over the same lexer and the same fixtures: see *The flat
@@ -66,7 +67,8 @@
 //!   than looping, and under the wide shape the probe of every enclosing frame stays live
 //!   while it does. That descent is where `O(d)` retention *would* live — the driver as it
 //!   stands does not have it, see *What is and is not comparable* — and it is the only axis
-//!   along which the two shapes can diverge.
+//!   along which the two shapes' retention can diverge. Their per-expression cost is another
+//!   axis, which `bare_operand` exposes.
 //!   Depth **1** is the **break-even probe** rather than part of the retention sweep: a
 //!   per-expression cost and a per-operator saving cross somewhere between zero operators and a
 //!   few, and a sweep that starts at 2 can only bracket that crossing.
@@ -122,8 +124,10 @@
 //! stress-and-control signal**, and it is **not** a measurement of `O(d)` live probe checkpoints
 //! against `O(1)`: the driver as it stands commits each probe *before* it recurses, so the right
 //! half keeps `O(1)` of them live too and there is no `O(d)` retention here to measure. What the
-//! pair is, is **regression-sensitive** to that retention — undoing the narrowing puts `d` live
-//! checkpoints on the right against one on the left and changes nothing else in the pair.
+//! pair is built to be is **regression-sensitive** to that retention: undoing the narrowing would
+//! put `d` live checkpoints on the right against one on the left. That is reasoned from the
+//! fixture design, and no run of the wide shape exists to confirm it; see *The retention sweep,
+//! and the null it found*.
 //!
 //! Two residuals survive the pairing, so a ratio a percent or two off 1.0 is not read as
 //! retention. The **probe kinds** differ: the right chain's `2d + 1` probes are `d` accepts and
@@ -143,14 +147,15 @@
 //!
 //! The pairing is what makes that acceptable, though not for the reason it is tempting to give.
 //! The drain is **matched**: both halves run the identical loop over the identical number of
-//! expressions, so it adds no unequal right-versus-left work and cannot create, reverse or
-//! conceal the *direction* of a difference. Matched is not absent, though. The measured quantity
-//! is `(driver_right + drain) / (driver_left + drain)`, and a matched additive term pulls a ratio
-//! *toward* 1.0 rather than dropping out of it — for `R < L`, `(R + D) / (L + D)` is greater than
-//! `R / L`, though both stay below 1.0. So the ratio's side of 1.0 is exact and only its distance
-//! from 1.0 is not: a recorded delta is a **lower bound** on the driver-only effect in the same
-//! direction, "no retention penalty" holds a fortiori, and where a range straddles 1.0 the true
-//! driver-only spread is wider in *both* directions. What the drain dilutes is **magnitude**, and
+//! expressions, so the code adds no unequal right-versus-left work, and a drain that costs the
+//! same on both halves cannot create, reverse or conceal the *direction* of a difference. Matched
+//! is not absent, though. The measured quantity is `(driver_right + drain) / (driver_left +
+//! drain)`, and a matched additive term pulls a ratio *toward* 1.0 rather than dropping out of it
+//! — for `R < L`, `(R + D) / (L + D)` is greater than `R / L`, though both stay below 1.0. So the
+//! drain leaves the ratio's side of 1.0 where it was and moves only its distance from 1.0: a
+//! recorded delta is a **lower bound** on the driver-only effect in the same direction, "no
+//! retention penalty" holds a fortiori, and where a range straddles 1.0 the true driver-only
+//! spread is wider in *both* directions. What the drain dilutes is **magnitude**, and
 //! this file makes no magnitude claim. Measuring one would need the driver isolated from the peek
 //! and the terminator, or a difference model in place of a ratio — the shape the fixed-iteration
 //! harness below already uses, where a common additive term genuinely does subtract out.
@@ -188,8 +193,9 @@
 //! The same binary reads tokora's third driver, [`flat`], in a second group. It is laid out to be
 //! read against `pratt/typed` cell for cell: the same lexer with its 64-byte [`ExprState`], the same
 //! fixtures — each cell's bytes are those of the typed cell of the same shape, from the same
-//! generators — and the same checked accumulators. Nothing in `pratt/typed` changed: its ids, its
-//! fixtures and its drain are the ones this header describes above.
+//! generators — and, for the families that fold, the same checked accumulators: see *What an
+//! accumulator is*. The ids, fixtures and drain of `pratt/typed` are the ones this header
+//! describes above.
 //!
 //! The harness's switch is [`Driver`]. A cell carries its driver, [`parse_once`] matches on it, and
 //! so the criterion path and the fixed-iteration path choose a drain in the one place.
@@ -210,46 +216,55 @@
 //!
 //! **What an accumulator is.** `fold/` and `fold_kept/` owe the typed cell's: their folds are
 //! [`fold_infix`]'s arithmetic, which is blind to associativity on purpose, so a `fold/` cell and
-//! the `pratt/typed` cell of its shape perform the same folds into the same tree. `collect/`,
-//! `collect_bare/` and `collect_kind/` owe [`collect_checksum`]: the operands' sum and the
-//! operators' count, read off the source's bytes. A sum cannot tell a left chain from a right one,
-//! so for those the pair at one depth must agree at every depth, where for the fold families it
-//! must differ past depth 1; [`check_pair`] asserts whichever holds.
+//! the `pratt/typed` cell of its shape fold with one arithmetic and owe one accumulator.
+//! `collect/`, `collect_bare/` and `collect_kind/` owe [`collect_checksum`]: the operands' sum and
+//! the operators' count, read off the source's bytes. A sum cannot tell a left chain from a right
+//! one, so for those the pair at one depth must agree at every depth, where for the fold families
+//! it must differ past depth 1; [`check_pair`] asserts whichever holds.
 //!
 //! **Two ways to read the head.** The typed group's channels, [`parse_lhs`] and [`parse_rhs`],
-//! consume a token and put it back; the flat group's table is `ExprTok`'s `PrattToken`
-//! implementation, whose rows are `parse_rhs`'s, power for power. So a `fold/` cell against its
-//! typed cell compares the drivers and also how each reads the head. The typed driver over the
-//! table's own channels, `PrattTable::lhs` and `rhs`, is `tokora-icount`'s `pratt_typed_*` rows.
+//! read the head by consuming a token, which the typed driver restores where `parse_rhs` answers
+//! `End`; the flat group's table is `ExprTok`'s `PrattToken` implementation, whose rows are
+//! `parse_rhs`'s, power for power. So a `fold/` cell against its typed cell compares the drivers
+//! and also how each reads the head. The typed driver over the table's own channels,
+//! `PrattTable::lhs` and `rhs`, is `tokora-icount`'s `pratt_typed_*` rows.
 //!
 //! **What each reading is for:**
 //!
-//! * `fold/X` against `pratt/typed/X`, by time: the flat driver against the typed one. A cell that
-//!   does not read below its typed cell is reported as it is, and the guide's sentence on speed is
-//!   narrowed to the cells that do.
-//! * `fold/bare_operand` is read alone. It is where the typed driver's expression guard buys
-//!   nothing, and where the flat driver opens none.
+//! * `fold/X` against `pratt/typed/X`, by time: the flat driver against the typed one, each with
+//!   its own way of reading the head. A cell that does not read below its typed cell is reported
+//!   as it is, and the guide's sentence on speed is narrowed to the cells that do.
+//! * `fold/bare_operand` is read against `pratt/typed/bare_operand` and no chain cell. It is where
+//!   the typed driver's expression guard buys nothing, and where the flat driver opens none.
 //! * `left_chain/d` is where a waiting operator shows: every operator after the first waits for a
-//!   reduction there, and none does on a right chain. The pair at one depth prices it, at the
-//!   state's 64 bytes.
+//!   reduction there, and none does on a right chain. The pair at one depth reads it at the
+//!   state's 64 bytes, together with what else the shapes differ in: a right chain holds `d`
+//!   operators pending where a left chain holds one, and the default storage spills past four.
 //! * `fold/right_chain/{8,32,64}` against `fold_kept/right_chain/{8,32,64}`: what the default
-//!   storage's spill past four frames costs. `/8` is there because four is the default's bound.
-//! * `collect/` less `collect_bare/` is the unit machine's price for each operator, and
-//!   `collect_bare/` is read against the control `tokora-icount` writes by hand
-//!   (`pratt_flat_control_*`), which it must equal.
+//!   storage costs over a `Vec` with room from the start, which is its four inline frames and its
+//!   spill past them. `/8` is there because four is the default's bound.
+//! * `collect/` less `collect_bare/` is what `Checked` mode adds to the same drain and handler:
+//!   the unit machine's work for each operator, and its set-up and reset for each expression.
+//!   `collect_bare/` is timed against no control. The control `tokora-icount` writes by hand
+//!   (`pratt_flat_control_*`) is a loop that omits the scanner-trip check `bare()` makes at the
+//!   end of an expression, which accounts for the recorded +50 over a four-expression chain
+//!   source and +1,538 over 128 expressions. It has instruction-count rows only, and those are
+//!   read against `pratt_flat_bare_*`, not against this group's cells.
 //! * `collect_kind/` less `collect/`, at the same shape, is what the seam costs without a sink:
 //!   the leading-trivia peek and the two events.
 //!
 //! # The measurement knobs are deliberately left live
 //!
-//! The other bench files in this directory pin `measurement_time(3s)` and `warm_up_time(1s)`
-//! **in code**, which makes `--measurement-time` / `--warm-up-time` inert and pins the
-//! iteration count near whatever three seconds happens to buy. That is fine for a file whose
+//! Three of the other four bench files in this directory (`input_scan`, `parser_combinators` and
+//! `backtrack`) pin `measurement_time(3s)` and `warm_up_time(1s)` **in code**, which makes
+//! `--measurement-time` / `--warm-up-time` inert and pins the iteration count near whatever three
+//! seconds happens to buy. That is fine for a file whose
 //! job is trend detection; it is fatal for a file whose job is pricing a *small* per-expression
 //! delta, which needs long windows for wall clock and, more importantly, needs a
 //! **fixed-iteration** run for anything counter-based. This file sets neither, so every
-//! criterion CLI knob works. Setting them from the command line is a one-flag operation;
-//! un-setting a value compiled into the file is not.
+//! criterion CLI knob works, except under `ci/wallclock/run.sh`, whose `TOKORA_BENCH_*` variables
+//! `support::gate_overrides` applies after the file's own configuration. Setting a knob from the
+//! command line is a one-flag operation; un-setting a value compiled into the file is not.
 //!
 //! # The fixed-iteration harness
 //!
@@ -330,7 +345,7 @@
 //! statistic that is actually paired. It is **not** a proof that retention is free: a heavier
 //! `L::State`, a deeper chain, or a machine with a smaller cache could all move it, and the small
 //! residual in the right side's favour at the middle depths is itself unexplained (the probe-kind
-//! asymmetry above is large enough to account for it, in either direction).
+//! asymmetry above is one candidate, in either direction, and no run isolated it).
 //!
 //! The null is unsurprising rather than mysterious, because the driver in
 //! `src/pratt/expr.rs` is already the **narrowed** shape: its `Infix` arm calls
@@ -390,29 +405,39 @@
 //!
 //! ## The flat group, as measured (PR 2)
 //!
-//! **Every cell of this section is a placeholder until a run fills it, and none is a
-//! measurement.** The figures come from the `wall clock (advisory)` job's readings
-//! (`wallclock-readings`, the `ns_per_iter` of each id), which times each id on both sides of the
-//! comparison, and from a local `cargo bench -p tokora-benches --bench pratt_typed` for any cell
-//! the job's population cannot separate. Each is a ratio of two cells of one shape, read as the
-//! file's header reads a pair: the median over the rounds that were not contended, with its range.
+//! The figures are from this branch's `perf` run 45744931146, on a GitHub-hosted `ubuntu-latest`
+//! runner (image `ubuntu-26.04`, version 20261116.202.1); the readings do not record the CPU. They
+//! are the `wall clock (advisory)` job's readings (`wallclock-readings`, the `ns_per_iter` of each
+//! id) on the head side, five rounds. Each is a ratio of two cells of one shape, taken round by
+//! round and read as the file's header reads a pair: the median over the rounds that were not
+//! contended, with its range in parentheses. A round is contended when any head-side id of the
+//! `pratt_typed` target is more than 10% above that id's own five-round median. No round was
+//! contended under that rule, so all five are kept. The job cannot say more than its population:
+//! a range that straddles 1.0 is a pair this run does not separate, and the figures are
+//! advisory.
 //!
 //! | shape | `fold/` over `pratt/typed/` | `fold_kept/` over `fold/` | `collect/` over `collect_bare/` | `collect_kind/` over `collect/` |
 //! |---|---|---|---|---|
-//! | `bare_operand` | TBD(wall clock) | | TBD(wall clock) | TBD(wall clock) |
-//! | `left_chain/1` | TBD(wall clock) | | TBD(wall clock) | TBD(wall clock) |
-//! | `right_chain/1` | TBD(wall clock) | | TBD(wall clock) | TBD(wall clock) |
-//! | `left_chain/2` | TBD(wall clock) | | TBD(wall clock) | |
-//! | `right_chain/2` | TBD(wall clock) | | TBD(wall clock) | |
-//! | `left_chain/8` | TBD(wall clock) | | TBD(wall clock) | |
-//! | `right_chain/8` | TBD(wall clock) | TBD(wall clock) | TBD(wall clock) | |
-//! | `left_chain/32` | TBD(wall clock) | | TBD(wall clock) | |
-//! | `right_chain/32` | TBD(wall clock) | TBD(wall clock) | TBD(wall clock) | |
-//! | `left_chain/64` | TBD(wall clock) | | TBD(wall clock) | |
-//! | `right_chain/64` | TBD(wall clock) | TBD(wall clock) | TBD(wall clock) | |
+//! | `bare_operand` | 0.64 (0.63-0.66) | | 1.05 (1.01-1.08) | 1.03 (0.99-1.07) |
+//! | `left_chain/1` | 0.61 (0.60-0.63) | | 1.10 (1.06-1.11) | 1.01 (0.96-1.04) |
+//! | `right_chain/1` | 0.62 (0.61-0.63) | | 1.08 (1.07-1.10) | 1.01 (0.99-1.04) |
+//! | `left_chain/2` | 0.64 (0.64-0.66) | | 1.13 (1.07-1.14) | |
+//! | `right_chain/2` | 0.63 (0.61-0.64) | | 1.11 (1.09-1.13) | |
+//! | `left_chain/8` | 0.68 (0.67-0.72) | | 1.17 (1.14-1.19) | |
+//! | `right_chain/8` | 0.67 (0.65-0.70) | 0.96 (0.92-0.98) | 1.21 (1.19-1.24) | |
+//! | `left_chain/32` | 0.70 (0.68-0.73) | | 1.24 (1.20-1.25) | |
+//! | `right_chain/32` | 0.67 (0.66-0.69) | 0.98 (0.94-1.01) | 1.20 (1.17-1.21) | |
+//! | `left_chain/64` | 0.70 (0.70-0.72) | | 1.26 (1.22-1.31) | |
+//! | `right_chain/64` | 0.66 (0.62-0.67) | 0.99 (0.99-1.05) | 1.21 (1.15-1.23) | |
 //!
-//! The instruction counts of the same comparisons, over one chain of 63 operators and over
-//! expressions of one operator each, are `tokora-icount`'s `pratt_rows.rs`, in its own header.
+//! `tokora-icount`'s `pratt_rows.rs` holds instruction counts for two of these comparisons, over
+//! sources of four chains of 63 operators each, and its header has them: `fold/` over
+//! `pratt/typed/` as `pratt_flat_fold_*` over `pratt_typed_*`, and `collect/` over `collect_bare/`
+//! as `pratt_flat_collect_*` over `pratt_flat_bare_*`. They are related, not the same, readings.
+//! Its typed baseline is the table-driven `pratt()` over `PrattTable::lhs` and `rhs`, where
+//! `pratt/typed/` here is timed over the handwritten channels `parse_lhs` and `parse_rhs`. The
+//! `fold_kept/` over `fold/` and `collect_kind/` over `collect/` columns are timed only: that
+//! file has no workload for either.
 //!
 //! [`Pratt`]: tokora::pratt::Pratt
 //! [pratt]: tokora::pratt::pratt
