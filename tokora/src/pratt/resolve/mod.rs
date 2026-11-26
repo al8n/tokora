@@ -515,6 +515,20 @@ const fn refusal_of(answer: PrattOffer) -> Option<PrattRefusal> {
   }
 }
 
+/// The latch rule, for an infix reduction: the latch it leaves on the sub-expression its value
+/// belongs to is the operator's power when the operator is non-associative, and none otherwise. A
+/// prefix and a postfix reduction leave that latch as it is. The public path and the adapters' fast
+/// close both apply it through this.
+#[inline]
+fn infix_latch<LeftAssoc, RightAssoc, NeitherAssoc, Power: Clone>(
+  operator: &Precedenced<PrattInfix<LeftAssoc, RightAssoc, NeitherAssoc>, Power>,
+) -> Option<Power> {
+  match operator.token_ref() {
+    PrattInfix::Neither(_) => Some(operator.precedence().clone()),
+    PrattInfix::Left(_) | PrattInfix::Right(_) => None,
+  }
+}
+
 /// A storage broke [`Stack`]'s obligations.
 #[cold]
 #[inline(never)]
@@ -986,12 +1000,8 @@ where
         }))
       }
       FrameOperator::Infix(InfixFrame { left, operator }) => {
-        let latch = match operator.token_ref() {
-          PrattInfix::Neither(_) => Some(operator.precedence().clone()),
-          PrattInfix::Left(_) | PrattInfix::Right(_) => None,
-        };
         self.state.phase = Phase::Reducing(Resume {
-          latch: Latch::Set(latch),
+          latch: Latch::Set(infix_latch(&operator)),
           finishing,
         });
         PrattPoll::Reduce(PrattReduction::Infix(PrattInfixReduction {
@@ -1073,8 +1083,9 @@ where
   /// The frame on top, popped. The count is lowered as soon as the storage gives the frame up, and
   /// before the frame or a value in it can be dropped.
   ///
-  /// Called with a frame pending, by its three callers' own tests: `reset`'s loop, `retract`'s,
-  /// and the `Owed` phase `reduce_top` is reached from. So the count cannot wrap.
+  /// Called with a frame pending, by its four callers' own tests: `reset`'s loop, `retract`'s,
+  /// the `Owed` phase `reduce_top` is reached from, and `close_and_reduce`'s test of the depth. So
+  /// the count cannot wrap.
   #[inline]
   fn pop_frame(&mut self) -> PrattFrame<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Power> {
     debug_assert!(self.state.depth > 0, "a frame popped with none pending");
@@ -1086,6 +1097,18 @@ where
       None => broken_stack("`pop` answered `None` with a frame pending"),
     }
   }
+}
+
+/// What [`close_and_reduce`](PrattResolver::close_and_reduce) hands back: the one reduction the end
+/// of the innermost sub-expression owes, or the expression's value.
+pub(crate) enum Closed<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Power> {
+  /// It was a prefix operator's operand: that operator's reduction.
+  Prefix(PrattPrefixReduction<V, Pre, Power>),
+  /// It was an infix operator's right operand: that operator's reduction.
+  Infix(PrattInfixReduction<V, LeftAssoc, RightAssoc, NeitherAssoc, Power>),
+  /// It was the root: the expression's value. The machine is as
+  /// [`reset`](PrattResolver::reset) leaves it.
+  Done(V),
 }
 
 /// The events an adapter of this crate feeds where its own loop already knows what the public
@@ -1104,12 +1127,22 @@ where
 ///   adapter meets the `Term` and `Operator` phases, and `Owed` and `Reducing` stay the public
 ///   protocol's.
 /// - **What each assumes.** `put_operand` and `push_prefix` assume `Term`, and leave `Operator` and
-///   `Term`. `push_infix` and `take_postfix` assume `Operator`, and that the adapter's own offer
-///   answered `Take` for the operator with nothing fed since. `push_infix` leaves `Term`.
-/// - **A fold runs in `Term`.** `take_postfix` moves the value out as the operand of the postfix
-///   reduction it hands back, which leaves `Term`. The operator is on no frame, so the depth is as
-///   it was, and a postfix reduction leaves the latch as it is. The adapter folds, and
-///   `put_reduced` puts the value back, which leaves `Operator`.
+///   `Term`. `push_infix`, `take_postfix` and `close_and_reduce` assume `Operator`, and the first
+///   two that the adapter's own offer answered `Take` for the operator with nothing fed since.
+///   `push_infix` leaves `Term`.
+/// - **A fold runs in `Term`.** `take_postfix` and `close_and_reduce` move the value out into the
+///   reduction they hand back, which leaves `Term`. The adapter folds, and `put_reduced` puts the
+///   value back, which leaves `Operator`.
+/// - **The latch is applied at the pop.** Under a pending operator `close_and_reduce` pops its
+///   frame and applies the latch rule there, before the fold, where the public path applies it in
+///   `handle_reduced` once the value is back. It is the same rule, `infix_latch`, at an earlier
+///   point: during the fold the machine holds one frame fewer, and the latch it keeps after.
+/// - **Depth 0 is the close's own case.** At the root nothing is pending: `close_and_reduce` pops
+///   nothing, and hands the value out as `Done` with the root's latch cleared, as `poll`'s `Done`
+///   does, so the machine is as `reset` leaves it. It never reaches `pop_frame` with no frame
+///   pending.
+/// - **Postfix.** `take_postfix` pops nothing either. Its operator is on no frame, so the depth is
+///   as it was, and a postfix reduction leaves the latch as it is, which is the rule.
 /// - **Why no input reaches an event in the wrong phase.** An adapter feeds each event only at the
 ///   point of its loop where the phase that event assumes holds: at a term, where the loop is when
 ///   it starts and after each push, or at an operator, where it is after each value it puts. What
@@ -1117,6 +1150,10 @@ where
 ///   and never the phase. The offer that admits an operator is asked in the read that commits it,
 ///   with nothing fed between the two. So a slip is a defect of the adapter's code, which a debug
 ///   test build catches, and no input can make one.
+/// - **After an error or an unwind out of a fold** the frame is popped and the latch written,
+///   where the public path still holds the latch back in `Reducing`. No adapter goes on with such
+///   a machine: `folding`'s lives for one parse and is dropped with its error or its unwind, and
+///   `parse_into`'s is reset when its parse ends, or dropped with an unwind out of it.
 impl<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Post, Power, S>
   PrattResolver<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Post, Power, S>
 where
@@ -1224,6 +1261,40 @@ where
       unreachable!("a postfix operator taken outside the `Operator` phase");
     };
     PrattPostfixReduction { operand, operator }
+  }
+
+  /// [`close`](Self::close) in the `Operator` phase, which the adapter stands in, with what it
+  /// owes handed straight back rather than to `poll`. Under a pending operator its frame is
+  /// popped, the latch rule applied, and its reduction handed out: the phase is `Term`, one frame
+  /// fewer, until [`put_reduced`](Self::put_reduced). At the root, the expression's value, and the
+  /// machine is as [`reset`](Self::reset) leaves it.
+  #[inline]
+  pub(crate) fn close_and_reduce(
+    &mut self,
+  ) -> Closed<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Power> {
+    let Some(right) = self.take_value() else {
+      unreachable!("a close outside the `Operator` phase");
+    };
+    if self.state.depth == 0 {
+      // `Done` resets, as `poll`'s does: nothing is pending, and the phase is `Term` already.
+      self.state.root_latch = None;
+      return Closed::Done(right);
+    }
+    let PrattFrame { operator, latch: _ } = self.pop_frame();
+    match operator {
+      FrameOperator::Prefix(operator) => Closed::Prefix(PrattPrefixReduction {
+        operand: right,
+        operator,
+      }),
+      FrameOperator::Infix(InfixFrame { left, operator }) => {
+        self.set_latch(infix_latch(&operator));
+        Closed::Infix(PrattInfixReduction {
+          left,
+          right,
+          operator,
+        })
+      }
+    }
   }
 
   /// The value of a reduction this impl's events handed back, put back in the `Term` phase its

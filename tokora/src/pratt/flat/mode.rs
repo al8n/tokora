@@ -8,8 +8,8 @@ use hybrid_arraydeque::typenum::U4;
 use hybrid_arraydeque::typenum::U32;
 
 use super::super::{
-  PrattFrame, PrattInfix, PrattOffer, PrattPending, PrattPoll, PrattPower, PrattRHS, PrattResolver,
-  PrattStack, Precedenced, sealed::Sealed,
+  PrattFrame, PrattInfix, PrattOffer, PrattPending, PrattPower, PrattRHS, PrattResolver,
+  PrattStack, Precedenced, resolve::Closed, sealed::Sealed,
 };
 
 /// One pending operator of `Checked`'s machine, which holds unit values.
@@ -189,24 +189,6 @@ pub struct CheckedRun<'a, Power> {
 }
 
 impl<Power: PrattPower> CheckedRun<'_, Power> {
-  /// Takes the reduction the machine owes, and hands its unit value back: a unit reduction builds
-  /// nothing, and needs no input.
-  #[inline]
-  fn reduced(&mut self) {
-    match self.machine.poll() {
-      PrattPoll::Reduce(_) => {}
-      PrattPoll::Term | PrattPoll::Operator | PrattPoll::Reducing | PrattPoll::Done(()) => {
-        unreachable!("the flat driver's unit machine owed a reduction, and handed out none")
-      }
-    }
-    if let Err(refused) = self.machine.handle_reduced(()) {
-      unreachable!(
-        "the flat driver's unit machine refused the value of its own reduction: {:?}",
-        refused.why()
-      )
-    }
-  }
-
   /// The bound a refused push met, which is `Full`. The capacity is the lesser of the cap and the
   /// stack's own, and the stack is never a segment here. So it is the bound that refused: the cap
   /// where the count reached it, and the stack's where the stack refused below the cap.
@@ -218,19 +200,22 @@ impl<Power: PrattPower> CheckedRun<'_, Power> {
 
 impl<Power: PrattPower> RunSteps<Power> for CheckedRun<'_, Power> {
   /// The offer. On `Reduce` the one reduction is performed where the head is classified, and the
-  /// operator is offered again, until the answer changes.
+  /// operator is offered again, until the answer changes. The close hands the reduction straight
+  /// back, and a unit reduction builds nothing and needs no input: it is dropped, and the unit is
+  /// its value. `Reduce` is answered only under a pending operator, so the close never ends the
+  /// root here.
   #[inline]
   fn admit(&mut self, rhs: &PrattRHS<(), (), (), (), Power>) -> PrattOffer {
     loop {
       match self.machine.offer(rhs) {
-        PrattOffer::Reduce => {
-          if let Err(why) = self.machine.close() {
+        PrattOffer::Reduce => match self.machine.close_and_reduce() {
+          Closed::Prefix(_) | Closed::Infix(_) => self.machine.put_reduced(()),
+          Closed::Done(()) => {
             unreachable!(
-              "the flat driver's unit machine refused to close where its offer said reduce: {why:?}"
+              "the flat driver's unit machine ended its root where its offer said reduce"
             )
           }
-          self.reduced();
-        }
+        },
         answer => return answer,
       }
     }

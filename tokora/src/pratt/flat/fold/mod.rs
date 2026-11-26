@@ -1,13 +1,14 @@
 //! `folding`: the flat driver's adapter that resolves precedence as it parses, and folds into the
 //! caller's value with the typed driver's three fold traits.
 //!
-//! It runs the flat loop over a machine of the caller's values, and folds each reduction the
-//! machine hands out, one for each poll, with the operator that asked for it left on the input.
-//! After every fold the head is read again and offered afresh: whatever the fold consumed or left,
-//! the read is of the input's current head. Its classification is reused only while the head is
-//! still the token the last read classified, the same cache entry or the same parked token. Under
-//! a cache with room the read takes the staged token and lexes nothing. A token is committed only
-//! on the answer of that read's own offer.
+//! It runs the flat loop over a machine of the caller's values, through the machine's crate-private
+//! events, and folds each reduction as the machine hands it back, one for each sub-expression that
+//! ends, with the operator that asked for it left on the input. A postfix operator's reduction is
+//! folded where the operator is read. After every fold the head is read again and offered afresh:
+//! whatever the fold consumed or left, the read is of the input's current head. Its classification
+//! is reused only while the head is still the token the last read classified, the same cache entry
+//! or the same parked token. Under a cache with room the read takes the staged token and lexes
+//! nothing. A token is committed only on the answer of that read's own offer.
 //!
 //! Where the crate cannot allocate, a default storage grows on the native stack, a segment at a
 //! time. A loop that finds its storage full below the cap goes on in a deeper native frame over a
@@ -33,8 +34,8 @@ use super::super::segment::Segment;
 use super::{
   super::{
     PrattFoldInfix, PrattFoldPostfix, PrattFoldPrefix, PrattFrame, PrattInfix, PrattLHS,
-    PrattOffer, PrattPending, PrattPoll, PrattPower, PrattRHS, PrattReduction, PrattResolver,
-    Precedenced, resolve::ResolverState,
+    PrattOffer, PrattPending, PrattPoll, PrattPower, PrattRHS, PrattResolver, Precedenced,
+    resolve::{Closed, ResolverState},
   },
   FlatCst, OperatorHead, TermHead,
   seam::Seam,
@@ -641,168 +642,10 @@ where
         // token the machine does not take stays staged, so under a cache with room the next read
         // lexes nothing.
         PrattPoll::Operator => {
-          // What the last read found spares this one its work while it stands. An end of input
-          // confirmed at this position and regime is not read again: the expression ends there,
-          // and the close meets the trip check as a read's would. A token the read staged keeps
-          // its classification while it is still the front.
-          let mut reuse = None;
-          match seen.take() {
-            Some(Seen::End(at_end)) => {
-              if *input.span().end_ref() == at_end.at
-                && same_regime(input.regime_generation(), at_end.regime)
-              {
-                seen = Some(Seen::End(at_end));
-                close(&mut machine, input, scans)?;
-                continue;
-              }
-            }
-            Some(Seen::Staged { entry, rhs }) if input.staged_entry() == Some(entry) => {
-              reuse = Some(rhs);
-            }
-            // Nothing kept, or a staged token that is no longer the front.
-            _ => {}
-          }
-          let mut answer = Answer::End;
-          let mut classified = None;
-          let head = input.try_expect_map_or_stop(|tok| {
-            // The front is the entry checked above when its classification is reused, and a staged
-            // entry is never trivia.
-            let rhs = match reuse.take() {
-              Some(rhs) => rhs,
-              None => {
-                if tok.is_trivia() {
-                  return Some(OperatorHead::Trivia);
-                }
-                tok.try_pratt_rhs()
-              }
-            };
-            let rhs = match rhs {
-              Some(PrattRHS::End) | None => {
-                answer = Answer::Close;
-                classified = Some(None);
-                return None;
-              }
-              Some(rhs) => rhs,
-            };
-            match (machine.offer(&rhs), rhs) {
-              (PrattOffer::Take, PrattRHS::Infix(infix)) => {
-                let (associativity, power) = infix.into_components();
-                Some(OperatorHead::Infix(associativity, power))
-              }
-              (PrattOffer::Take, PrattRHS::Postfix(postfix)) => {
-                Some(OperatorHead::Postfix(postfix.into_precedence()))
-              }
-              (PrattOffer::Take, PrattRHS::Adjacent(_)) => {
-                answer = Answer::Adjacent;
-                None
-              }
-              (PrattOffer::Take, PrattRHS::End) => {
-                answer = Answer::Close;
-                classified = Some(None);
-                None
-              }
-              (PrattOffer::Reduce | PrattOffer::Decline, rhs) => {
-                answer = Answer::Close;
-                classified = Some(Some(rhs));
-                None
-              }
-              (PrattOffer::Chain, _) => {
-                answer = Answer::Chain;
-                None
-              }
-            }
-          })?;
-          match head {
-            // Committed: the head is read again.
-            Some((OperatorHead::Trivia, _)) => {}
-            Some((OperatorHead::Infix(associativity, power), token)) => {
-              let operator = match associativity {
-                PrattInfix::Left(()) => PrattInfix::Left(token),
-                PrattInfix::Right(()) => PrattInfix::Right(token),
-                PrattInfix::Neither(()) => PrattInfix::Neither(token),
-              };
-              if let Err(operator) = machine.push_infix(Precedenced::new(operator, power)) {
-                Self::past_cap(machine.depth(), steps.cap, input)?;
-                #[cfg(any(test, not(any(feature = "std", feature = "alloc"))))]
-                {
-                  if steps.grows {
-                    let (state, mut storage) = machine.into_parts();
-                    let exit = Self::grow(
-                      state,
-                      &mut storage,
-                      Refed::Infix(operator),
-                      steps,
-                      input,
-                      scans,
-                    )?;
-                    let (state, back) = drained(exit);
-                    machine = PrattResolver::from_parts(state, storage);
-                    seen = back;
-                    continue;
-                  }
-                }
-                // Not grown: the error reports the storage's bound, and the operator is dropped.
-                drop(operator);
-                return Err(stack_full(input, machine.capacity()));
-              }
-            }
-            // A postfix operator's reduction is folded where the operator is read, with the
-            // operator just committed. It pops nothing, so no return test follows it: a segment
-            // holds a frame of its own wherever its loop is at an operator.
-            Some((OperatorHead::Postfix(power), token)) => {
-              let (operand, operator) = machine
-                .take_postfix(Precedenced::new(token, power))
-                .into_components();
-              let value = steps.fold_postfix.fold_postfix(input, operand, operator)?;
-              machine.put_reduced(value);
-            }
-            // The token is staged, or there is none. A trip since the expression began answers
-            // for an ending, a reduction and a refusal alike: an operand parser or a fold that
-            // read on may have left the head it stopped behind.
-            None => match answer {
-              Answer::End => {
-                seen = Some(Seen::End(AtEnd {
-                  at: input.span().end_ref().clone(),
-                  regime: input.regime_generation(),
-                }));
-                close(&mut machine, input, scans)?;
-              }
-              Answer::Close => {
-                if let (Some(rhs), Some(entry)) = (classified, input.staged_entry()) {
-                  seen = Some(Seen::Staged { entry, rhs });
-                }
-                close(&mut machine, input, scans)?;
-              }
-              Answer::Chain => return Err(chain(input, scans)),
-              Answer::Adjacent => return Err(adjacent(input, scans)),
-            },
-          }
-        }
-
-        // One reduction, folded with the operator that asked for it still on the input.
-        PrattPoll::Reduce(reduction) => {
-          let value = match reduction {
-            PrattReduction::Prefix(reduction) => {
-              let (operand, operator) = reduction.into_components();
-              steps.fold_prefix.fold_prefix(input, operand, operator)?
-            }
-            PrattReduction::Infix(reduction) => {
-              let (left, right, operator) = reduction.into_components();
-              steps.fold_infix.fold_infix(input, left, right, operator)?
-            }
-            PrattReduction::Postfix(reduction) => {
-              let (operand, operator) = reduction.into_components();
-              steps.fold_postfix.fold_postfix(input, operand, operator)?
-            }
-          };
-          if let Err(refused) = machine.handle_reduced(value) {
-            unreachable!(
-              "the flat driver's machine refused the value of its own reduction: {:?}",
-              refused.why()
-            );
-          }
           // The return test, before the loop next reads its stack: a segment whose own frames are
           // gone hands the machine to the loop below, which goes on over its own segment, full.
+          // Only a reduction empties one, and it is here, with its value back, that the loop is
+          // next.
           if UPPER && machine.storage().is_empty() {
             #[cfg(test)]
             {
@@ -811,19 +654,175 @@ where
             }
             return Ok(Exit::Drained(machine.into_parts().0, seen));
           }
-        }
-
-        PrattPoll::Reducing => {
-          unreachable!("the flat driver hands each reduction's value back before it polls again")
-        }
-
-        // The expression is complete. A trip since it began makes its end terminal.
-        PrattPoll::Done(value) => {
+          // What the last read found spares this one its work while it stands. An end of input
+          // confirmed at this position and regime is not read again: the expression ends there,
+          // and the close meets the trip check as a read's would. A token the read staged keeps
+          // its classification while it is still the front.
+          let mut reuse = None;
+          let confirmed = match seen.take() {
+            Some(Seen::End(at_end))
+              if *input.span().end_ref() == at_end.at
+                && same_regime(input.regime_generation(), at_end.regime) =>
+            {
+              Some(at_end)
+            }
+            Some(Seen::Staged { entry, rhs }) if input.staged_entry() == Some(entry) => {
+              reuse = Some(rhs);
+              None
+            }
+            // Nothing kept, or what was kept no longer answers for the head.
+            _ => None,
+          };
+          match confirmed {
+            Some(at_end) => seen = Some(Seen::End(at_end)),
+            None => {
+              let mut answer = Answer::End;
+              let mut classified = None;
+              let head = input.try_expect_map_or_stop(|tok| {
+                // The front is the entry checked above when its classification is reused, and a
+                // staged entry is never trivia.
+                let rhs = match reuse.take() {
+                  Some(rhs) => rhs,
+                  None => {
+                    if tok.is_trivia() {
+                      return Some(OperatorHead::Trivia);
+                    }
+                    tok.try_pratt_rhs()
+                  }
+                };
+                let rhs = match rhs {
+                  Some(PrattRHS::End) | None => {
+                    answer = Answer::Close;
+                    classified = Some(None);
+                    return None;
+                  }
+                  Some(rhs) => rhs,
+                };
+                match (machine.offer(&rhs), rhs) {
+                  (PrattOffer::Take, PrattRHS::Infix(infix)) => {
+                    let (associativity, power) = infix.into_components();
+                    Some(OperatorHead::Infix(associativity, power))
+                  }
+                  (PrattOffer::Take, PrattRHS::Postfix(postfix)) => {
+                    Some(OperatorHead::Postfix(postfix.into_precedence()))
+                  }
+                  (PrattOffer::Take, PrattRHS::Adjacent(_)) => {
+                    answer = Answer::Adjacent;
+                    None
+                  }
+                  (PrattOffer::Take, PrattRHS::End) => {
+                    answer = Answer::Close;
+                    classified = Some(None);
+                    None
+                  }
+                  (PrattOffer::Reduce | PrattOffer::Decline, rhs) => {
+                    answer = Answer::Close;
+                    classified = Some(Some(rhs));
+                    None
+                  }
+                  (PrattOffer::Chain, _) => {
+                    answer = Answer::Chain;
+                    None
+                  }
+                }
+              })?;
+              match head {
+                // Committed: the head is read again.
+                Some((OperatorHead::Trivia, _)) => continue,
+                Some((OperatorHead::Infix(associativity, power), token)) => {
+                  let operator = match associativity {
+                    PrattInfix::Left(()) => PrattInfix::Left(token),
+                    PrattInfix::Right(()) => PrattInfix::Right(token),
+                    PrattInfix::Neither(()) => PrattInfix::Neither(token),
+                  };
+                  if let Err(operator) = machine.push_infix(Precedenced::new(operator, power)) {
+                    Self::past_cap(machine.depth(), steps.cap, input)?;
+                    #[cfg(any(test, not(any(feature = "std", feature = "alloc"))))]
+                    {
+                      if steps.grows {
+                        let (state, mut storage) = machine.into_parts();
+                        let exit = Self::grow(
+                          state,
+                          &mut storage,
+                          Refed::Infix(operator),
+                          steps,
+                          input,
+                          scans,
+                        )?;
+                        let (state, back) = drained(exit);
+                        machine = PrattResolver::from_parts(state, storage);
+                        seen = back;
+                        continue;
+                      }
+                    }
+                    // Not grown: the error reports the storage's bound, and the operator is
+                    // dropped.
+                    drop(operator);
+                    return Err(stack_full(input, machine.capacity()));
+                  }
+                  continue;
+                }
+                // A postfix operator's reduction is folded where the operator is read, with the
+                // operator just committed. It pops nothing, so the return test above finds the
+                // segment as it was: one with a frame of its own, wherever its loop is at an
+                // operator.
+                Some((OperatorHead::Postfix(power), token)) => {
+                  let (operand, operator) = machine
+                    .take_postfix(Precedenced::new(token, power))
+                    .into_components();
+                  let value = steps.fold_postfix.fold_postfix(input, operand, operator)?;
+                  machine.put_reduced(value);
+                  continue;
+                }
+                // The token is staged, or there is none.
+                None => match answer {
+                  Answer::End => {
+                    seen = Some(Seen::End(AtEnd {
+                      at: input.span().end_ref().clone(),
+                      regime: input.regime_generation(),
+                    }));
+                  }
+                  Answer::Close => {
+                    if let (Some(rhs), Some(entry)) = (classified, input.staged_entry()) {
+                      seen = Some(Seen::Staged { entry, rhs });
+                    }
+                  }
+                  // A trip since the expression began answers for a refusal: an operand parser
+                  // or a fold that read on may have left the head it stopped behind.
+                  Answer::Chain => return Err(chain(input, scans)),
+                  Answer::Adjacent => return Err(adjacent(input, scans)),
+                },
+              }
+            }
+          }
+          // One sub-expression ends here, in the `Operator` phase. What follows is the fold of the
+          // one reduction its end owes, or the expression's end. So a trip since the expression
+          // began makes this point terminal first, whether the classification behind it was read
+          // just now or stood: no fold runs over a stop it could move past, and the end meets the
+          // check a refusal meets, since nothing between here and it reads the input.
           if input.scanner_tripped_during_attempt(scans) {
             return Err(terminal_stop(input));
           }
-          return Ok(Exit::Done(value));
+          // The reduction, folded with the operator that asked for it still on the input.
+          let value = match machine.close_and_reduce() {
+            Closed::Prefix(reduction) => {
+              let (operand, operator) = reduction.into_components();
+              steps.fold_prefix.fold_prefix(input, operand, operator)?
+            }
+            Closed::Infix(reduction) => {
+              let (left, right, operator) = reduction.into_components();
+              steps.fold_infix.fold_infix(input, left, right, operator)?
+            }
+            // The expression is complete.
+            Closed::Done(value) => return Ok(Exit::Done(value)),
+          };
+          machine.put_reduced(value);
         }
+
+        PrattPoll::Reduce(_) | PrattPoll::Reducing | PrattPoll::Done(_) => unreachable!(
+          "the flat driver's machine owes nothing for `poll` to hand out: its close hands the \
+           reduction, or the value, straight back"
+        ),
       }
     }
   }
@@ -895,47 +894,6 @@ fn drained<V, State, Offset, Power>(
        loop returns before the count can reach zero"
     ),
   }
-}
-
-/// One sub-expression closed, in the `Operator` phase, which every caller is in. What follows is
-/// a fold, unless the expression is over: so a trip since the expression began makes this point
-/// terminal first, whether the classification behind it was read just now or stood, and no fold
-/// runs over a stop it could move past.
-#[inline]
-fn close<
-  'inp,
-  'closure,
-  L,
-  Ctx,
-  Lang,
-  V,
-  Pre,
-  LeftAssoc,
-  RightAssoc,
-  NeitherAssoc,
-  Post,
-  Power,
-  St,
->(
-  machine: &mut PrattResolver<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Post, Power, St>,
-  input: &InputRef<'inp, 'closure, L, Ctx, Lang>,
-  scans: ScannerTripBaseline<'closure>,
-) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
-where
-  L: Lexer<'inp>,
-  Ctx: ParseContext<'inp, L, Lang>,
-  Lang: ?Sized,
-  Power: PrattPower,
-  St: Stack<PrattFrame<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Power>>,
-  <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error: From<UnexpectedEot<L::Offset, Lang>>,
-{
-  if input.scanner_tripped_during_attempt(scans) {
-    return Err(terminal_stop(input));
-  }
-  if let Err(why) = machine.close() {
-    unreachable!("the flat driver's machine refused to close in its `Operator` phase: {why:?}");
-  }
-  Ok(())
 }
 
 /// The operator repeats a non-associative chain, unless a trip since the expression began makes
