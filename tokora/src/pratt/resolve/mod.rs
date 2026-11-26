@@ -127,7 +127,9 @@ use crate::container::Stack;
 /// lives, as it was, and a push that unwinds moves none, but the copies the machine keeps beside
 /// its frames, of the innermost sub-expression's floor and latch, may not be put back as they
 /// were, so a caller that goes on after an unwind it caught calls [`reset`](Self::reset), which
-/// returns the machine to a known state.
+/// returns the machine to a known state. Which of that code has run when an unwind leaves an
+/// event, the order one event runs it in, and how the machine compares with another before that
+/// `reset`, are not promised.
 ///
 /// Both rest on the storage's obligation for an unwind, among those above: a push or a pop that
 /// unwinds leaves the frames as they were.
