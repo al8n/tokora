@@ -617,8 +617,9 @@ where
   ///
   /// # Panics
   ///
-  /// If the front of the stream is empty, which cannot happen while `miss` is current; and in a
-  /// debug build, if the committed cursor has moved since the probe.
+  /// If the front of the stream is empty. The read needs the front to still hold the probed
+  /// token, and nothing in a miss arm's gap re-keys, restores or clears the stream; the debug
+  /// stamp checks only that the committed cursor has not moved since the probe.
   #[cold]
   #[inline(never)]
   pub(crate) fn close_miss_token(&self, miss: CloseMiss<'inp, L>) -> Spanned<L::Token, L::Span> {

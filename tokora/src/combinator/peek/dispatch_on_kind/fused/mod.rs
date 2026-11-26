@@ -176,7 +176,7 @@ where
     // adopts span and lexer state exactly like a plain consume. A zero-capacity cache
     // refuses the put-back, so the token goes to the parked slot, and the next read takes
     // it from there without lexing; the peek shape's overflow serves it without caching.
-    // Either way the cursor stayed put. The classifier captures the miss witness (span +
+    // Either way the committed cursor stayed put. The classifier captures the miss witness (span +
     // token) while the token is in hand, and the diagnostic below is built from that copy
     // rather than read back from the front, so its payload is identical in every capacity.
     let table = self.table;

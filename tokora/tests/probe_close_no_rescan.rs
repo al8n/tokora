@@ -7,16 +7,17 @@
 //! (`ParserContext<_, _, ()>`).
 //!
 //! A probe that classifies the closer by scanning it and then pushes the scanned token back to
-//! the cache for a follow-up `try_expect` to commit drops it under `()`, where that push-back is
-//! a no-op, and the follow-up `try_expect` **re-scans** it — one extra closer lex on the success
-//! path (a valid `(a)` can then trip a stateful/limited lexer). `InputRef::probe_close` instead
-//! carries the classified closer out of the probe and commits it by value (`commit_probed`), so
-//! the closer is lexed once by the probe and never again.
+//! the cache for a follow-up `try_expect` to commit hands it, under `()`, to the parked slot (the
+//! cache refuses it), and since 0.9.0 (#116) the follow-up read takes it from there without
+//! lexing. Before that, a put-back under `()` was dropped and the follow-up `try_expect`
+//! **re-scanned** it. `InputRef::probe_close` carries the classified closer out of the probe and
+//! commits it by value (`commit_probed`), so the closer is lexed once by the probe and never
+//! again.
 //!
 //! These tests pin the closer-lex count through the **public builder API**, so they compile against
-//! either shape: with the push-back the count is one higher (the dropped-push-back re-lex), here it
-//! is the minimum. A shared `Rc<Cell<usize>>` in the lexer state counts every time `)` is lexed
-//! (surviving the input's lexer rebuilds).
+//! either shape: the count is the minimum under both the put-back and the by-value commit. A
+//! shared `Rc<Cell<usize>>` in the lexer state counts every time `)` is lexed (surviving the
+//! input's lexer rebuilds).
 //!
 //! Coverage per delimited family:
 //! - `repeated` / `repeated_while`: a simple valid list (`(a)` / `[a]`) reaches the
@@ -315,7 +316,7 @@ fn wide_cache_ctx() -> ParserContext<
 // ── Element parsers ──────────────────────────────────────────────────────────────
 
 /// `repeated`: accept a word, else decline (the decline scans — and, at the closer,
-/// drops under `()` — the token where the probe then classifies the closer).
+/// parks under `()` — the token where the probe then classifies the closer).
 fn try_word<'inp, Ctx>(
   inp: &mut InputRef<'inp, '_, PcLex<'inp>, Ctx>,
 ) -> Result<ParseAttempt<()>, PcErr>
@@ -487,8 +488,8 @@ fn repeated_default_cache_lexes_the_closer_once() {
 fn repeated_while_no_cache_lexes_the_closer_once() {
   // `repeated_while` probes the close position FIRST each iteration, so the element
   // parser never scans `)`. Under `()` the probe lexes `)` once and `commit_probed`
-  // commits it with no re-lex: the closer is lexed exactly once. With the push-back shape the
-  // follow-up `try_expect` re-lexes it (push-back dropped) and this counter reads 2.
+  // commits it with no re-lex: the closer is lexed exactly once. The assertion's "pre-fix this
+  // reads 2" records the count before 0.9.0 (#116), when a put-back under `()` was dropped.
   let state = CloserScans::default();
   let counter = state.handle();
   let r: Result<Vec<()>, PcErr> = Parser::with_context(no_cache_ctx())
@@ -527,8 +528,8 @@ fn separated_no_cache_lexes_the_closer_once_via_the_epilogue() {
   // The `consume_then_decline` element eats `a` and declines, so the element loop breaks
   // with `)` at the cursor — reaching the epilogue `probe_close` Close arm (Shape B).
   // Under `()` the probe lexes `)` once and `commit_probed` commits it after the
-  // end-state pass with no re-lex. With the push-back shape the deferred `try_expect` re-lexes
-  // it (push-back dropped) and this counter reads 2.
+  // end-state pass with no re-lex. The assertion's "pre-fix reads 2" records the count when a
+  // put-back under `()` was dropped, before 0.9.0 (#116).
   let state = CloserScans::default();
   let counter = state.handle();
   let r: Result<Vec<()>, PcErr> = Parser::with_context(no_cache_ctx())

@@ -325,20 +325,22 @@ copy, and `unused_must_use` reports it. **The remedy is UFCS**:
 - **A delimited many-builder's opener test only classifies.** All four delimited many-builders
   (`repeated`, `repeated_while`, `separated_by_*`, `separated_by_*_while`) tested the opening
   delimiter with a predicate that, on a wrong opener, cloned the token and its span and built the
-  expected-open `UnexpectedToken` inside itself, so the predicate carried that work on every call,
-  the calls that find the opener among them. It now only classifies. A wrong opener is reported
-  after it, from the front of the stream, where the decline leaves the token in every cache
-  capacity, by a cold path that clones the token once. The report is the same value, emitted at
-  the same point and suppressed by the same key, and a missing opener at the end of input is the
-  same error. Internal: no public item changes.
+  expected-open `UnexpectedToken` inside itself. It did that only when it declined, but its size
+  and frame were paid on every call, the calls that find the opener among them. It now only
+  classifies. A wrong opener is reported after it, from the front of the stream, where the decline
+  leaves the token in every cache capacity, by a cold path that clones the token once. The report
+  is the same value, emitted at the same point and suppressed by the same key, and a missing opener
+  at the end of input is the same error. Internal: no public item changes.
 - **A delimited close probe that misses copies nothing (#373).** The close-position probe of the
   four delimited many-builders and of the `delimited` shapes cloned the token it found, and its
   span, into its answer whenever that token was not the closer, though only a report of the miss
   ever read the copy. A delimited `repeated_while` list probes before every element, so it cloned
-  each next token once. The probe now hands back no token: a list that goes on clones nothing, and
+  each next token once. The probe now hands back no token: a list that goes on clones no token, and
   a reported miss reads the token from the front of the stream, where the probe left it in every
-  cache capacity, the parked slot under `()` included, cloning it once as before. The report, its
-  suppression and the recovery cursor are unchanged, and reading the token lexes nothing.
+  cache capacity, the parked slot under `()` included, cloning it once as before. For a token whose
+  value does not change while the input holds it, the report, its suppression and the recovery
+  cursor are unchanged; the new paragraph on `Token` states that contract. Reading the token lexes
+  nothing.
   Internal: no public item changes.
 
 ## 0.13.2 (2026-11-15)
