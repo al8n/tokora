@@ -144,6 +144,49 @@ nothing and is called as a statement. tokora's method would take that call and s
 copy, and `unused_must_use` reports it. **The remedy is UFCS**:
 `MyExt::with_depth(&mut limiter, depth)` pins your method by name.
 
+#### `TokenBudgetTally::look_ahead_spent` — SILENT on a discarded return
+
+**You are exposed if you call a `look_ahead_spent` of your own on an `input::TokenBudgetTally`, with
+method syntax, and discard what it returns.** This release adds an inherent
+`look_ahead_spent(&self) -> usize` (see [below](#unreleased-added)). The tally is reached only as a
+shared borrow, through `InputRef::token_budget`, so a method of yours on it takes `&self`. tokora's
+sits at the same step of the receiver walk, where an inherent item is picked before a trait item,
+so it takes the call.
+
+The rows of `ci/name_collision/`, two-sided against the base of this release:
+
+```text
+loud    look_ahead_spent/used         base=witness=1  head=no-compile
+SILENT  look_ahead_spent/discarded    base=witness=1  head=witness=0
+```
+
+On the discarded row both sides compile, **neither emits any diagnostic**, and the two run
+different programs: yours before, tokora's after. The `used` row is `loud` (`E0308` against the
+probe's `-> u8`). The getter returns a plain `usize` and carries no `#[must_use]`, so a discarded
+return is the whole of the silent difference. **The remedy is UFCS**:
+`MyExt::look_ahead_spent(tally)` pins your method by name.
+
+#### `InputRef::look_ahead` — loud by the probe's own arity, so unprobed
+
+**You are exposed if you call a `look_ahead` method of your own, from an extension trait, on an
+`InputRef`.** This release adds an inherent `look_ahead(&mut self, f)`. Called on an `InputRef` it
+is found no later in the receiver walk than a method of yours, so it takes the call, and nothing
+reports that when the two signatures are compatible.
+
+The rows of `ci/name_collision/`, two-sided against the base of this release:
+
+```text
+loud    look_ahead/used         base=witness=1  head=no-compile
+loud    look_ahead/discarded    base=witness=1  head=no-compile
+```
+
+Both rows are `loud` by the probe's own arity (`E0061`: the probe's consumer takes no argument and
+tokora's takes a closure). That verdict is about the probe, not the name: a method of yours with
+tokora's signature is not probed, so read it as unprobed rather than as safe. `look_ahead` is
+`#[must_use]`, so where it takes a call of yours whose value you discard, `unused_must_use` reports
+it unless the closure returns `()`. **The remedy is UFCS**: `MyExt::look_ahead(inp, f)` pins your
+method by name.
+
 <a id="unreleased-source-breaking-additions-that-fail-loudly"></a>
 
 ### Source-breaking additions that fail *loudly*
@@ -268,8 +311,30 @@ copy, and `unused_must_use` reports it. **The remedy is UFCS**:
   feature on. `error::RecursionLimitReached` stays ungated: it is the general recursion budget's
   error, raised by `InputRef::descend` for any recursive grammar.
 
+<a id="unreleased-added"></a>
+
 ### Added
 
+- **`InputRef::look_ahead` and `TokenBudgetTally::look_ahead_spent`**: speculation that is always
+  taken back, and a reading of the token budget that reports its lexing apart.
+  - `look_ahead(f)` runs `f` as `attempt` would, then puts the input back as it found it and
+    returns `f`'s value. Put back means the position, the lexer state and regime, the emissions,
+    both watermarks and the poison boundary, and also the tokens the cache held and the one parked
+    in front of them. The window is what an `attempt` cannot give back: a declined one that
+    consumed a resident head drops it, and the next read lexes the head again with every lexer
+    error in front of it. After a look-ahead that read lexes what it would have lexed without one.
+  - Every item `f` lexes is still charged to the budget, and the ceiling refuses it like any other.
+    `look_ahead_spent()` counts the items charged while a look-ahead was open, once under nesting,
+    and is durable as `spent` is. `spent() - look_ahead_spent()` is then the spend outside every
+    look-ahead, for a caller that bounds its own rescans against the work it kept; a declined
+    `attempt` stays in it.
+  - The window is copied through `Ctx::Cache: Clone` and `L::Token: Clone`, bounds on the method
+    alone. The `Cache` contract gains the law the copy relies on, that a clone copies the queue,
+    and every cache this crate ships keeps it. The conformance kit checks it through a new entry,
+    `CacheHarness::run_clone`, since `run` asks nothing of a cache but `Cache`.
+  - `TokenBudgetTally` holds one more `usize`, so an `Input` is 8 bytes larger on a 64-bit target.
+  - Either name can take the call of a method of your own: see
+    [above](#unreleased-source-breaking-additions-that-can-change-behaviour-with-no-diagnostic-at-the-call-site).
 - **The flat expression driver, `pratt::flat`.** One loop over the precedence machine: it enters
   no level of the recursion budget, and a long chain costs no native stack where the crate can
   allocate. A `pratt::PrattTable` reads the token's own `PrattToken` rows, and an operand parser
