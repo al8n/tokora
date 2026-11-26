@@ -352,11 +352,13 @@ copy, and `unused_must_use` reports it. **The remedy is UFCS**:
   ceiling the next read was refused instead, so a consume reported a *terminal* end of input over a
   source that had ended. The input now keeps an end-of-input memo of the run under everything that
   decides it: the offset the run began at, the lexer state, and the lexer-error reports it raised.
-  A peek, a consume or a `skip_while` that would resume there resumes at the end of the source
-  instead and lexes nothing. A state switch, or a rollback that takes those reports back, makes the
-  next read lex the run again. The `sync` family, which resumes at its own frontier, lexes it as
-  before, and a `Partial` input is unchanged. `InputRef::offset`, `InputRef::lexer` and
-  `InputRef::is_eoi` read as they did.
+  The input's one lexing site answers from it, so every read that reaches the run, whether it
+  starts there or lexes up to it, meets the end of input without lexing the run again: the peeks,
+  the consumes, `skip_while`, and the `sync` family's scans alike. A `skip_while` or a `sync_to`
+  that ends there settles where lexing the run again would have, and the rewinding syncs rewind as
+  before. A state switch, or a rollback that takes those reports back, makes the next read lex the
+  run again, and an input a limit has stopped stays stopped. A `Partial` input is unchanged.
+  `InputRef::offset`, `InputRef::lexer` and `InputRef::is_eoi` read as they did.
 
 ## 0.13.2 (2026-11-15)
 
