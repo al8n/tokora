@@ -111,10 +111,15 @@ impl RecursionLimitExceeded {
 /// `std::thread::spawn` and every libtest harness thread, and so the smallest stack a parse is
 /// likely to get — before the native stack aborts the process:
 ///
-/// | build | typed driver | token driver |
+/// | build | typed driver | token driver, recursive |
 /// |---|---|---|
 /// | release (`opt-level = 3`), 2 MiB thread | **3871** frames, ~0.53 KiB each | **4247** frames, ~0.48 KiB each |
 /// | debug (`opt-level = 0`), 2 MiB thread | **384** frames, ~5.3 KiB each | **125** frames, ~16.4 KiB each |
+///
+/// The token driver's column is the recursive driver `InputRef::pratt` was when it was measured, one
+/// native frame for each pending operator. It now runs on the precedence machine, four pending
+/// operators to a native frame, and the column is kept as it was measured, with every figure
+/// derived from it.
 ///
 /// The binding cell of *this* table is the **debug token driver at 125**, not the release figures
 /// above it: a parser default sized against the release ceiling lets an unconfigured parse in a
@@ -168,10 +173,12 @@ impl RecursionLimitExceeded {
 /// (or [`ParserContext::with_recursion_limiter`](crate::ParserContext::with_recursion_limiter))
 /// and defaulting to [`PARSE_DEFAULT_DEPTH`](Self::PARSE_DEFAULT_DEPTH) — requested explicitly by
 /// that wiring, and NOT [`new`](Self::new)'s own 500.
-/// Both Pratt engines enter one level per live frame through
-/// [`InputRef::descend`](crate::InputRef::descend), whose [`Descent`](crate::input::Descent)
-/// guard releases the level on every exit including an unwind; exceeding the limit fails the
-/// parse with the always-terminal [`RecursionLimitReached`](crate::error::RecursionLimitReached).
+/// Both Pratt engines draw on it through [`InputRef::descend`](crate::InputRef::descend), whose
+/// [`Descent`](crate::input::Descent) guard releases the level on every exit including an unwind:
+/// the typed driver one level for each live frame, and the token-level driver one for the
+/// expression, with each operator waiting for its operand counted against the levels left.
+/// Exceeding the limit fails the parse with the always-terminal
+/// [`RecursionLimitReached`](crate::error::RecursionLimitReached).
 /// The budget is *per input*, not per parser, so two pratt parsers composed into one grammar
 /// share one depth budget. A hand-written recursive combinator draws on the same cell through
 /// [`InputRef::descending`](crate::InputRef::descending), which is the guard's scoped form and
@@ -313,8 +320,9 @@ impl Default for RecursionLimiter {
 /// # EVERY FIGURE HERE IS A **DEBUG (`opt-level = 0`)** ONE
 ///
 /// That is not incidental, and it is why the constants derived from them are keyed on
-/// `debug_assertions`. A release build's frames are far cheaper — tokora's own table is 125 debug
-/// frames against 3 871 / 4 247 release ones on the same thread, ~16.4 KiB against ~0.48–0.53 KiB,
+/// `debug_assertions`. A release build's frames are far cheaper — tokora's own table, of its two
+/// Pratt drivers as they recursed when it was measured, is 125 debug frames against 3 871 / 4 247
+/// release ones on the same thread, ~16.4 KiB against ~0.48–0.53 KiB,
 /// a **31× spread covered by one number** if a default is derived from this module and shipped
 /// unconditionally. Roughly 90% of the debug figure is `opt-level = 0` stack-slot non-colouring
 /// rather than code size, so it does not shrink with a smaller grammar.
@@ -347,9 +355,10 @@ pub(crate) mod measured {
   ///
   /// **That door spends no recursion level.** Its cost is a native frame per level of nesting and
   /// nothing the budget can count, cross-checked three ways: a sweep of that consumer's syntactic
-  /// tree finds no `descend`/`descending` call; [`RecursionLimitReached`] has exactly one
-  /// construction site in this crate ([`InputRef::descend`](crate::InputRef::descend)); and that
-  /// site's only in-crate callers are the two Pratt engines, which the consumer does not use.
+  /// tree finds no `descend`/`descending` call; [`RecursionLimitReached`] is built in this crate
+  /// only by [`InputRef::descend`](crate::InputRef::descend) and by the trip the token-level
+  /// driver raises beside it, in the same module; and their only in-crate callers are the two
+  /// Pratt engines, which the consumer does not use.
   /// Confirmed at runtime: under the shipped budget of 16 with the consumer's own lexer tally
   /// lifted, its syntactic door parses 64 nested braces clean while its lossless door refuses at
   /// exactly 16.
@@ -432,7 +441,10 @@ pub(crate) mod measured {
   /// [`PARSE_DEFAULT_RELEASE`](super::policy::PARSE_DEFAULT_RELEASE) refused to be raised from one.
   pub(crate) const CONSUMER_LOSSLESS_RELEASE_ABORTS_AT: usize = 3282;
 
-  /// The tightest cell of **tokora's own** table — the debug token driver on the same thread.
+  /// The tightest cell of **tokora's own** table — the debug token driver on the same thread, as
+  /// it recursed when it was measured: one native frame for each pending operator. It now runs on
+  /// the precedence machine and holds four pending operators to a native frame, and this row is
+  /// kept as measured, a bound on its levels and no reading of them; no constant moves with it.
   ///
   /// Kept beside the consumer figures precisely because it is the one the old default was sized
   /// against. Note that it is no longer comparable with the row the budget is enforced on: 125 is
@@ -623,8 +635,8 @@ pub(crate) mod policy {
   ///
   /// The set is two rows and the exclusion is the point:
   ///
-  /// - [`measured::TOKORA_ABORTS_AT`] — tokora's own Pratt engines, which take
-  ///   [`descend`](crate::InputRef::descend) at their two prologues;
+  /// - [`measured::TOKORA_ABORTS_AT`] — tokora's own Pratt engines, which spend the cell through
+  ///   [`descend`](crate::InputRef::descend), measured as they recursed;
   /// - [`measured::CONSUMER_LOSSLESS_ABORTS_AT`] — the measured consumer's lossless door, one
   ///   level per nesting delimiter;
   /// - **and NOT [`measured::CONSUMER_SYNTACTIC_ABORTS_AT`]**, because that door spends zero
@@ -988,9 +1000,9 @@ const _: () = {
   // `TOKORA_ABORTS_AT > CONSUMER_ABORTS_AT` — "the consumer row is the tighter of the two" — is not
   // the property worth asserting. It holds only when the consumer row is read at a door whose
   // levels are heavier than tokora's own Pratt frames; on the door the budget is actually spent
-  // at, the relation inverts for a correct reason (a lossless descent is ~3.1 KiB against tokora's
-  // ~16.4 KiB), and an assertion kept by flipping its comparison would be a gate that had stopped
-  // gating.
+  // at, the relation inverts for a correct reason (a lossless descent is ~3.1 KiB against the
+  // ~16.4 KiB of tokora's recursive token driver as measured), and an assertion kept by flipping
+  // its comparison would be a gate that had stopped gating.
   //
   // What matters is that the headroom tier is taken against the population that BINDS the cell.
   // So: SPENDING_MIN must be a member of the spending set, and no member may be below it. False
@@ -1256,7 +1268,8 @@ impl RecursionLimiter {
   ///
   /// **64 was wrong, and it was wrong in the direction that aborts.** It was derived from the
   /// table in `Two Defaults, Two Subjects` — tokora's own worst cell, the debug token driver's
-  /// **125** frames at ~16.4 KiB on a 2 MiB thread — with roughly 1.9× of margin. But that table
+  /// **125** frames at ~16.4 KiB on a 2 MiB thread, as it recursed when it was measured — with
+  /// roughly 1.9× of margin. But that table
   /// measures *this crate's* frames, and a consumer's grammar does not sit beside tokora's
   /// recursion, it sits **inside** it: the productions the pratt driver calls are the consumer's,
   /// so one level of nesting pays for a tokora frame *and* a consumer frame, and the number to
@@ -1280,7 +1293,8 @@ impl RecursionLimiter {
   /// number. **This cell is shared, and no single row bounds it.**
   ///
   /// Three populations read it, and their per-level costs span 68×: tokora's two Pratt engines
-  /// (~16.4 KiB), a caller's own hand-written [`descending`](crate::InputRef::descending)
+  /// (~16.4 KiB, the recursive token driver as measured), a caller's own hand-written
+  /// [`descending`](crate::InputRef::descending)
   /// (modelled at the measured heaviest, ~41 KiB), and a lossless consumer's descent (~3.1 KiB).
   /// The derivation therefore applies **full headroom to every population that actually spends the
   /// cell**, and **a bare fit, with no multiplier, to the heaviest population that is only
@@ -1340,8 +1354,9 @@ impl RecursionLimiter {
   ///
   /// # It is keyed on the build profile, and both cells hold the same number on purpose
   ///
-  /// A debug frame and a release frame are not the same size — tokora's own table is ~16.4 KiB
-  /// against ~0.48–0.53 KiB, a 31× spread — and the release rows genuinely support **256**. The
+  /// A debug frame and a release frame are not the same size — tokora's own table, of its Pratt
+  /// drivers as they recursed when it was measured, is ~16.4 KiB against ~0.48–0.53 KiB, a 31×
+  /// spread — and the release rows genuinely support **256**. The
   /// constant still selects on `debug_assertions`, and both arms are **32**.
   ///
   /// **That is not caution, and it is not a missing measurement.** The release sweep exists; the
@@ -1436,9 +1451,10 @@ impl RecursionLimiter {
   ///
   /// # The precondition, stated as narrowly as it actually is
   ///
-  /// `stacker` puts `stacker::maybe_grow` on the frame prologue of tokora's **two Pratt engines**,
-  /// and on nothing else. A frame that enters within 256 KiB of the end of its stack
-  /// continues on a fresh 2 MiB heap segment, so for those frames the ceiling stops being a
+  /// `stacker` puts `stacker::maybe_grow` in tokora's **two Pratt engines**, and in nothing else:
+  /// on the typed driver's frame prologue, and on each native frame the token-level driver's loop
+  /// enters for four more pending operators. A frame that enters within 256 KiB of the end of its
+  /// stack continues on a fresh 2 MiB heap segment, so for those frames the ceiling stops being a
   /// hardware constant.
   ///
   /// It is **not** on [`InputRef::descend`](crate::InputRef::descend) or

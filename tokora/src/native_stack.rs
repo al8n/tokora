@@ -2,11 +2,12 @@
 //! red-zone and segment derivations, and the measurements `RecursionLimiter::PARSE_DEFAULT_DEPTH`
 //! and `RecursionLimiter::SEGMENTED_PRATT_DEPTH` come from.
 //!
-//! Gated on `pratt` because the two Pratt frame prologues are its only callers — `descend` has
+//! Gated on `pratt` because the two Pratt engines are its only callers, the typed driver at each
+//! frame's prologue and the token-level driver at each segment its loop grows — `descend` has
 //! other ones, this does not. **`stacker` therefore implies `pratt`**: without that implication a
 //! `stacker` build resolved the dependency, built `psm`'s `cc` script, and compiled nothing able
 //! to call any of it. The `--each-feature` `stacker` leg consequently builds this module and both
-//! prologues, which is the library half of the pair; the manifest's `std,logos,combinators,stacker`
+//! callers, which is the library half of the pair; the manifest's `std,logos,combinators,stacker`
 //! entry is what additionally compiles the suites that exercise them.
 //!
 //! The **native call stack** a Pratt frame sits on, and the two things that bound how many of them
@@ -35,7 +36,7 @@
 //! becomes a number someone chose** — whatever `InputContext::with_recursion_limiter` says.
 //!
 //! **FOR THESE FRAMES ONLY, and the feature therefore moves no default.** `maybe_grow` is called
-//! from the two Pratt frame prologues and from nowhere else, while
+//! from the two Pratt engines and from nowhere else, while
 //! `RecursionLimiter::PARSE_DEFAULT_DEPTH` seeds every `InputContext` — including the budget a
 //! consumer's own `descending` production draws on, which is an ordinary unsegmented frame on an
 //! ordinary thread stack. For one revision this feature raised that shared constant from 16 to
@@ -63,8 +64,8 @@
 //!
 //! # Where the check goes
 //!
-//! The **frame prologue of both Pratt engines** — the same line `InputRef::descend` already
-//! occupies, composed with it rather than substituted for it:
+//! The **typed driver's frame prologue** — the same line `InputRef::descend` already occupies,
+//! composed with it rather than substituted for it:
 //!
 //! ```rust,ignore
 //! let mut frame = inp.descend()?;      // the budget: one level, refusable
@@ -80,13 +81,21 @@
 //! leaves all of it running on the stack that is about to run out. A recursion site added later
 //! inherits the check for free, which a per-site placement cannot promise.
 //!
+//! The token-level driver has no frame for each level: it is one loop over the precedence machine,
+//! which holds its pending operators four to a native frame. It asks once for each of those frames,
+//! where its loop grows one, around the native frame the new four live in.
+//!
 //! # THE MEASUREMENTS
 //!
 //! One pratt frame per level of nesting, on an explicitly sized **2 MiB** thread, bisected to the
 //! last depth that completes before the native stack ends the process. tokora's own grammar, the
-//! table `RecursionLimiter` carries:
+//! table `RecursionLimiter` carries. The token driver's column is the recursive driver
+//! `InputRef::pratt` was when it was measured, one native frame for each pending operator. It now
+//! runs on the precedence machine, four pending operators to a native frame, and the column, and
+//! every figure derived from it, is kept as it was measured: a bound on that driver's levels and
+//! no reading of them.
 //!
-//! | build | typed driver | token driver |
+//! | build | typed driver | token driver, recursive |
 //! |---|---|---|
 //! | release | 3871 (~0.53 KiB/level) | 4247 (~0.48 KiB/level) |
 //! | debug | 384 (~5.3 KiB/level) | **125** (~16.4 KiB/level) |
@@ -161,7 +170,8 @@
 /// at 51 levels on a 2 MiB thread.
 ///
 /// 256 KiB is the next power of two above 4× that: **6.2×** the heaviest measured level, and 15.6×
-/// tokora's own ≈16.4 KiB. The margin is not decoration — 41 KiB is one grammar on one platform
+/// the ≈16.4 KiB of tokora's own heaviest measured frame, the recursive token driver's. The margin
+/// is not decoration — 41 KiB is one grammar on one platform
 /// under one toolchain, and guessing low fails as a guard-page `SIGSEGV` with no diagnostic, which
 /// is the worse half of the asymmetry this module is written around.
 ///
@@ -180,7 +190,7 @@ pub(crate) const RED_ZONE: usize = 256 * 1024;
 /// **2 MiB, because that is the unit every measurement above is already stated in.** It is what
 /// `std::thread::spawn` and every libtest harness thread hands out, so one segment reproduces
 /// exactly the ceiling the table describes: ~43 levels of the heaviest measured consumer grammar,
-/// ~125 of tokora's own debug token driver — which is, and has to be, the same 125 the table's
+/// ~125 of the recursive debug token driver — which is, and has to be, the same 125 the table's
 /// binding cell records for a 2 MiB thread.
 ///
 /// The three constraints it satisfies:

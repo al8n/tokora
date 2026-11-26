@@ -2840,9 +2840,10 @@ fn with_stacker_the_same_chain_parses_past_the_thread_it_runs_on() {
      got {refused:?}"
   );
 
-  // And the token engine, so "segments carry it" is not a typed-only claim: the two prologues are
-  // separate lines of code and a fix that covered one and missed the other is exactly the shape
-  // this file pins everywhere else.
+  // And the token engine, on the same thread under the same raised budget. It has no frame for
+  // each level any more: it holds its pending operators four to a native frame, and asks for room
+  // on the native stack once for each four, so this cell pins nothing of where its frames run.
+  // What it pins is that the raised budget is honoured there too: the chain parses.
   let token: TokOutcome = on_a_2mib_stack(|| {
     let src = prefix_chain(FAR_PAST_THE_CEILING);
     Parser::with_context(limited(FAR_PAST_THE_CEILING + 1))
@@ -2852,7 +2853,7 @@ fn with_stacker_the_same_chain_parses_past_the_thread_it_runs_on() {
   });
   assert!(
     token.is_ok(),
-    "the token driver's prologue grows too; got {token:?}"
+    "the token driver parses the chain under the raised budget too; got {token:?}"
   );
 }
 

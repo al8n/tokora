@@ -496,8 +496,9 @@ impl<E, C> InputContext<E, C> {
   ///
   /// The budget is per *input session*, not per parser: every recursive-descent site that goes
   /// through [`InputRef::descending`](InputRef::descending) or the lower-level
-  /// [`InputRef::descend`](InputRef::descend) — today both Pratt engines' frame prologues —
-  /// draws on this one cell, so two expression parsers composed into one grammar cannot each
+  /// [`InputRef::descend`](InputRef::descend) — today both Pratt engines, with the operators the
+  /// token-level driver holds pending counted against it too — draws on this one cell, so two
+  /// expression parsers composed into one grammar cannot each
   /// spend the full depth. Exceeding it fails the parse with the always-terminal
   /// [`RecursionLimitReached`](crate::error::RecursionLimitReached).
   ///

@@ -239,6 +239,19 @@ crate. **The remedy is UFCS**: `MyExt::fold(maybe, ..)` pins your method by name
   feature on. `error::RecursionLimitReached` stays ungated: it is the general recursion budget's
   error, raised by `InputRef::descend` for any recursive grammar.
 
+### Changed
+
+- **The token-level driver, `InputRef::pratt`, runs on the precedence machine.** It is one loop
+  over `pratt::PrattResolver`, where it recursed once for each operator waiting for its operand.
+  It keeps those operators four to a native frame: the first four in its own, and each further
+  four in a native frame it enters for them and leaves once they are reduced. So it enters a
+  native frame once for each four pending operators past the first four, where it entered one for
+  each, and it allocates nothing. Under `stacker` it asks for room on the native stack once for
+  each of those frames, where it asked once for each level. Its results are unchanged: the value
+  and the order of the folds, the three recovery postures and their diagnostics, and the
+  recursion budget's refusal, at the same operator, offset, depth and limit. The budget is still
+  its one bound: the expression holds one level of it, and each pending operator one more.
+
 ### Added
 
 - **The flat expression driver, `pratt::flat`.** One loop over the precedence machine: it enters

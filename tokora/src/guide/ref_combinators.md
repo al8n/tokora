@@ -1945,7 +1945,7 @@ tooling included.
 | `conformance` | the `conformance` lexer test kit | implies `alloc` |
 | `fuzz` | the `fuzz` operation-script harness | implies `std` |
 | `trace` | [`traced`](crate::combinator::traced) + combinator instrumentation | implies `std`; zero-cost when off |
-| `stacker` | a fresh heap stack segment under each Pratt frame prologue when the native stack is nearly exhausted | implies `std` and `pratt`; it does not raise the recursion budget — see [Recursion limits](super::ref_pratt#recursion-limits) |
+| `stacker` | a fresh heap stack segment, when the native stack is nearly exhausted, under each frame of the AST-level Pratt driver and under each native frame the token-level driver enters for four more pending operators | implies `std` and `pratt`; it does not raise the recursion budget — see [Recursion limits](super::ref_pratt#recursion-limits) |
 | `bytes` / `bstr` / `hipstr` / `smol-bytes` | extra [`Source`](crate::Source)/[`Slice`](crate::Slice) backends | none implies `std`; each pins one upstream major |
 | `smallvec` / `heapless` / `tinyvec` | extra [`Container`](crate::container::Container) backends | `smallvec` needs `alloc` or `std` beside it, and turns on neither |
 
