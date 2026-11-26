@@ -372,6 +372,10 @@ where
   /// for why a rollback leaves it alone. Written only by `remember_withheld`, read only by
   /// [`lex_within_boundary`](Self::lex_within_boundary).
   pub(super) withheld: &'closure mut Option<super::WithheldHead<L::Offset>>,
+  /// The **end-of-input memo**, borrowed from the owning [`Input`](super::Input) — see that field
+  /// for why a rollback leaves it alone. Written only by `remember_error_tail`, read only by
+  /// `resume_past_error_tail`.
+  pub(super) error_tail: &'closure mut Option<super::ErrorTail<L::Offset, L::State>>,
   /// The **session cell**: the input's lineage memos (the live-checkpoint stack, the pin set, and
   /// the cache-push/checkpoint-id/savepoint counters), the handle's **emitter borrow** (the
   /// ground-truth emission log, reached through [`emitter`](Self::emitter)), and the live
@@ -1825,6 +1829,51 @@ where
     });
   }
 
+  /// ERROR_TAIL — records that a peek fill, lexing through `resume`, met the end of the source
+  /// behind a run of lexer errors: the [end-of-input memo](super::ErrorTail).
+  ///
+  /// The fill calls this on its way out, and only on a [`Complete`](crate::input::Complete) input,
+  /// when its loop stopped with no item left to lex — the lexer exhausted, or a met ceiling with
+  /// nothing past it — after it crossed at least one lexer error, with nothing staged. Every
+  /// token the fill produced is then cached, so [`offset`](Self::offset) is the end of the newest
+  /// retained token, where every later read resumes. A memo is kept only where all of it holds:
+  ///
+  /// - the stop was not a latched boundary's, which would leave items past it unread;
+  /// - the fill lexed past that token, so what lies between is lexer errors alone, each one
+  ///   reported, the one before the stop included;
+  /// - the lexer stands at the end of the source. A lexer that stopped short of it may produce an
+  ///   item from there under a fresh start, so nothing is kept and the run is lexed again, as
+  ///   before.
+  ///
+  /// It replaces whatever the cell held. Every operand is caller code and is computed before the
+  /// cell is written, and the memo it displaces is dropped after the write.
+  #[cold]
+  #[inline(never)]
+  fn remember_error_tail(&mut self, resume: &Resume<L, L::Offset>)
+  where
+    L::State: Clone,
+  {
+    if self.reached_boundary(resume.at()) {
+      return;
+    }
+    let from = self.offset();
+    if resume.at().le(from) {
+      return;
+    }
+    let end = self.input.len();
+    if resume.lexer().span().end_ref().lt(&end) {
+      return;
+    }
+    let tail = super::ErrorTail {
+      from: from.clone(),
+      regime: *self.regime,
+      diagnosed: self.emitted_error_end.clone(),
+      end,
+      state: resume.lexer().state().clone(),
+    };
+    drop(self.error_tail.replace(tail));
+  }
+
   /// **The per-driver gate**: has this input *already* refused an item, so that this entry is owed
   /// a stop before it builds anything? Returns whether the refusal was published here.
   ///
@@ -2177,18 +2226,56 @@ where
   where
     L::State: Clone,
   {
-    self.resume().into_lexer()
+    self.resume_retained().into_lexer()
+  }
+
+  /// The drivers' resume: where the peek fill, `next`, the `try_expect` family and the
+  /// complete-input `skip_while` start lexing once nothing is left at the front of the stream, as
+  /// one value. It is the lookahead-frontier resume, [`resume_retained`](Self::resume_retained),
+  /// except where the [end-of-input memo](super::ErrorTail) stands there: then it is the end of
+  /// the source, past a run of lexer errors already lexed, charged and reported. The shared
+  /// scanner behind the `sync` family resumes at its own frontier,
+  /// [`resume_at_frontier`](Self::resume_at_frontier), and the memo does not reach it.
+  ///
+  /// # Where it parts from `offset()`
+  ///
+  /// [`offset`](Self::offset) and [`resume_retained`](Self::resume_retained) walk the same
+  /// three-way match in the same order, so those two always agree by construction. This one
+  /// agrees with them except on the memo arm, and there it is ahead of them by lexer errors and
+  /// skipped bytes only, never by a token: `offset` keeps reporting the end of the newest retained
+  /// token, where the run began. Every reader of `offset` wants that value. The driver gates and
+  /// the per-driver refusal run before any resume. A lexer resumed at the end of the source
+  /// produces no item, so no trip is classified and no boundary derived from it. A met ceiling is
+  /// settled there by its first step, the end of the source, before it would stage a stop. And
+  /// the withheld-head memo's `from` is read only on a [`Partial`](crate::input::Partial) input,
+  /// where this memo is never written.
+  ///
+  /// On the miss path of each of those drivers this adds one branch: a load and a test of the memo
+  /// cell, which is empty unless a fill has met an error tail.
+  /// RESUME_CENSUS — one of exactly two `Resume` constructors.
+  #[inline(always)]
+  fn resume(&self) -> Resume<L, L::Offset>
+  where
+    L::State: Clone,
+  {
+    // ERROR_TAIL — the memo arm, out of line: everything past the emptiness test is cold.
+    if !Cmpl::PARTIAL
+      && self.error_tail.is_some()
+      && let Some(past) = self.resume_past_error_tail()
+    {
+      return past;
+    }
+    self.resume_retained()
   }
 
   /// The lookahead-frontier resume: [`lexer`](Self::lexer) plus the offset it was bumped to, as
-  /// one value.
+  /// one value. The body of [`resume`](Self::resume) past its memo arm.
   ///
   /// Each arm reads **both** halves of the pair from a single carrier, which is what makes the
   /// pairing impossible to get wrong; the three-way match is the same one — in the same order —
   /// that [`offset`](Self::offset) walks, so the two always agree by construction.
-  /// RESUME_CENSUS — one of exactly two `Resume` constructors.
   #[inline(always)]
-  fn resume(&self) -> Resume<L, L::Offset>
+  fn resume_retained(&self) -> Resume<L, L::Offset>
   where
     L::State: Clone,
   {
@@ -2207,7 +2294,8 @@ where
     }
   }
 
-  /// Cold parked arm of [`resume`](Self::resume) — see [`front_parked`](Self::front_parked).
+  /// Cold parked arm of [`resume_retained`](Self::resume_retained) — see
+  /// [`front_parked`](Self::front_parked).
   /// RESUME_CENSUS — reads BOTH halves of the pair from the parked token, one value.
   #[cold]
   #[inline(never)]
@@ -2217,6 +2305,32 @@ where
   {
     let parked = self.pending.as_ref().expect("checked by the caller");
     self.resume_from(parked.state.clone(), parked.token.span.end_ref())
+  }
+
+  /// ERROR_TAIL — cold memo arm of [`resume`](Self::resume): a resume past a run of lexer errors
+  /// that lexing from the retained resume's offset ran through to the end of the source.
+  ///
+  /// `Some` where the [end-of-input memo](super::ErrorTail) stands there: the run began at that
+  /// offset, under this regime, every report it raised is still on record, and no stop is latched.
+  /// The pair is then the memo's own, read from one value — the end of the source and the state
+  /// the run ended in — so the lex that follows meets the end of input without lexing the run or
+  /// charging for it again. `None` leaves the answer to the retained resume.
+  ///
+  /// The key's offset is read through [`offset`](Self::offset), which is exactly where the
+  /// retained resume would begin. It decides whether the memo answers and is never half of the
+  /// pair. RESUME_CENSUS — the memo's both halves, one value.
+  #[cold]
+  #[inline(never)]
+  fn resume_past_error_tail(&self) -> Option<Resume<L, L::Offset>>
+  where
+    L::State: Clone,
+  {
+    let tail = self.error_tail.as_ref()?;
+    let stands = super::same_regime(tail.regime, *self.regime)
+      && self.poison_boundary.is_none()
+      && tail.from == *self.offset()
+      && *self.emitted_error_end >= tail.diagnosed;
+    stands.then(|| self.resume_from(tail.state.clone(), &tail.end))
   }
 
   /// The scan's resume: an [`AtFrontier`] is already the bundled (span, state) pair a scan
@@ -2230,8 +2344,8 @@ where
   }
 
   /// Shared body: build a fresh lexer under `state`, bump it to `at`, and keep `at` as the lex
-  /// position. Private to the two constructors above (RESUME_CENSUS), which is what keeps the
-  /// (state, offset) pair from being assembled anywhere else.
+  /// position. Private to the two constructors above and their arms (RESUME_CENSUS), which is
+  /// what keeps the (state, offset) pair from being assembled anywhere else.
   #[inline(always)]
   fn resume_from(&self, state: L::State, at: &L::Offset) -> Resume<L, L::Offset> {
     let mut lexer = L::with_state(self.input, state);

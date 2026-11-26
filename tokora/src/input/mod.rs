@@ -358,6 +358,38 @@ pub(crate) struct WithheldHead<O> {
   diagnosed: Option<O>,
 }
 
+/// An **end-of-input memo**: a run of lexer errors a peek fill lexed up to the end of the source,
+/// kept under everything that decides it.
+///
+/// The fill reports each lexer error it meets and lexes on, and only tokens are retained. So a run
+/// of errors behind the newest retained token, up to the end of the source, is lexed and charged
+/// to the token budget with nothing to record that the input ends there: every later read resumes
+/// at that token and lexes the run again. Its reports are deduplicated, so only the budget saw it,
+/// charged once per read, and at a ceiling the first lex had met, refused.
+///
+/// This keeps where that lex ended and the state it ended in. A resume that would begin where the
+/// run began begins there instead, and the next lex meets the end of input without lexing the run
+/// or charging for it again. It holds only while all of its key still matches:
+///
+/// - `from`, the offset the run began at: the end of the newest token retained when it was lexed,
+///   which is where every later read resumes;
+/// - `regime`, the lexer regime that lexed it. With `from` it names the lexer state, as the regime
+///   generation and an offset do everywhere in this crate, so a state switch stands it down;
+/// - `diagnosed`, the dedup watermark the run's reports raised. A rollback that takes those
+///   reports back takes the memo's standing with them, and the run is lexed and reported again;
+/// - and no poison boundary latched, so a trip or a refusal is never answered from it.
+///
+/// Written and read only on a [`Complete`] input; a [`Partial`] one never touches it.
+pub(crate) struct ErrorTail<O, S> {
+  from: O,
+  regime: u64,
+  diagnosed: O,
+  /// The end of the source, where the lexer stood when the run ended.
+  end: O,
+  /// The lexer state the run ended in.
+  state: S,
+}
+
 pub(crate) use input_ref::Session;
 #[cfg(feature = "pratt")]
 pub(crate) use input_ref::StagedEntry;
@@ -1060,6 +1092,18 @@ where
   /// Its writers are the two places a withheld verdict is reached: the peek fill and the scanner,
   /// each through `InputRef::remember_withheld`. Its one reader is the lexing site.
   withheld: Option<WithheldHead<L::Offset>>,
+  /// The **end-of-input memo**: the last run of lexer errors a peek fill lexed up to the end of the
+  /// source, under the key that decides it (see [`ErrorTail`]). `None` until a [`Complete`] fill
+  /// first meets one; a [`Partial`] input never writes or reads it.
+  ///
+  /// Outside the rollback set for the reason [`withheld`](Self::withheld) is: it records what
+  /// lexing from one offset under one regime does to this source, and the one lineage fact it
+  /// depends on, the dedup watermark, is part of its key. Never cleared: the next memo replaces it,
+  /// and a key that no longer matches leaves it unused.
+  ///
+  /// Its one writer is the peek fill, through `InputRef::remember_error_tail`. Its one reader is
+  /// the drivers' resume, through `InputRef::resume_past_error_tail`.
+  error_tail: Option<ErrorTail<L::Offset, L::State>>,
   /// The **bound emitter** — the one emission log this input's parse writes, owned here for the
   /// input's whole life and paired with it at
   /// [`with_state_and_context`](Self::with_state_and_context).
@@ -1252,6 +1296,8 @@ where
       scanner_trips: 0,
       // Nothing withheld yet: only a scan of this input can withhold an item.
       withheld: None,
+      // No error tail yet: only a fill of this input can meet one.
+      error_tail: None,
       emitter,
       lineage: Lineage::new(resident),
       #[cfg(feature = "trace")]
@@ -1417,6 +1463,8 @@ where
       // The withheld-head memo, borrowed so a verdict one handle's peek reached is the one the next
       // handle's consume is answered from.
       withheld: &mut self.withheld,
+      // The end-of-input memo, borrowed for the same reason.
+      error_tail: &mut self.error_tail,
       // The lineage memos, the emitter borrow, and the session-point stack, in one cell (see
       // `input_ref::session`): the stack starts empty and stays unallocated until the first
       // `InputRef::begin_point`, so a reference that never opens a session pays a few zeroed

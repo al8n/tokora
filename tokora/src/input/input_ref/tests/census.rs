@@ -63,7 +63,7 @@
 //! — a path that talks to the cache sees a zero-capacity one as empty and re-lexes a token
 //! that is parked right there. The `self.pending` counts the census pins per file are the
 //! checklist: `mod.rs` 16 (the five primitives and the three cold parked halves they gate
-//! into, the `park` write and the head guard above it, `resume` and its cold parked arm,
+//! into, the `park` write and the head guard above it, `resume_retained` and its cold parked arm,
 //! `cursor`, `offset`, the re-key, the restore), `peek/mod.rs` 4 (one accounting read and
 //! the three window exits), `scan.rs` 1 (the fetch's origin probe), everywhere else 0.
 //!
@@ -1740,25 +1740,45 @@ fn resume_census_one_pairing_site() {
      (grep RESUME_CENSUS)."
   );
   assert!(
-    count(m, "self.resume_from(") == 4,
-    "RESUME_CENSUS drift: `resume_from` has exactly four callers — the cache-back, parked and \
-     committed arms of `resume`, plus `resume_at_frontier`. A new arm must read BOTH halves of \
-     the pair from one value, and say so here (grep RESUME_CENSUS)."
+    count(m, "self.resume_from(") == 5,
+    "RESUME_CENSUS drift: `resume_from` has exactly five callers — the cache-back, parked and \
+     committed arms of `resume_retained`, the end-of-input memo arm of `resume`, plus \
+     `resume_at_frontier`. A new arm must read BOTH halves of the pair from one value, and say so \
+     here (grep RESUME_CENSUS)."
   );
 
-  // Every arm of `resume` reads its offset from the same value it reads its state from, so
-  // the committed state appears exactly once — in the arm that has nothing retained to read.
-  let body = method_body(m, "resume");
+  // Every arm of the retained resume reads its offset from the same value it reads its state
+  // from, so the committed state appears exactly once — in the arm that has nothing retained to
+  // read.
+  let body = method_body(m, "resume_retained");
   assert!(
     count(&body, "self.state.clone()") == 1,
-    "RESUME_CENSUS drift: only the nothing-retained arm of `resume` may read the committed \
-     state; any other arm reading it pairs a retained token's offset with a state from before \
-     that token (grep RESUME_CENSUS)."
+    "RESUME_CENSUS drift: only the nothing-retained arm of `resume_retained` may read the \
+     committed state; any other arm reading it pairs a retained token's offset with a state from \
+     before that token (grep RESUME_CENSUS)."
   );
   assert!(
     !body.contains("self.offset()"),
-    "RESUME_CENSUS drift: `resume` must not read `offset()` — that is the second, \
+    "RESUME_CENSUS drift: `resume_retained` must not read `offset()` — that is the second, \
      independently-read fact the one-value pairing exists to rule out (grep RESUME_CENSUS)."
+  );
+  // The drivers' resume adds the memo arm and reads neither half of a pair itself.
+  let body = method_body(m, "resume");
+  assert!(
+    !body.contains("self.state.clone()") && !body.contains("self.offset()"),
+    "RESUME_CENSUS drift: `resume` reads a half of a pair itself; its arms are \
+     `resume_past_error_tail` and `resume_retained`, and each reads both halves from one value \
+     (grep RESUME_CENSUS)."
+  );
+  // The memo arm reads both halves from the memo. `offset()` is its key's other side — it decides
+  // whether the memo answers — and is never half of the pair.
+  let body = method_body(m, "resume_past_error_tail");
+  assert!(
+    count(&body, "self.resume_from(tail.state.clone(), &tail.end)") == 1
+      && count(&body, "self.resume_from(") == 1
+      && !body.contains("self.state.clone()"),
+    "RESUME_CENSUS drift: the end-of-input memo arm must build its resume from the memo alone, \
+     its end beside the state the run ended in (grep RESUME_CENSUS)."
   );
 
   // The scan takes the pair as ONE value — a `ResumeParts`, whose only constructor is
@@ -2562,7 +2582,7 @@ fn front_census_every_probe_is_const_gated() {
     (
       "mod.rs",
       9,
-      "`front`, `has_front`, `take_front`, `take_front_if`, `resume`, `cursor`, `offset`, \
+      "`front`, `has_front`, `take_front`, `take_front_if`, `resume_retained`, `cursor`, `offset`, \
        `staged_entry`, and `park`'s lying-cache assert",
     ),
     (

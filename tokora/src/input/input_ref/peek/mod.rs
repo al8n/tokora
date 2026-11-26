@@ -420,6 +420,11 @@ where
     // Set when a limit trip latches the input mid-scan: the staged overflow
     // tokens then become unreachable and must be truncated away (see below).
     let mut tripped = false;
+    // ERROR_TAIL — whether this fill reported a lexer error, and whether its loop stopped with no
+    // item left to lex. They are written on the error arm and the stop arm, never on the token
+    // arm, and together they decide whether the end-of-input memo is asked about after the loop.
+    let mut crossed_error = false;
+    let mut stopped = false;
 
     // Otherwise, lex additional tokens to fill the request. `lex_within_boundary`
     // stops the fill at the durable frontier during a replay, so an overflow peek
@@ -498,6 +503,7 @@ where
                 buf.truncate(buf_len);
                 return Err(err);
               }
+              crossed_error = true;
             }
             Verdict::Token(tok) => {
               let cached = CachedToken::new(tok, lexer.state().clone());
@@ -518,7 +524,10 @@ where
           }
         }
         // Boundary already reached, or the lexer is exhausted: the fill simply stops short.
-        LexStep::Stop => break,
+        LexStep::Stop => {
+          stopped = true;
+          break;
+        }
         // The withheld-head memo answered for lexing from here: the fill stops short exactly as
         // at the `Withheld` arm above, without lexing the item or charging for it.
         LexStep::Withheld => break,
@@ -533,6 +542,16 @@ where
       }
     }
     *at_slot = lex_at;
+
+    // ERROR_TAIL — a fill that stopped at the end of input behind lexer errors, with nothing
+    // staged, may have lexed a run no token is retained after: every later read would resume at
+    // the newest retained token and lex it again, charged again. `remember_error_tail` keeps the
+    // end-of-input memo where that is so, and `resume` answers from it. A staged token is not
+    // retained, so a run behind one is not a run the memo can skip. A trip is not a stop, so
+    // `tripped` and `stopped` never both hold. Const-gated: a `Partial` input never writes it.
+    if !Cmpl::PARTIAL && stopped && crossed_error && staged == 0 {
+      self.remember_error_tail(&resume);
+    }
 
     if tripped {
       // The fill was cut short by a fresh trip: report it terminal so a decision-window
