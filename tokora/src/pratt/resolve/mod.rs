@@ -1088,6 +1088,157 @@ where
   }
 }
 
+/// The events an adapter of this crate feeds where its own loop already knows what the public
+/// events test: the flat driver's two loops, which know where they stand, and offer inside the
+/// read that commits an operator.
+///
+/// # The phase protocol
+///
+/// Each is a public event with the tests that the adapter's own structure makes true left out.
+/// A push keeps the two tests the input can fail, the cap and the storage's room, and every other
+/// test is a debug assertion. In a release build an adapter's slip goes untested, but for an event
+/// that finds no value to move out, which panics.
+///
+/// - **`Term` and `Operator` alone.** Nothing an adapter feeds through these makes its machine owe
+///   a reduction for `poll` to hand out: an event that reduces hands its reduction back. So the
+///   adapter meets the `Term` and `Operator` phases, and `Owed` and `Reducing` stay the public
+///   protocol's.
+/// - **What each assumes.** `put_operand` and `push_prefix` assume `Term`, and leave `Operator` and
+///   `Term`. `push_infix` and `take_postfix` assume `Operator`, and that the adapter's own offer
+///   answered `Take` for the operator with nothing fed since. `push_infix` leaves `Term`.
+/// - **A fold runs in `Term`.** `take_postfix` moves the value out as the operand of the postfix
+///   reduction it hands back, which leaves `Term`. The operator is on no frame, so the depth is as
+///   it was, and a postfix reduction leaves the latch as it is. The adapter folds, and
+///   `put_reduced` puts the value back, which leaves `Operator`.
+/// - **Why no input reaches an event in the wrong phase.** An adapter feeds each event only at the
+///   point of its loop where the phase that event assumes holds: at a term, where the loop is when
+///   it starts and after each push, or at an operator, where it is after each value it puts. What
+///   the input decides is which event comes next at that point, a term, an operator or an ending,
+///   and never the phase. The offer that admits an operator is asked in the read that commits it,
+///   with nothing fed between the two. So a slip is a defect of the adapter's code, which a debug
+///   test build catches, and no input can make one.
+impl<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Post, Power, S>
+  PrattResolver<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Post, Power, S>
+where
+  Power: PrattPower,
+  S: Stack<PrattFrame<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Power>>,
+{
+  /// [`handle_operand`](Self::handle_operand) in the `Term` phase, which the adapter stands in.
+  #[inline]
+  pub(crate) fn put_operand(&mut self, value: V) {
+    debug_assert!(
+      matches!(self.state.phase, Phase::Term),
+      "an operand put outside the `Term` phase"
+    );
+    self.state.phase = Phase::Operator(value);
+  }
+
+  /// [`handle_prefix`](Self::handle_prefix) in the `Term` phase, which the adapter stands in. A
+  /// refusal is `Full`, and hands the operator back: the stack is at its cap, or its storage
+  /// refused the frame.
+  #[inline]
+  pub(crate) fn push_prefix(
+    &mut self,
+    operator: Precedenced<Pre, Power>,
+  ) -> Result<(), Precedenced<Pre, Power>> {
+    debug_assert!(
+      matches!(self.state.phase, Phase::Term),
+      "a prefix operator pushed outside the `Term` phase"
+    );
+    if self.state.depth >= self.state.max_depth {
+      return Err(operator);
+    }
+    let frame = PrattFrame {
+      operator: FrameOperator::Prefix(operator),
+      latch: None,
+    };
+    match self.stack.push(frame) {
+      Ok(()) => {
+        // Raised only once the storage has taken the frame, and bounded as in `handle_prefix`.
+        self.state.depth += 1;
+        Ok(())
+      }
+      Err(PrattFrame {
+        operator: FrameOperator::Prefix(operator),
+        ..
+      }) => Err(operator),
+      Err(_) => broken_stack("`push` refused a frame, and handed back another"),
+    }
+  }
+
+  /// [`handle_infix`](Self::handle_infix) for an operator the adapter's own
+  /// [`offer`](Self::offer) has just answered [`Take`](PrattOffer::Take) for, in the `Operator`
+  /// phase. A refusal is `Full`, hands the operator back, and leaves the value the machine's.
+  #[inline]
+  pub(crate) fn push_infix(
+    &mut self,
+    operator: Precedenced<PrattInfix<LeftAssoc, RightAssoc, NeitherAssoc>, Power>,
+  ) -> Result<(), Precedenced<PrattInfix<LeftAssoc, RightAssoc, NeitherAssoc>, Power>> {
+    debug_assert!(
+      matches!(self.state.phase, Phase::Operator(_))
+        && self.answer(operator.precedence(), true) == PrattOffer::Take,
+      "an infix operator pushed without its offer's `Take`"
+    );
+    if self.state.depth >= self.state.max_depth {
+      return Err(operator);
+    }
+    let Some(left) = self.take_value() else {
+      unreachable!("an infix operator pushed outside the `Operator` phase");
+    };
+    let frame = PrattFrame {
+      operator: FrameOperator::Infix(InfixFrame { left, operator }),
+      latch: None,
+    };
+    match self.stack.push(frame) {
+      Ok(()) => {
+        // Raised only once the storage has taken the frame, and bounded as in `handle_prefix`.
+        self.state.depth += 1;
+        Ok(())
+      }
+      Err(PrattFrame {
+        operator: FrameOperator::Infix(InfixFrame { left, operator }),
+        ..
+      }) => {
+        self.state.phase = Phase::Operator(left);
+        Err(operator)
+      }
+      Err(_) => broken_stack("`push` refused a frame, and handed back another"),
+    }
+  }
+
+  /// [`handle_postfix`](Self::handle_postfix) for an operator the adapter's own
+  /// [`offer`](Self::offer) has just answered [`Take`](PrattOffer::Take) for, in the `Operator`
+  /// phase, with its reduction handed straight back rather than owed to `poll`. The value is its
+  /// operand, moved out, so the phase is `Term` until [`put_reduced`](Self::put_reduced).
+  #[inline]
+  pub(crate) fn take_postfix(
+    &mut self,
+    operator: Precedenced<Post, Power>,
+  ) -> PrattPostfixReduction<V, Post, Power> {
+    debug_assert!(
+      matches!(self.state.phase, Phase::Operator(_))
+        && self.answer(operator.precedence(), false) == PrattOffer::Take,
+      "a postfix operator taken without its offer's `Take`"
+    );
+    let Some(operand) = self.take_value() else {
+      unreachable!("a postfix operator taken outside the `Operator` phase");
+    };
+    PrattPostfixReduction { operand, operator }
+  }
+
+  /// The value of a reduction this impl's events handed back, put back in the `Term` phase its
+  /// fold ran in, which this leaves `Operator`: what [`handle_reduced`](Self::handle_reduced) is
+  /// on the public path, with nothing left to apply.
+  #[inline]
+  pub(crate) fn put_reduced(&mut self, value: V) {
+    debug_assert!(
+      matches!(self.state.phase, Phase::Term),
+      "a reduction's value put back outside the `Term` phase its fold ran in"
+    );
+    self.state.phase = Phase::Operator(value);
+  }
+}
+
 // The re-seat that lets a loop go on over another storage. The loops that grow a default stack on
 // the native stack, a segment at a time, split the machine here and seat it on the next segment, or
 // back on their own. Crate-private, since a public `from_parts` could seat a machine on a storage

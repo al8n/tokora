@@ -362,6 +362,10 @@ It has two adapters, and the rule for choosing between them is the one thing to 
 - **Driving the machine yourself** does what `folding` does, for an operator a table cannot
   classify.
 
+<!-- TODO(coordinator): re-measure. The machine's crate-private fast paths move the `folding` and
+`parse_into` rows; restate 0.81 and 0.75 from the branch's final `instruction counts` reading, and
+re-read the timed 0.61 to 0.70 by its own procedure. -->
+
 Measured, over one table, `folding` takes 0.81 of the instructions the typed driver takes on a
 source of four left-associative chains of 63 operators each, and 0.75 of them on four
 right-associative ones. In time, the full-parse comparison against the handwritten typed channels in

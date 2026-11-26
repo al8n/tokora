@@ -61,6 +61,9 @@
 //!
 //! ## Recorded figures
 //!
+// TODO(coordinator): re-measure. The machine's crate-private fast paths move the four
+// `pratt_flat_fold_*` and `pratt_flat_collect_*` rows below; restate them, and the run they are
+// from, from the branch's final `instruction counts` reading.
 //! Instructions an iteration, from `ci/icount/measure.py`'s head-side reading in the `instruction
 //! counts` job (`icount-readings`, `head.json`, `ir_per_iter`), rounded to a whole instruction. They
 //! are from this branch's `perf` run 45744931146, on a GitHub-hosted `ubuntu-latest` runner (image

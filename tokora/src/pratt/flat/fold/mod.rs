@@ -33,8 +33,8 @@ use super::super::segment::Segment;
 use super::{
   super::{
     PrattFoldInfix, PrattFoldPostfix, PrattFoldPrefix, PrattFrame, PrattInfix, PrattLHS,
-    PrattOffer, PrattPending, PrattPoll, PrattPower, PrattRHS, PrattReduction, PrattRefusal,
-    PrattResolver, Precedenced, resolve::ResolverState,
+    PrattOffer, PrattPending, PrattPoll, PrattPower, PrattRHS, PrattReduction, PrattResolver,
+    Precedenced, resolve::ResolverState,
   },
   FlatCst, OperatorHead, TermHead,
   seam::Seam,
@@ -572,12 +572,7 @@ where
           // caught and declined over is no absence, and the head is not classified after it.
           let trips = input.trip_snapshot();
           if let ParseAttempt::Accept(value) = steps.operand.try_parse_input(input)? {
-            if let Err(refused) = machine.handle_operand(value) {
-              unreachable!(
-                "the flat driver's machine refused an operand where it wanted a term: {:?}",
-                refused.why()
-              );
-            }
+            machine.put_operand(value);
             break;
           }
           if input.tripped_during_attempt(trips) {
@@ -596,8 +591,8 @@ where
             // Committed: the operand parser is asked again.
             Some((TermHead::Trivia, _)) => {}
             Some((TermHead::Prefix(power), operator)) => {
-              if let Err(refused) = machine.handle_prefix(Precedenced::new(operator, power)) {
-                Self::past_cap(refused.why(), machine.depth(), steps.cap, input)?;
+              if let Err(operator) = machine.push_prefix(Precedenced::new(operator, power)) {
+                Self::past_cap(machine.depth(), steps.cap, input)?;
                 #[cfg(any(test, not(any(feature = "std", feature = "alloc"))))]
                 {
                   if steps.grows {
@@ -605,7 +600,7 @@ where
                     let exit = Self::grow(
                       state,
                       &mut storage,
-                      Refed::Prefix(refused.into_item()),
+                      Refed::Prefix(operator),
                       steps,
                       input,
                       scans,
@@ -616,6 +611,8 @@ where
                     break;
                   }
                 }
+                // Not grown: the error reports the storage's bound, and the operator is dropped.
+                drop(operator);
                 return Err(stack_full(input, machine.capacity()));
               }
               break;
@@ -724,8 +721,8 @@ where
                 PrattInfix::Right(()) => PrattInfix::Right(token),
                 PrattInfix::Neither(()) => PrattInfix::Neither(token),
               };
-              if let Err(refused) = machine.handle_infix(Precedenced::new(operator, power)) {
-                Self::past_cap(refused.why(), machine.depth(), steps.cap, input)?;
+              if let Err(operator) = machine.push_infix(Precedenced::new(operator, power)) {
+                Self::past_cap(machine.depth(), steps.cap, input)?;
                 #[cfg(any(test, not(any(feature = "std", feature = "alloc"))))]
                 {
                   if steps.grows {
@@ -733,7 +730,7 @@ where
                     let exit = Self::grow(
                       state,
                       &mut storage,
-                      Refed::Infix(refused.into_item()),
+                      Refed::Infix(operator),
                       steps,
                       input,
                       scans,
@@ -744,16 +741,20 @@ where
                     continue;
                   }
                 }
+                // Not grown: the error reports the storage's bound, and the operator is dropped.
+                drop(operator);
                 return Err(stack_full(input, machine.capacity()));
               }
             }
+            // A postfix operator's reduction is folded where the operator is read, with the
+            // operator just committed. It pops nothing, so no return test follows it: a segment
+            // holds a frame of its own wherever its loop is at an operator.
             Some((OperatorHead::Postfix(power), token)) => {
-              if let Err(refused) = machine.handle_postfix(Precedenced::new(token, power)) {
-                unreachable!(
-                  "the flat driver's machine refused a postfix operator its offer took: {:?}",
-                  refused.why()
-                );
-              }
+              let (operand, operator) = machine
+                .take_postfix(Precedenced::new(token, power))
+                .into_components();
+              let value = steps.fold_postfix.fold_postfix(input, operand, operator)?;
+              machine.put_reduced(value);
             }
             // The token is staged, or there is none. A trip since the expression began answers
             // for an ending, a reduction and a refusal alike: an operand parser or a fold that
@@ -827,25 +828,18 @@ where
     }
   }
 
-  /// A push the machine refused. `Full` at the cap is the error, and reports the cap. Below it,
-  /// the storage refused, and the caller grows it or reports its bound. Any other refusal of a
-  /// push in the phase that wanted it, with the offer's `Take`, is the adapter's own slip.
+  /// A push the machine refused, which is `Full`. At the cap it is the error, and reports the cap.
+  /// Below it, the storage refused, and the caller grows it or reports its bound.
   #[inline]
   fn past_cap(
-    why: PrattRefusal,
     depth: usize,
     cap: usize,
     input: &mut InputRef<'inp, '_, L, Ctx, Lang>,
   ) -> Result<(), <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error> {
-    match why {
-      PrattRefusal::Full if depth >= cap => Err(stack_full(input, cap)),
-      PrattRefusal::Full => Ok(()),
-      PrattRefusal::Misplaced
-      | PrattRefusal::Reduce
-      | PrattRefusal::Decline
-      | PrattRefusal::Chain => {
-        unreachable!("the flat driver's machine refused a push it had taken: {why:?}")
-      }
+    if depth >= cap {
+      Err(stack_full(input, cap))
+    } else {
+      Ok(())
     }
   }
 
@@ -870,17 +864,11 @@ where
     let mut next: Segment<'_, Frame<'inp, L, O, Power>, K> = Segment::over(below);
     let mut machine = PrattResolver::from_parts(state, &mut next);
     let fed = match refed {
-      Refed::Prefix(operator) => machine
-        .handle_prefix(operator)
-        .map_err(|refused| refused.why()),
-      Refed::Infix(operator) => machine
-        .handle_infix(operator)
-        .map_err(|refused| refused.why()),
+      Refed::Prefix(operator) => machine.push_prefix(operator).is_ok(),
+      Refed::Infix(operator) => machine.push_infix(operator).is_ok(),
     };
-    if let Err(why) = fed {
-      unreachable!(
-        "an empty segment below the cap refused the push the full storage refused: {why:?}"
-      );
+    if !fed {
+      unreachable!("an empty segment below the cap refused the push the full storage refused");
     }
     #[cfg(test)]
     {
