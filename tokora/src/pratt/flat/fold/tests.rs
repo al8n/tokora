@@ -896,10 +896,10 @@ mod against_the_heap_loop {
     assert_eq!((growth.grown, growth.returned), (2, 2));
   }
 
-  /// The `<` is the upper segment's only frame. Its reduction latches the `+` below through the
-  /// link, and the loop below refuses the second `<` as a chain.
+  /// The `<` is the upper segment's only frame. Its reduction latches the `+`'s right operand,
+  /// below the link, and the loop below refuses the second `<` as a chain.
   #[test]
-  fn a_chain_is_refused_through_a_latch_written_through_the_link() {
+  fn a_chain_is_refused_after_the_reduction_that_empties_a_segment() {
     let (result, growth) = crossing("1+2<3<4;");
     assert_eq!(result, Err(Fail::Chain { at: 5 }));
     assert_eq!((growth.grown, growth.returned), (1, 1));

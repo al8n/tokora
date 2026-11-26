@@ -6,10 +6,12 @@
 //! machine knows that it exists. Its `push` refuses once its own `K` frames are in use, and its
 //! `pop` takes from its own. Its `last` and `last_mut` reach the frame on top of what is below
 //! when it holds none, which breaks one of `Stack`'s written obligations on purpose: with its own
-//! frames gone it answers `pop` with `None` and `last` with the frame below. Two things cross that
-//! link: the latch a reduction writes on the frame now on top, when that reduction emptied the
-//! segment, and a read of that frame, where the loop feeds an infix operator again on a new, empty
-//! segment and the machine reads the top frame for its offer before it pushes.
+//! frames gone it answers `pop` with `None` and `last` with the frame below. One thing crosses that
+//! link: a read of the frame now on top, when a pop, a reduction's or a `retract`'s, has emptied
+//! the segment, for the floor that frame gives its operand, which the machine keeps. A debug build
+//! reads it too, to check that floor, where the loop feeds an operator again on a new, empty
+//! segment. Nothing is written through the link: the machine keeps the innermost latch itself,
+//! and each frame takes the latch below it as it is pushed into its own segment.
 //!
 //! The loop that runs a machine over a segment keeps two rules, which the segment cannot keep for
 //! it:
@@ -138,8 +140,8 @@ impl<T, K: ArraySize> Stack<T> for Segment<'_, T, K> {
     self.own.pop_back()
   }
 
-  /// Its own top frame, or the top of the storage below when it holds none: the one write that
-  /// crosses the link is the latch a reduction leaves there.
+  /// Its own top frame, or the top of the storage below when it holds none, as `last` is. The
+  /// machine writes nothing through it.
   #[inline]
   fn last_mut(&mut self) -> Option<&mut T> {
     match self.own.back_mut() {

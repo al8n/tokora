@@ -405,6 +405,42 @@ fn the_offer_tests_the_floor_then_the_chain_and_changes_nothing() {
   }
 }
 
+/// The root's floor set on a live machine. At the root it answers the next offer at once. Under
+/// pending operators their own floors answer, and the new floor answers once the reductions are
+/// back at the root: an operator between the old floor and the new one is declined there.
+#[test]
+fn min_precedence_on_a_live_machine_is_the_root_s_floor_from_then_on() {
+  use PrattOffer::{Decline, Reduce, Take};
+
+  // At the root, with a value: the floor moves from 0 to 6.
+  let mut m = machine();
+  m.handle_operand(1).unwrap();
+  assert_offers(&m, 4, [Take, Take, Take]);
+  let m = m.min_precedence(6);
+  assert_offers(&m, 4, [Decline, Decline, Decline]);
+  assert_offers(&m, 6, [Take, Take, Take]);
+
+  // Under two pending operators, `1 + 2 * 3` with `+` at 2 and `*` at 3: the floor moves from 0 to
+  // 6 at a depth of two.
+  let mut m = machine();
+  m.handle_operand(1).unwrap();
+  m.handle_infix(left(0, 2)).unwrap();
+  m.handle_operand(2).unwrap();
+  m.handle_infix(left(1, 3)).unwrap();
+  m.handle_operand(3).unwrap();
+  let mut m = m.min_precedence(6);
+  assert_eq!(m.depth(), 2);
+  assert_offers(&m, 4, [Take, Take, Take]);
+  assert_offers(&m, 3, [Reduce, Reduce, Reduce]);
+  reduce_once(&mut m, 23);
+  assert_offers(&m, 4, [Take, Take, Take]);
+  assert_offers(&m, 2, [Reduce, Reduce, Reduce]);
+  reduce_once(&mut m, 123);
+  assert_eq!(m.depth(), 0);
+  assert_offers(&m, 4, [Decline, Decline, Decline]);
+  assert_offers(&m, 6, [Take, Take, Take]);
+}
+
 /// One reduction for each `poll`, innermost first. Between a reduction and its value `poll` answers
 /// `Reducing` and changes nothing, and `Done` resets: the next answer is `Term`, and the machine is
 /// as new, with the same floor and cap.
@@ -1003,10 +1039,11 @@ fn into_parts_and_from_parts_give_the_same_machine_back_in_every_phase() {
   }
 }
 
-/// A non-associative operator that is a segment's only frame, reduced, latches the frame below: the
-/// one write that crosses a link.
+/// A non-associative operator that is a segment's only frame, reduced, latches the sub-expression
+/// below it, the right operand of the frame below the link, and nothing is written through the
+/// link: the machine keeps that latch, and the frame below still holds the root's.
 #[test]
-fn a_latch_set_through_the_link_latches_the_frame_below() {
+fn a_reduction_that_empties_a_segment_latches_the_operand_below_it() {
   let mut root: Segment<'_, Frame, U1> = Segment::root();
   let mut m: Machine<&mut Segment<'_, Frame, U1>> = PrattResolver::with_stack(&mut root);
   m.handle_operand(1).unwrap();
@@ -1035,7 +1072,8 @@ fn a_latch_set_through_the_link_latches_the_frame_below() {
 
   let m = PrattResolver::from_parts(state, segment);
   assert_eq!(m.depth(), 1);
-  assert_eq!(m.stack.last().map(|frame| frame.latch), Some(Some(5)));
+  assert_eq!(m.state.latch, Some(5));
+  assert_eq!(m.stack.last().map(|frame| frame.latch), Some(None));
   assert_eq!(m.offer(&offered(Rhs::Infix(5))), PrattOffer::Chain);
   assert_eq!(m.offer(&offered(Rhs::Infix(4))), PrattOffer::Take);
 }
@@ -1198,6 +1236,12 @@ where
   let before = m.clone();
   let phase = answer(&before);
   let outcome = apply(m, event);
+  // The floor an offer reads is the one the frames give, read back off the storage: the drive's
+  // own expectations come from the machine's offer, so they cannot catch a floor kept wrong.
+  assert!(
+    m.floor_is_kept(),
+    "{event:?} in {phase:?}: the floor kept is the frame on top's"
+  );
   match (event, &outcome) {
     (Event::Poll, Outcome::Polled(poll)) => {
       assert_eq!(answer_of(poll), phase, "`poll` answers the phase");
@@ -1246,12 +1290,13 @@ where
         assert!(pending.is_none());
         assert_eq!(*m, before, "a `retract` that takes nothing changes nothing");
       } else {
-        // One frame fewer, and nothing else moved: the frames below and the root's latch stay.
+        // One frame fewer, and nothing else moved: the frames below stay, and the latch is the one
+        // the popped frame kept, the latch the sub-expression had before the operator was taken.
         let mut below = before.stack.clone();
         let top = below.pop().unwrap();
         assert_eq!(m.stack, below);
         assert_eq!(m.depth() + 1, before.depth());
-        assert_eq!(m.state.root_latch, before.state.root_latch);
+        assert_eq!(m.state.latch, top.latch);
         match top.operator {
           FrameOperator::Prefix(operator) => {
             assert_eq!(*pending, Some(PrattPending::Prefix(operator)));

@@ -48,18 +48,19 @@ use crate::container::Stack;
 /// Every event either takes its item or refuses it, and **a refusal hands the item back and
 /// modifies nothing**: the machine's own state is as it was when the call returns, and its storage
 /// unchanged in everything `Stack`, `Container` and `PartialEq` observe. A refusal writes nothing
-/// of the machine's own but what it puts back: when its storage refuses the frame,
-/// [`handle_infix`](Self::handle_infix) has moved the value into it, and restores it in the
-/// [`Operator`](PrattPoll::Operator) phase it was taken from. Of its storage it only reads, or
-/// tries a push that the storage refuses, which by [`Stack`]'s obligations change nothing those
-/// three observe. The item, and the values, payloads and powers the machine holds, are unchanged
-/// given a `Power` whose comparisons change nothing a caller observes: of their code, a refusal
-/// runs those comparisons alone, and a lawful power may still cache its rank in a `OnceCell` as it
-/// compares. So, with such a `Power`, a clone taken before the call compares equal to the machine
-/// after it whenever everything the machine holds equals both itself and its own clone (`x == x`,
-/// `x.clone() == x`), which `f64::NAN` does not. [`PrattRefused`] carries the item and one
-/// [`PrattRefusal`]. Nothing in the machine panics on a caller's slip; it panics only when its
-/// storage breaks `Stack`'s obligations, with a message that names `Stack`.
+/// of the machine's own but what it puts back: when its storage refuses the frame, a push has
+/// moved the innermost sub-expression's latch into it, and [`handle_infix`](Self::handle_infix)
+/// the value too, and it restores both, the value in the [`Operator`](PrattPoll::Operator) phase
+/// it was taken from. Of its storage it only reads, or tries a push that the storage refuses,
+/// which by [`Stack`]'s obligations change nothing those three observe. The item, and the values,
+/// payloads and powers the machine holds, are unchanged given a `Power` whose comparisons change
+/// nothing a caller observes: of their code, a refusal runs those comparisons alone, and a lawful
+/// power may still cache its rank in a `OnceCell` as it compares. So, with such a `Power`, a clone
+/// taken before the call compares equal to the machine after it whenever everything the machine
+/// holds equals both itself and its own clone (`x == x`, `x.clone() == x`), which `f64::NAN` does
+/// not. [`PrattRefused`] carries the item and one [`PrattRefusal`]. Nothing in the machine panics
+/// on a caller's slip; it panics only when its storage breaks `Stack`'s obligations, with a
+/// message that names `Stack`.
 ///
 /// # Its storage
 ///
@@ -106,13 +107,16 @@ use crate::container::Stack;
 ///
 /// It runs no reducer, no handler and no closure. The caller code it does run is this, and no more:
 ///
-/// - `Power`'s comparisons, its `Clone` where an infix reduction sets a latch, and its `Default` in
-///   [`new`](Self::new) and [`with_stack`](Self::with_stack);
+/// - `Power`'s comparisons; its `Clone` where an infix reduction sets a latch, and where a push the
+///   storage has taken, or a pop, leaves an operator pending on top, whose floor the machine keeps
+///   so that an offer reads no frame; and its `Default` in [`new`](Self::new) and
+///   [`with_stack`](Self::with_stack);
 /// - the methods of its storage;
 /// - the destructors of `V`, of the operator payloads and of `Power`, when [`reset`](Self::reset),
 ///   [`with_stack`](Self::with_stack), [`into_stack`](Self::into_stack) or the machine's own drop
-///   lets go of a frame or a value; and `Power`'s alone where a latch or the floor is overwritten,
-///   and where a reduction or a [`retract`](Self::retract) lets go of a frame's own latch;
+///   lets go of a frame or a value; and `Power`'s alone where a latch, the floor or the floor it
+///   keeps is overwritten, and where a reduction or a [`retract`](Self::retract) lets go of a
+///   latch;
 /// - in its derived `Clone`, `PartialEq` and `Debug`, those traits of `S` and of each parameter.
 ///
 /// An unwind out of any of them leaves the machine's count and its storage in agreement: a push
@@ -120,9 +124,10 @@ use crate::container::Stack;
 /// storage gives the frame up, before the frame or a value in it is dropped. It also leaves a phase
 /// that claims no frame the machine has let go of: [`reset`](Self::reset) installs the new phase
 /// before it drops anything, and a step whose value an unwind takes leaves the
-/// [`Term`](PrattPoll::Term) phase, where that sub-expression starts over. The frame's
-/// non-associativity latch stays as it was, so a caller that goes on after an unwind it caught
-/// calls [`reset`](Self::reset), which returns the machine to a known state.
+/// [`Term`](PrattPoll::Term) phase, where that sub-expression starts over. The latches, and the
+/// floor the machine keeps for the operator on top, are not put back as they were, so a caller
+/// that goes on after an unwind it caught calls [`reset`](Self::reset), which returns the machine
+/// to a known state.
 ///
 /// Both rest on the storage's obligation for an unwind, among those above: a push or a pop that
 /// unwinds leaves the frames as they were.
@@ -189,11 +194,40 @@ pub(crate) struct ResolverState<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Pos
   max_depth: usize,
   /// The root's floor, inclusive.
   floor: Power,
-  /// The root's latch: the power of the non-associative operator the root's last infix reduction
-  /// applied, and `None` when that operator was not non-associative.
-  root_latch: Option<Power>,
+  /// The innermost sub-expression's latch: the power of the non-associative operator its last
+  /// infix reduction applied, and `None` when that operator was not non-associative. Each frame
+  /// keeps the latch of the sub-expression below it, moved in when it is pushed and back out when
+  /// it is popped, so a latch is written here or into a frame on its way into the storage, and
+  /// never through the storage.
+  latch: Option<Power>,
+  /// The floor the frame on top gives its operand, kept so that an offer reads no frame: taken
+  /// from the operator by each push, and from the frame left on top by each pop. `None` at the
+  /// root, whose floor is `floor` itself, so that `min_precedence` has nothing here to change. It
+  /// is a function of the frames and the count alone, so two machines that hold the same frames
+  /// keep the same one.
+  frame_floor: Option<Floor<Power>>,
   /// The operator payloads of the frames, which only the storage holds.
   _frames: PhantomData<fn() -> (Pre, LeftAssoc, RightAssoc, NeitherAssoc)>,
+}
+
+/// What a pending operator's operand admits: a power above `power`, and `power` itself too unless
+/// `strict`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Floor<Power> {
+  power: Power,
+  strict: bool,
+}
+
+impl<Power: Ord> Floor<Power> {
+  /// Whether the operand admits an operator at `power`.
+  #[inline]
+  fn admits(&self, power: &Power) -> bool {
+    if self.strict {
+      *power > self.power
+    } else {
+      *power >= self.power
+    }
+  }
 }
 
 impl<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Post, Power: Default>
@@ -217,7 +251,8 @@ impl<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Post, Power>
       depth: 0,
       max_depth: usize::MAX,
       floor,
-      root_latch: None,
+      latch: None,
+      frame_floor: None,
       _frames: PhantomData,
     }
   }
@@ -278,7 +313,8 @@ enum Latch<Power> {
 pub struct PrattFrame<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Power = i64> {
   /// The operator, with its left operand when it is infix.
   operator: FrameOperator<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Power>,
-  /// The latch of the sub-expression this frame stands for, which is its operator's operand.
+  /// The latch of the sub-expression below this frame, which the frame keeps while its operand is
+  /// innermost: its push moves the machine's latch in, and its pop moves it back out.
   latch: Option<Power>,
 }
 
@@ -298,20 +334,34 @@ struct InfixFrame<V, LeftAssoc, RightAssoc, NeitherAssoc, Power> {
   operator: Precedenced<PrattInfix<LeftAssoc, RightAssoc, NeitherAssoc>, Power>,
 }
 
-impl<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Power: Ord>
-  PrattFrame<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Power>
+impl<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Power>
+  FrameOperator<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Power>
 {
-  /// Whether the sub-expression this frame stands for admits an operator at `power`. A prefix
+  /// The floor this operator gives its operand, as a power and whether it is strict. A prefix
   /// operator and a right-associative one admit their own power, and a left- or non-associative
-  /// one only a power above it: the family's three floors, read off the frame.
+  /// one only a power above it: the family's three floors, read off the operator, and spelled
+  /// nowhere else in the machine.
   #[inline]
-  fn admits(&self, power: &Power) -> bool {
-    match &self.operator {
-      FrameOperator::Prefix(prefix) => power >= prefix.precedence(),
+  fn floor_parts(&self) -> (&Power, bool) {
+    match self {
+      FrameOperator::Prefix(prefix) => (prefix.precedence(), false),
       FrameOperator::Infix(infix) => match infix.operator.token_ref() {
-        PrattInfix::Right(_) => power >= infix.operator.precedence(),
-        PrattInfix::Left(_) | PrattInfix::Neither(_) => power > infix.operator.precedence(),
+        PrattInfix::Right(_) => (infix.operator.precedence(), false),
+        PrattInfix::Left(_) | PrattInfix::Neither(_) => (infix.operator.precedence(), true),
       },
+    }
+  }
+
+  /// The floor this operator gives its operand, with its power cloned for the machine to keep.
+  #[inline]
+  fn floor(&self) -> Floor<Power>
+  where
+    Power: Clone,
+  {
+    let (power, strict) = self.floor_parts();
+    Floor {
+      power: power.clone(),
+      strict,
     }
   }
 }
@@ -629,18 +679,20 @@ where
   /// Drops everything pending, and the value and the latches with it. The floor, the cap and the
   /// storage stay, so a kept machine serves the next expression with the storage it has.
   ///
-  /// The machine is as new before any caller code runs: the phase and the root's latch are taken
-  /// out first, and dropped after the frames. Then it pops its own count of frames, one at a time,
-  /// lowering the count before each is dropped. So a destructor that unwinds leaves the count and
-  /// the storage in agreement and no reduction owed, the value and the latch it took out are
-  /// dropped on the way, and the next `reset` goes on from there.
+  /// The machine is as new before any caller code runs: the phase, and the latch and the floor it
+  /// keeps beside its frames, are taken out first, and dropped after the frames. Then it pops its
+  /// own count of frames, one at a time, lowering the count before each is dropped. So a destructor
+  /// that unwinds leaves the count and the storage in agreement and no reduction owed, the value
+  /// and what it took out are dropped on the way, and the next `reset` goes on from there.
   pub fn reset(&mut self) {
     let phase = core::mem::replace(&mut self.state.phase, Phase::Term);
-    let root_latch = self.state.root_latch.take();
+    let latch = self.state.latch.take();
+    let frame_floor = self.state.frame_floor.take();
     while self.state.depth > 0 {
-      drop(self.pop_frame());
+      drop(self.pop_raw());
     }
-    drop(root_latch);
+    drop(frame_floor);
+    drop(latch);
     drop(phase);
   }
 
@@ -679,8 +731,9 @@ where
   }
 
   /// Whether the innermost sub-expression takes an operator at its right-hand position. It writes
-  /// nothing: it reads the machine's own state and the frame on top of its storage, and compares
-  /// powers. So it modifies nothing given a `Power` whose comparisons change nothing a caller
+  /// nothing: it reads the machine's own state, which keeps the floor the operator on top gives its
+  /// operand, and compares powers, and a debug build reads that frame back too, to check the floor
+  /// kept. So it modifies nothing given a `Power` whose comparisons change nothing a caller
   /// observes.
   ///
   /// `rhs` is what [`PrattToken::try_pratt_rhs`](crate::token::PrattToken::try_pratt_rhs) answers.
@@ -731,19 +784,26 @@ where
     }
     let frame = PrattFrame {
       operator: FrameOperator::Prefix(operator),
-      latch: None,
+      // The latch of the sub-expression below, which the frame keeps: put back on a refusal.
+      latch: self.state.latch.take(),
     };
     match self.stack.push(frame) {
       Ok(()) => {
         // Raised only once the storage has taken the frame. It cannot overflow: it was below
         // `max_depth`, at most `usize::MAX`, a moment ago.
         self.state.depth += 1;
+        // Read back off the frame the storage took, so that a refusal runs no code of the power's
+        // but its comparisons.
+        self.state.frame_floor = self.floor_of_top();
         Ok(())
       }
       Err(PrattFrame {
         operator: FrameOperator::Prefix(operator),
-        ..
-      }) => Err(PrattRefused::new(PrattRefusal::Full, operator)),
+        latch,
+      }) => {
+        self.state.latch = latch;
+        Err(PrattRefused::new(PrattRefusal::Full, operator))
+      }
       Err(_) => broken_stack("`push` refused a frame, and handed back another"),
     }
   }
@@ -797,18 +857,22 @@ where
     };
     let frame = PrattFrame {
       operator: FrameOperator::Infix(InfixFrame { left, operator }),
-      latch: None,
+      // As in `handle_prefix`, and put back with the value on a refusal.
+      latch: self.state.latch.take(),
     };
     match self.stack.push(frame) {
       Ok(()) => {
         // Raised only once the storage has taken the frame, and bounded as in `handle_prefix`.
         self.state.depth += 1;
+        // Read back as in `handle_prefix`.
+        self.state.frame_floor = self.floor_of_top();
         Ok(())
       }
       Err(PrattFrame {
         operator: FrameOperator::Infix(InfixFrame { left, operator }),
-        ..
+        latch,
       }) => {
+        self.state.latch = latch;
         self.state.phase = Phase::Operator(left);
         Err(PrattRefused::new(PrattRefusal::Full, operator))
       }
@@ -957,8 +1021,9 @@ where
       Phase::Owed(Owed::Close(right)) => self.reduce_top(right, false),
       Phase::Owed(Owed::Finish(right)) => self.reduce_top(right, true),
       Phase::Owed(Owed::Done(value)) => {
-        // `Done` resets: nothing is pending, and the phase is `Term` already.
-        self.state.root_latch = None;
+        // `Done` resets: nothing is pending, so no floor is kept and the latch is the root's, and
+        // the phase is `Term` already.
+        self.state.latch = None;
         PrattPoll::Done(value)
       }
       // `poll` calls this in the `Owed` phase alone. Any other phase is put back as it was, and
@@ -1014,19 +1079,38 @@ where
   }
 
   /// What the innermost sub-expression answers an operator at `power`: the floor first, then the
-  /// chain, which only an infix operator can meet.
+  /// chain, which only an infix operator can meet. It reads the floor and the latch the machine
+  /// keeps, and no frame.
   #[inline]
   fn answer(&self, power: &Power, infix: bool) -> PrattOffer {
-    let (admits, latch) = match self.top() {
-      None => (*power >= self.state.floor, self.state.root_latch.as_ref()),
-      Some(frame) => (frame.admits(power), frame.latch.as_ref()),
+    debug_assert!(
+      self.floor_is_kept(),
+      "the floor kept for the operator on top is not the one it gives its operand: a defect of \
+       the machine, or a storage that broke the obligations of `tokora::container::Stack`"
+    );
+    let admits = match &self.state.frame_floor {
+      None => *power >= self.state.floor,
+      Some(floor) => floor.admits(power),
     };
     if !admits {
       self.not_admitted()
-    } else if infix && latch == Some(power) {
+    } else if infix && self.state.latch.as_ref() == Some(power) {
       PrattOffer::Chain
     } else {
       PrattOffer::Take
+    }
+  }
+
+  /// Whether the floor kept is the one the frame on top gives its operand, read back off the
+  /// storage, and none is kept at the root: what every push and every pop keep true.
+  fn floor_is_kept(&self) -> bool {
+    match (&self.state.frame_floor, self.top()) {
+      (None, None) => true,
+      (Some(kept), Some(frame)) => {
+        let (power, strict) = frame.operator.floor_parts();
+        kept.strict == strict && kept.power == *power
+      }
+      (None, Some(_)) | (Some(_), None) => false,
     }
   }
 
@@ -1054,17 +1138,18 @@ where
     }
   }
 
-  /// Writes the latch of the innermost sub-expression: the root's, or the frame's on top.
+  /// Writes the latch of the innermost sub-expression, which the machine keeps itself: no frame
+  /// is written.
   #[inline]
   fn set_latch(&mut self, latch: Option<Power>) {
-    if self.state.depth == 0 {
-      self.state.root_latch = latch;
-      return;
-    }
-    match self.stack.last_mut() {
-      Some(frame) => frame.latch = latch,
-      None => broken_stack("`last_mut` answered `None` with a frame pending"),
-    }
+    self.state.latch = latch;
+  }
+
+  /// The floor the frame on top gives its operand, cloned for the machine to keep, or `None` at
+  /// the root, whose floor is `floor`.
+  #[inline]
+  fn floor_of_top(&self) -> Option<Floor<Power>> {
+    self.top().map(|frame| frame.operator.floor())
   }
 
   /// The value of the innermost sub-expression, moved out of the `Operator` phase, which this
@@ -1080,14 +1165,28 @@ where
     }
   }
 
-  /// The frame on top, popped. The count is lowered as soon as the storage gives the frame up, and
-  /// before the frame or a value in it can be dropped.
+  /// The frame on top, popped, with the sub-expression below it innermost again: the latch the
+  /// frame kept is the machine's latch once more, and the floor kept is the one the frame now on
+  /// top gives, read off that frame, or none at the root. The frame comes back holding the latch
+  /// it replaced, for the caller to let go of.
   ///
-  /// Called with a frame pending, by its four callers' own tests: `reset`'s loop, `retract`'s,
-  /// the `Owed` phase `reduce_top` is reached from, and `close_and_reduce`'s test of the depth. So
-  /// the count cannot wrap.
+  /// Called with a frame pending, by its three callers' own tests: `retract`'s, the `Owed` phase
+  /// `reduce_top` is reached from, and `close_and_reduce`'s test of the depth.
   #[inline]
   fn pop_frame(&mut self) -> PrattFrame<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Power> {
+    let mut frame = self.pop_raw();
+    core::mem::swap(&mut frame.latch, &mut self.state.latch);
+    self.state.frame_floor = self.floor_of_top();
+    frame
+  }
+
+  /// The frame on top, popped, and nothing else moved: `reset`'s pop, which lets go of the latch
+  /// and the floor it keeps itself. The count is lowered as soon as the storage gives the frame up,
+  /// and before the frame or a value in it can be dropped.
+  ///
+  /// Called with a frame pending, by `reset`'s loop and by `pop_frame`. So the count cannot wrap.
+  #[inline]
+  fn pop_raw(&mut self) -> PrattFrame<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Power> {
     debug_assert!(self.state.depth > 0, "a frame popped with none pending");
     match self.stack.pop() {
       Some(frame) => {
@@ -1172,7 +1271,8 @@ where
 
   /// [`handle_prefix`](Self::handle_prefix) in the `Term` phase, which the adapter stands in. A
   /// refusal is `Full`, and hands the operator back: the stack is at its cap, or its storage
-  /// refused the frame.
+  /// refused the frame. The floor kept is cloned out of the operator before the push, so that no
+  /// frame is read back, and a refusal by the storage drops that clone.
   #[inline]
   pub(crate) fn push_prefix(
     &mut self,
@@ -1187,25 +1287,31 @@ where
     }
     let frame = PrattFrame {
       operator: FrameOperator::Prefix(operator),
-      latch: None,
+      latch: self.state.latch.take(),
     };
+    let floor = frame.operator.floor();
     match self.stack.push(frame) {
       Ok(()) => {
         // Raised only once the storage has taken the frame, and bounded as in `handle_prefix`.
         self.state.depth += 1;
+        self.state.frame_floor = Some(floor);
         Ok(())
       }
       Err(PrattFrame {
         operator: FrameOperator::Prefix(operator),
-        ..
-      }) => Err(operator),
+        latch,
+      }) => {
+        self.state.latch = latch;
+        Err(operator)
+      }
       Err(_) => broken_stack("`push` refused a frame, and handed back another"),
     }
   }
 
   /// [`handle_infix`](Self::handle_infix) for an operator the adapter's own
   /// [`offer`](Self::offer) has just answered [`Take`](PrattOffer::Take) for, in the `Operator`
-  /// phase. A refusal is `Full`, hands the operator back, and leaves the value the machine's.
+  /// phase. A refusal is `Full`, hands the operator back, and leaves the value the machine's. The
+  /// floor kept is taken as in [`push_prefix`](Self::push_prefix).
   #[inline]
   pub(crate) fn push_infix(
     &mut self,
@@ -1224,18 +1330,21 @@ where
     };
     let frame = PrattFrame {
       operator: FrameOperator::Infix(InfixFrame { left, operator }),
-      latch: None,
+      latch: self.state.latch.take(),
     };
+    let floor = frame.operator.floor();
     match self.stack.push(frame) {
       Ok(()) => {
         // Raised only once the storage has taken the frame, and bounded as in `handle_prefix`.
         self.state.depth += 1;
+        self.state.frame_floor = Some(floor);
         Ok(())
       }
       Err(PrattFrame {
         operator: FrameOperator::Infix(InfixFrame { left, operator }),
-        ..
+        latch,
       }) => {
+        self.state.latch = latch;
         self.state.phase = Phase::Operator(left);
         Err(operator)
       }
@@ -1276,8 +1385,9 @@ where
       unreachable!("a close outside the `Operator` phase");
     };
     if self.state.depth == 0 {
-      // `Done` resets, as `poll`'s does: nothing is pending, and the phase is `Term` already.
-      self.state.root_latch = None;
+      // `Done` resets, as `poll`'s does: nothing is pending, so no floor is kept and the latch is
+      // the root's, and the phase is `Term` already.
+      self.state.latch = None;
       return Closed::Done(right);
     }
     let PrattFrame { operator, latch: _ } = self.pop_frame();
