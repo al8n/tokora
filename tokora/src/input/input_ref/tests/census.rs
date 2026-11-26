@@ -435,9 +435,11 @@ fn settle_census_nothing_fallible_once_a_restore_has_begun() {
     // A look-ahead's settle, its three writes as `install_look_ahead` spells them: the window back
     // into the cache, the copied token back into the parked slot, and the exclusion. A caller
     // destructor between two of them would leave a host holding half a settle — the window without
-    // its exclusion, or the reverse — so they are fact writes like the rest of this list.
+    // its exclusion, or the reverse — so they are fact writes like the rest of this list. The slot
+    // is written in its `Option`-native spelling, for the reason `self.poison_boundary.replace(`
+    // above gives: clippy's `mem_replace_option_with_some` requires it.
     "core::mem::replace(self.cache",
-    "core::mem::replace(self.pending",
+    "self.pending.replace(",
     "token_budget.settle_look_ahead(",
   ];
 
@@ -609,7 +611,7 @@ fn settle_census_nothing_fallible_once_a_restore_has_begun() {
     // already-spent refusal publishes it before it has derived anything.
     "mod.rs::count_scanner_trip",
     // A look-ahead's settle. Its region runs from the cache swap through the exclusion, and
-    // between them is the parked slot's `mem::replace` and the park id's `u64` bump; what the
+    // between them is the parked slot's `Option::replace` and the park id's `u64` bump; what the
     // three writes displace is dropped after the last of them.
     "mod.rs::install_look_ahead",
     // `commit_token` is deliberately ABSENT: the body is a clamp followed by a call to
@@ -2461,7 +2463,7 @@ fn front_census_one_front_surface() {
   // arm's stream restore), and `settle_fatal`'s store-empty guard — the invariant the unwind
   // settle leans on, asserted at the one site that could break it. It gained two more with the
   // look-ahead: `look_ahead`'s gated copy of the parked token at entry, and
-  // `install_look_ahead`'s re-park of that copy after the rollback, a `mem::replace` reached
+  // `install_look_ahead`'s re-park of that copy after the rollback, an `Option::replace` reached
   // only when a token was copied.
   let pending: &[(&str, usize)] = &[("mod.rs", 21), ("peek/mod.rs", 4)];
   for (name, want) in pending {

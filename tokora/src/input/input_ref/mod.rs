@@ -2908,10 +2908,12 @@ where
     kept: usize,
   ) {
     let displaced_cache = core::mem::replace(self.cache, cache);
+    // `Option::replace` is `mem::replace` with `Some`: it hands back what it displaced instead of
+    // dropping it in place, so the slot's old value reaches the drop site below.
     let displaced_park = match parked {
       Some(tok) => {
         self.session.lineage.record_park();
-        core::mem::replace(self.pending, Some(tok))
+        self.pending.replace(tok)
       }
       None => None,
     };
