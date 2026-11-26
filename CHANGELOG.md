@@ -300,7 +300,11 @@ copy, and `unused_must_use` reports it. **The remedy is UFCS**:
   `PrattPostfixReduction`, and `PrattPending`, `PrattRefused`, `PrattRefusal` and `PrattFrame`. It
   keeps its pending operators on any `container::Stack`: `pratt::PrattStack`, and
   `DefaultPrattStack` at four frames, which spills to the heap where the crate can allocate and
-  refuses past four where it cannot.
+  refuses past four where it cannot. Beside its frames it keeps copies of the floor the operator on
+  top gives its operand and of the innermost latch, so that an offer reads no frame: a push and a
+  pop each clone at most one power, the floor kept, a pop clones the latch it reads too while a
+  latch is set, and a non-associative reduction clones its latch twice, so a `Power` whose `Clone`
+  costs more than a copy makes each of them cost that much.
 - **`PrattTable::lhs` and `rhs`**, the typed driver's two classifiers read from the same table, as
   `PrattTableLHS` and `PrattTableRHS`, so the typed and the flat drivers share one table.
 - **`container::Stack`**, a `Container` that pops: `pop` and `last_mut`, for `ArrayDeque`, `Vec`,

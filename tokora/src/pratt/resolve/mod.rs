@@ -113,7 +113,11 @@ use crate::container::Stack;
 ///   [`with_stack`](Self::with_stack). [`handle_prefix`](Self::handle_prefix) and
 ///   [`handle_infix`](Self::handle_infix) clone that floor once the storage has taken the frame.
 ///   The pushes the crate's own drivers make clone it before the storage takes the frame, and a
-///   refused one drops that clone;
+///   refused one drops that clone. So a push and a pop each clone at most one power, the floor
+///   kept, a pop clones the latch it reads too while a latch is set, and a non-associative
+///   reduction clones its latch twice, for where it lives and for the copy: a power whose `Clone`
+///   costs more than a copy makes each of them cost that much, the price of an offer that reads no
+///   frame;
 /// - the methods of its storage;
 /// - the destructors of `V`, of the operator payloads and of `Power`, when [`reset`](Self::reset),
 ///   [`with_stack`](Self::with_stack), [`into_stack`](Self::into_stack) or the machine's own drop
