@@ -162,3 +162,31 @@ fn recursion_increase_saturates_at_max() {
   r.increase();
   assert_eq!(r.depth(), usize::MAX);
 }
+
+/// **`with_depth` builds the tracker that `increase` steps to**, by the derived `==`. The
+/// limitations are 0, 1, 32 and `usize::MAX`, and the depths run from 0 to 40, past each of the
+/// three small limitations.
+#[test]
+fn a_limiter_built_at_a_depth_is_the_one_stepped_to_it() {
+  for max in [0, 1, 32, usize::MAX] {
+    let mut stepped = RecursionLimiter::with_limitation(max);
+    for depth in 0..=40 {
+      assert_eq!(
+        RecursionLimiter::with_limitation(max).with_depth(depth),
+        stepped,
+        "the tracker built at depth {depth} under a limitation of {max} is not the one {depth} \
+         `increase` calls step to"
+      );
+      stepped.increase();
+    }
+  }
+}
+
+// `with_depth` is `const`, and so is the refusal a caller reaches through it.
+const _: () = assert!(
+  RecursionLimiter::with_limitation(3)
+    .with_depth(4)
+    .check()
+    .is_err(),
+  "a tracker built at depth 4 under a limitation of 3 must refuse"
+);
