@@ -67,6 +67,9 @@ enum Program {
   TryExpectMapOrStopDecline,
   /// `probe_close` classifies the token at the cursor as the wrong one, on the scan path.
   ProbeCloseWrongToken,
+  /// The same miss, then `close_miss_token` reads the token it missed: from the cache front, or
+  /// from the parked slot under a cache that holds nothing.
+  ProbeCloseMissToken,
 }
 
 impl Program {
@@ -81,6 +84,7 @@ impl Program {
     Program::TryExpectOrStopDecline,
     Program::TryExpectMapOrStopDecline,
     Program::ProbeCloseWrongToken,
+    Program::ProbeCloseMissToken,
     Program::SyncBalancedZeroSkip,
     Program::PeekPastStopTrips,
     Program::PeekAfterLatchedBoundary,
@@ -108,7 +112,8 @@ impl Program {
       | Program::TryExpectAndThenDecline
       | Program::TryExpectOrStopDecline
       | Program::TryExpectMapOrStopDecline
-      | Program::ProbeCloseWrongToken => "1   2",
+      | Program::ProbeCloseWrongToken
+      | Program::ProbeCloseMissToken => "1   2",
       // A run of real trivia tokens, then the token the skip stops on.
       Program::SkipWhileStop => "~ ~   2",
       // An unbalanced region, then the `;` the balanced sync stops before.
@@ -139,6 +144,8 @@ struct Observed {
   hole: Option<(SimpleSpan, usize)>,
   /// The spans of each window the program peeked, in order.
   peeked: std::vec::Vec<std::vec::Vec<SimpleSpan>>,
+  /// The token a close miss was read as, when the program read one.
+  missed: Option<(SimpleSpan, BalKind)>,
 }
 
 /// What a program produced beyond the input's own facts.
@@ -146,6 +153,7 @@ struct Observed {
 struct Produced {
   hole: Option<(SimpleSpan, usize)>,
   peeked: std::vec::Vec<std::vec::Vec<SimpleSpan>>,
+  missed: Option<(SimpleSpan, BalKind)>,
 }
 
 /// Runs `program`, returning whatever it produced.
@@ -229,6 +237,18 @@ where
         matches!(status, CloseStatus::WrongToken(_)),
         "the number at the cursor is not the closer"
       );
+    }
+    Program::ProbeCloseMissToken => {
+      inp.next().unwrap().expect("the first number");
+      let miss = match inp
+        .probe_close(|t| t.data().kind() == BalKind::Semi)
+        .unwrap()
+      {
+        CloseStatus::WrongToken(miss) => miss,
+        _ => panic!("the number at the cursor is not the closer"),
+      };
+      let missed = inp.close_miss_token(miss);
+      produced.missed = Some((*missed.span_ref(), missed.data().kind()));
     }
     Program::PeekPastStopTrips | Program::PeekAfterLatchedBoundary => {
       inp.next().unwrap().expect("the first number");
@@ -322,6 +342,7 @@ where
     drained,
     hole: produced.hole,
     peeked: produced.peeked,
+    missed: produced.missed,
   }
 }
 
@@ -474,12 +495,32 @@ fn probe_close_wrong_token_is_capacity_independent() {
 }
 
 #[test]
+fn a_close_miss_reads_the_probed_token_in_every_capacity() {
+  // The miss hands back no token, so `close_miss_token` reads it from the front of the stream:
+  // the cache front, or the parked slot under `()`. It must be the token the probe missed on,
+  // still unconsumed, whatever the capacity, and the lexer-state tally in the compared tuple says
+  // the read lexed nothing.
+  let observed = agree(Program::ProbeCloseMissToken);
+  assert_eq!(
+    observed.missed,
+    Some((SimpleSpan { start: 4, end: 5 }, BalKind::Num)),
+    "the token read is the number the probe missed on"
+  );
+  assert_eq!(observed.cursor, 4, "and it is still at the front");
+  assert_eq!(
+    observed.drained,
+    std::vec![(SimpleSpan { start: 4, end: 5 }, BalKind::Num)],
+    "reading it consumed nothing: it is the next token consumed"
+  );
+}
+
+#[test]
 fn every_program_is_compared() {
   // The list is the census: a scan stop or a decline added without a row here is a promise no
   // capacity comparison covers.
   assert_eq!(
     Program::ALL.len(),
-    12,
+    13,
     "a `to`-shaped stop or a decline joined the surface without joining this comparison"
   );
   for program in Program::ALL {

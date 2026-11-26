@@ -187,7 +187,7 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
                   container.on_close_delimiter(inp.commit_probed(ct))
                 }
                 // (b) a wrong token was seen where the closer should be.
-                CloseStatus::WrongToken(tok) => {
+                CloseStatus::WrongToken(miss) => {
                   // An absence conclusion, so both witnesses are the chokepoint's — a constant
                   // `false` pair at this exit (the eager terminal gate above already refused a
                   // latched boundary, and this cycle's element has not run), routed through it so
@@ -196,11 +196,7 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
                   // One junk token, one report: a close expectation names a different token or
                   // nothing. Nothing committed since the wrong opener was flagged ⇒ the cache
                   // front still holds that same token (FIFO), so this probe is re-seeing it.
-                  if !inp.front_report_live(tok.span_ref().end_ref()) {
-                    inp
-                      .emitter()
-                      .emit_unexpected_token(Delim::unexpected_close_token(tok))?
-                  }
+                  inp.report_close_miss(miss, Delim::unexpected_close_token)?;
                 }
                 // (a) end of input with the opener still open: the opener was never
                 // closed.
@@ -261,7 +257,7 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
                   close_carrier = Some(ct)
                 }
                 // (b) a wrong token sits where the closer should be.
-                CloseStatus::WrongToken(tok) => {
+                CloseStatus::WrongToken(miss) => {
                   // No closer: the stop plus this verdict conclude *absence*, and the element's own
                   // lookahead can latch a terminal scanner stop and still return `Ok` with a short
                   // window, leaving the pre-trip tokens cached — the decision window above is then
@@ -272,11 +268,7 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
                   // One junk token, one report: a close expectation names a different token or
                   // nothing. Nothing committed since the wrong opener was flagged ⇒ the cache
                   // front still holds that same token (FIFO), so this probe is re-seeing it.
-                  if !inp.front_report_live(tok.span_ref().end_ref()) {
-                    inp
-                      .emitter()
-                      .emit_unexpected_token(Delim::unexpected_close_token(tok))?
-                  }
+                  inp.report_close_miss(miss, Delim::unexpected_close_token)?;
                 }
                 // (a) end of input with the opener still open: never closed.
                 CloseStatus::Eof => {
@@ -350,7 +342,7 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
                     close_carrier = Some(ct)
                   }
                   // (b) a wrong token sits where the closer should be.
-                  CloseStatus::WrongToken(tok) => {
+                  CloseStatus::WrongToken(miss) => {
                     // No closer: the stall plus this verdict conclude *absence* from the element
                     // attempt this cycle just ran, and that attempt can hit either
                     // never-recoverable stop and still return `Ok` — a terminal scanner stop its
@@ -362,11 +354,7 @@ impl<'c, 'inp, L, P, Sep, O, Condition, Ctx, Delim, W, Lang: ?Sized>
                     // or nothing. Nothing committed since the wrong opener was flagged ⇒ the
                     // cache front still holds that same token (FIFO), so this probe is
                     // re-seeing it.
-                    if !inp.front_report_live(tok.span_ref().end_ref()) {
-                      inp
-                        .emitter()
-                        .emit_unexpected_token(Delim::unexpected_close_token(tok))?
-                    }
+                    inp.report_close_miss(miss, Delim::unexpected_close_token)?;
                   }
                   // (a) end of input with the opener still open: never closed.
                   CloseStatus::Eof => {

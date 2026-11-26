@@ -29,6 +29,10 @@
 //!   the cursor, so the `probe_close` Close arm is unreachable via the driver; its
 //!   `commit_probed` mechanism is covered at the primitive level in the crate's
 //!   `input_ref` unit tests (`probe_close_carries_the_closer_out_and_commit_probed_advances`).
+//!
+//! The close MISS has two cells at the end. A probe that misses hands back no token, so a
+//! delimited `repeated_while` list clones none for an element, and under `()` a reported miss is
+//! read from the parked slot and spends no item of the token budget twice.
 
 use core::cell::Cell;
 use std::rc::Rc;
@@ -44,12 +48,13 @@ use tokora::{
   emitter::{
     Fatal, FullContainerEmitter, MissingLeadingSeparatorEmitter, MissingTrailingSeparatorEmitter,
     SeparatedEmitter, TooFewEmitter, TooManyEmitter, UnclosedEmitter,
-    UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter,
+    UnexpectedLeadingSeparatorEmitter, UnexpectedTrailingSeparatorEmitter, Verbose,
   },
   error::{
     FullContainer, MissingSyntax, MissingToken, SeparatedError, TooFew, TooMany, Unclosed,
     UnexpectedEot, UnexpectedToken,
   },
+  input::TokenBudget,
   lexer::LogosLexer,
   logos::{self, Logos},
   parse::Action,
@@ -98,7 +103,7 @@ impl State for CloserScans {
 
 // ── Token ──────────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, PartialEq, Logos)]
+#[derive(Debug, PartialEq, Logos)]
 #[logos(crate = logos, extras = CloserScans, skip r"[ \t\r\n]+")]
 enum PcTok {
   #[token("(")]
@@ -111,6 +116,25 @@ enum PcTok {
   Comma,
   #[regex(r"[a-z]+")]
   Word,
+}
+
+thread_local! {
+  /// One increment per `PcTok` clone. Thread-local, so a cell on another test thread cannot move
+  /// it.
+  static TOKEN_CLONES: Cell<usize> = const { Cell::new(0) };
+}
+
+// `Clone` by hand, so that it counts: the close-miss cell at the end reads the tally.
+impl Clone for PcTok {
+  fn clone(&self) -> Self {
+    TOKEN_CLONES.with(|c| c.set(c.get() + 1));
+    match self {
+      PcTok::Open => PcTok::Open,
+      PcTok::Close => PcTok::Close,
+      PcTok::Comma => PcTok::Comma,
+      PcTok::Word => PcTok::Word,
+    }
+  }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -566,5 +590,59 @@ fn separated_default_cache_lexes_the_closer_once_via_the_epilogue() {
     counter.get(),
     1,
     "DefaultCache: the closer is lexed exactly once"
+  );
+}
+
+// ── A close miss copies nothing out of the stream (#373) ─────────────────────────
+
+type NoCacheVerboseCtx<'inp> = ParserContext<'inp, PcLex<'inp>, Verbose<PcErr>, ()>;
+
+/// The blackhole `()` cache under a recording emitter, with a budget of `items` lexed items.
+fn no_cache_verbose_ctx(items: usize) -> NoCacheVerboseCtx<'static> {
+  ParserContext::new(Verbose::new()).with_token_budget(TokenBudget::with_limitation(items))
+}
+
+#[test]
+fn a_delimited_while_list_clones_no_token_for_an_element() {
+  // `repeated_while` probes the close position at the top of every cycle, and before each element
+  // the probe misses: a word stands where the closer would. A miss hands back no token, and a list
+  // that goes on never asks for one, so an element clones none and eight elements clone exactly
+  // what four do. A probe that copied the token it missed cloned one more for each.
+  fn clones_over(src: &'static str, elements: usize) -> usize {
+    TOKEN_CLONES.with(|c| c.set(0));
+    let r: Result<Vec<()>, PcErr> = Parser::with_context(default_cache_ctx())
+      .apply(parse_repeated_while)
+      .parse_str_with_state(src, CloserScans::default());
+    assert_eq!(r.map(|items| items.len()), Ok(elements), "{src:?} parses");
+    TOKEN_CLONES.with(Cell::get)
+  }
+  assert_eq!(
+    clones_over("(a a a a a a a a)", 8),
+    clones_over("(a a a a)", 4),
+    "four more elements cloned more tokens: the close probe copies the token it misses on"
+  );
+}
+
+#[test]
+fn a_close_miss_under_no_cache_spends_no_item_twice() {
+  // `(a a ,` is four items, and the budget is four. Under `()` the miss on `,` is read from the
+  // parked slot, where the probe left it, and reported once. A fifth lex would be refused, and the
+  // tally would say so.
+  fn probe<'inp>(
+    inp: &mut InputRef<'inp, '_, PcLex<'inp>, NoCacheVerboseCtx<'inp>>,
+  ) -> Result<(usize, usize, bool, usize), PcErr> {
+    let items = parse_repeated_while(inp)?.len();
+    let tally = inp.token_budget();
+    let (spent, refused) = (tally.spent(), tally.refused_an_item());
+    let reports = inp.emitter_ref().errors().values().flatten().count();
+    Ok((items, spent, refused, reports))
+  }
+  assert_eq!(
+    Parser::with_context(no_cache_verbose_ctx(4))
+      .apply(probe)
+      .parse_str_with_state("(a a ,", CloserScans::default()),
+    Ok((2, 4, false, 1)),
+    "the two words collect, the `,` miss is reported once, and four items are spent with none \
+     refused"
   );
 }

@@ -331,6 +331,15 @@ copy, and `unused_must_use` reports it. **The remedy is UFCS**:
   capacity, by a cold path that clones the token once. The report is the same value, emitted at
   the same point and suppressed by the same key, and a missing opener at the end of input is the
   same error. Internal: no public item changes.
+- **A delimited close probe that misses copies nothing (#373).** The close-position probe of the
+  four delimited many-builders and of the `delimited` shapes cloned the token it found, and its
+  span, into its answer whenever that token was not the closer, though only a report of the miss
+  ever read the copy. A delimited `repeated_while` list probes before every element, so it cloned
+  each next token once. The probe now hands back no token: a list that goes on clones nothing, and
+  a reported miss reads the token from the front of the stream, where the probe left it in every
+  cache capacity, the parked slot under `()` included, cloning it once as before. The report, its
+  suppression and the recovery cursor are unchanged, and reading the token lexes nothing.
+  Internal: no public item changes.
 
 ## 0.13.2 (2026-11-15)
 

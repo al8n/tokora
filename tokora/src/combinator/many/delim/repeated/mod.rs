@@ -152,18 +152,14 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized, Cmpl>
             container.on_close_delimiter(inp.commit_probed(ct))
           }
           // A wrong token where the closer belongs: unexpected-token, expected-close.
-          CloseStatus::WrongToken(tok) => {
+          CloseStatus::WrongToken(miss) => {
             // No closer: the decline plus this verdict conclude *absence* from what this element
             // attempt did, so surface a terminal stop it hit ahead of the close-miss diagnostic
             // rather than reporting a close that never happened.
             absence_after_element(inp, &latch, scans, trips)?;
             // One junk token, one report: emit unless the emitter already holds a live report
             // naming this very front token. See FRONT_REPORTED at the top of this body.
-            if !inp.front_report_live(tok.span_ref().end_ref()) {
-              inp
-                .emitter()
-                .emit_unexpected_token(Delim::unexpected_close_token(tok))?
-            }
+            inp.report_close_miss(miss, Delim::unexpected_close_token)?;
           }
           // EOI — no close delimiter found: the opener was never closed.
           CloseStatus::Eof => {
@@ -211,17 +207,13 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized, Cmpl>
         close_after_element(inp, elem_trips)?;
         container.on_close_delimiter(inp.commit_probed(ct))
       }
-      CloseStatus::WrongToken(tok) => {
+      CloseStatus::WrongToken(miss) => {
         // No closer: the stall plus this verdict conclude *absence* from what the last element
         // attempt did, so surface a terminal stop it hit ahead of the close-miss diagnostic.
         absence_after_element(inp, &latch, scans, elem_trips)?;
         // One junk token, one report: emit unless the emitter already holds a live report naming
         // this very front token. See FRONT_REPORTED at the top of this body.
-        if !inp.front_report_live(tok.span_ref().end_ref()) {
-          inp
-            .emitter()
-            .emit_unexpected_token(Delim::unexpected_close_token(tok))?
-        }
+        inp.report_close_miss(miss, Delim::unexpected_close_token)?;
       }
       CloseStatus::Eof => {
         // Same absence conclusion as the wrong-token arm above, so the same gate. No legitimate

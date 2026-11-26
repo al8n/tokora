@@ -243,18 +243,14 @@ impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized, Cmpl>
         close_carrier = Some(ct)
       }
       // (b) a wrong token sits where the closer should: unexpected-token, expected-close.
-      CloseStatus::WrongToken(tok) => {
+      CloseStatus::WrongToken(miss) => {
         // No closer: the loop's absence exit plus this verdict conclude "no more elements" from
         // what the last element attempt did, so surface a terminal stop it hit ahead of the
         // close-miss diagnostic rather than reporting a close that never happened.
         absence_after_element(inp, &latch, scans, elem_trips)?;
         // One junk token, one report: emit unless the emitter already holds a live report naming
         // this very front token. See FRONT_REPORTED at the top of this body.
-        if !inp.front_report_live(tok.span_ref().end_ref()) {
-          inp
-            .emitter()
-            .emit_unexpected_token(Delim::unexpected_close_token(tok))?
-        }
+        inp.report_close_miss(miss, Delim::unexpected_close_token)?;
       }
       // (a) genuine end of input with the opener still open: never closed — the ONE
       // `Unclosed` path.

@@ -2819,6 +2819,60 @@ fn commit_probed_rejects_a_rewound_payload() {
   );
 }
 
+/// **`close_miss_token`'s tripwire, the miss's twin of the cell above.**
+///
+/// A `CloseMiss` carries no token: the read goes to the front of the stream, and finds the probed
+/// token only while the committed cursor stands where the probe left it. The same body runs in both
+/// profiles and asserts the debug outcome (the panic, naming `close_miss_token`) or the release
+/// one (the read proceeds, and returns whatever is at the front now).
+#[test]
+#[cfg_attr(
+  debug_assertions,
+  should_panic(expected = "close_miss_token: the committed cursor moved between `probe_close`")
+)]
+fn a_close_miss_spent_after_a_consume_is_refused() {
+  let mut input = Input::<Lex<'_>, CompleteCtx<'_>, (), Complete>::with_state_and_context(
+    "a b",
+    (),
+    crate::input::InputContext::new(
+      Verbose::<PErr>::new(),
+      DefaultCache::<'_, Lex<'_>>::default(),
+    ),
+  );
+  let mut inp = input.as_ref();
+
+  use hybrid_arraydeque::typenum::U2;
+
+  assert_eq!(
+    inp
+      .peek::<U2>()
+      .expect("a peek never surfaces Incomplete here")
+      .len(),
+    2
+  );
+
+  let miss = match inp.probe_close(|_| false) {
+    Ok(CloseStatus::WrongToken(miss)) => miss,
+    _ => panic!("a cached front token the predicate rejects must probe as `WrongToken`"),
+  };
+
+  // The misuse: consume in the gap the answer's contract says must be cursor-neutral. The
+  // committed cursor moves, and the front is now a token the probe never saw.
+  let _ = inp.next().expect("a token is available");
+
+  let read = inp.close_miss_token(miss);
+
+  // Release limb: no assert exists, so the read proceeds. Both tokens lex as `Word`, so the SPAN
+  // says which one was read — the probed token is `a` at 0..1.
+  assert_eq!(
+    (*read.span_ref().start_ref(), *read.span_ref().end_ref()),
+    (2, 3),
+    "release: with the tripwire compiled out, the stale miss reads whatever is at the front NOW \
+     — `b` at 2..3, not the probed `a` at 0..1. That is the misreport the debug assert exists \
+     to name."
+  );
+}
+
 // ── The read frontier: the predicate, the floor, and an honest lookahead lexer ────────
 //
 // Four properties, each with its own fixture, because each is a different way the holdback
