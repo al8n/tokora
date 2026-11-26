@@ -62,6 +62,16 @@ mod tests;
 /// on a strictly-greater bound, a right-associative one on a greater-or-equal bound — which is
 /// exact at the extremes of the ladder, where stepping one level was not.
 ///
+/// A power is a value. The drivers compare powers, and [`PrattResolver`] may compare a clone in
+/// place of the power it was taken from: it keeps a clone of the floor the operator on top gives
+/// its operand, so that an offer reads no frame. So a clone must compare as its source does, and a
+/// power's order must not change while the machine holds it, through interior mutability that a
+/// comparison, a fold or an emitter's hook reaches for example. When the machine drops a power it
+/// holds is unspecified, a latch or a floor it keeps among them, so code that watches for that
+/// drop, through a `Weak` for example, is promised no point at which it comes. A power's destructor
+/// must not panic. A power that breaks these may get a wrong answer or a panic, and never
+/// undefined behaviour.
+///
 /// Implemented by tokora for every standard integer type, so a plain `i64` — the default
 /// `Power` of [`Precedenced`] — works out of the box. Custom implementations (a
 /// domain-specific precedence ladder, a newtype with named levels) remain first-class; the

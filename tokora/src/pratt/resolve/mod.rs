@@ -645,6 +645,10 @@ where
 
   /// Sets the root's floor, the minimum binding power, inclusive: an infix or postfix operator below
   /// it is not this expression's. No floor applies to a prefix operator.
+  ///
+  /// The floor is a value, as [`PrattPower`] asks of every power: the machine compares it with the
+  /// powers it is offered, a clone of it compares as it does, and its order does not change while
+  /// the machine holds it. When the machine drops it, and the powers it holds, is unspecified.
   #[must_use]
   #[inline]
   pub fn min_precedence(mut self, min_precedence: Power) -> Self {
