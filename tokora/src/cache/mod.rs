@@ -92,7 +92,23 @@ pub type DefaultCache<'a, L> =
 ///   reason worth stating: a scan's unwind edge puts the in-flight token back through it, so it
 ///   is a restore-path operation even though it is the only *writing* one. A `push_front` that
 ///   panics on the normal path is also the one place the crate cannot make whole — it has taken
-///   the token by value, so the token goes with it.
+///   the token by value, so the token goes with it. The cache's own `Drop` is on the list too: a
+///   [look-ahead](crate::InputRef::look_ahead)'s settle drops the cache it displaces, and the
+///   settle can run mid-unwind.
+/// - **`Clone`, where a cache implements it, copies the queue**: the clone holds the same entries
+///   in the same order and has the same [`remaining`](Cache::remaining), or it shares the
+///   original's storage. [`InputRef::look_ahead`](crate::InputRef::look_ahead) is the one reader:
+///   it copies the cache when it begins and installs the copy after its rollback, and a faithful
+///   copy is what makes the read after a look-ahead lex what it would have lexed without one. A
+///   clone that keeps an in-order prefix of the queue — fewer entries, or none — breaks the law
+///   and is still safe: the look-ahead restores less, and the tokens it did not restore are lexed
+///   again, as after an attempt (a debug build refuses a short copy where it is taken). A clone
+///   that is not an in-order prefix — one that loses the front, reorders, repeats an entry or holds
+///   one the queue never held — makes the restored window serve a stream the lexer did not
+///   produce, and the input layer's behaviour under it is unspecified-but-bounded. A cache that
+///   does not implement `Clone` is not a `Cache` any less; it cannot be used with `look_ahead`.
+///   The kit checks this law through its own entry, `CacheHarness::run_clone`, since `run` asks
+///   nothing of a cache but `Cache`.
 /// - [`RETAINS_FRONT`](Cache::RETAINS_FRONT) carries its own law, and it is checked: declaring
 ///   `true` and then refusing a front push into an empty cache panics at the refusal site.
 ///

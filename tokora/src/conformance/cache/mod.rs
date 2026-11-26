@@ -3571,3 +3571,116 @@ where
     );
   }
 }
+
+// The `Clone` law has an entry of its own rather than a check inside `run`. `run` is bounded on
+// `C: Cache` alone, and a `Clone` bound there would stop every cache without one compiling
+// against the kit, for a law that binds only the caches that implement `Clone`.
+impl<'inp, L, C, Lang> CacheHarness<'inp, L, C, Lang>
+where
+  L: Lexer<'inp>,
+  L::State: Clone,
+  L::Token: PartialEq,
+  L::State: PartialEq,
+  Lang: ?Sized,
+  C: Cache<'inp, L, Lang> + Clone,
+{
+  /// Runs the [`Cache`] contract's `Clone` law against a cache that implements `Clone`, panicking
+  /// on the first violation.
+  ///
+  /// The law is what [`InputRef::look_ahead`](crate::InputRef::look_ahead) relies on: it copies
+  /// the cache when it begins and installs the copy after its rollback. At every residency from
+  /// empty to full, the kit clones a filled cache and checks that the clone holds the same
+  /// entries, in the same order and in all three components, with the same `len` and the same
+  /// `remaining`, and that cloning left the original as it was. The clone's entries are read by
+  /// popping it from the front, so a clone that shares the original's storage passes, as the law
+  /// allows.
+  ///
+  /// It makes the passes [`run`](Self::run) makes: once against caches built by [`Cache::new`],
+  /// and once more against caches built by the constructor given to
+  /// [`also_built_by`](Self::also_built_by).
+  ///
+  /// # Panics
+  ///
+  /// Panics — every message tagged `clone-law`, naming the residency, the capacity and the
+  /// constructor — the moment a clone differs from the queue it was taken of. Returns normally
+  /// when every clone is a copy.
+  pub fn run_clone(&self) {
+    Self {
+      source: self.source,
+      name: self.name,
+      built_by: None,
+      via: "",
+      lex_multiple: self.lex_multiple,
+      _cache: PhantomData,
+      _lang: PhantomData,
+    }
+    .clone_pass();
+
+    if self.built_by.is_some() {
+      Self {
+        source: self.source,
+        name: self.name,
+        built_by: self.built_by,
+        via: " built by with_options",
+        lex_multiple: self.lex_multiple,
+        _cache: PhantomData,
+        _lang: PhantomData,
+      }
+      .clone_pass();
+    }
+  }
+
+  /// One pass of the `Clone` law, against caches built by [`make`](Self::make).
+  fn clone_pass(&self) {
+    let name = self.label();
+    let cap = self.make().remaining();
+    let corpus = self.corpus(cap);
+    assert!(
+      corpus.len() >= cap,
+      "tokora cache conformance [{name} clone-law]: the source lexed {} token(s), but this cache's capacity is {cap}, and the law is checked at every residency up to full. This is a kit-usage problem, not a cache defect: lengthen the source.",
+      corpus.len()
+    );
+    for held in 0..=cap {
+      self.check_clone_at(cap, held);
+    }
+  }
+
+  /// The law at one residency: a cache holding `held` of its `cap` entries, cloned.
+  ///
+  /// Every read goes through the kit's own routed helpers — the residency oracle, the front
+  /// drain and the empty-state probe — so the entries are compared whole, as everywhere else.
+  fn check_clone_at(&self, cap: usize, held: usize) {
+    let name = self.label();
+    let (cache, want) = self.filled(held);
+    let mut copy = cache.clone();
+    self.assert_resident(
+      &copy,
+      cap,
+      &want,
+      &format!("clone-law: the clone of a cache holding {held} of {cap}"),
+    );
+    self.assert_resident(
+      &cache,
+      cap,
+      &want,
+      &format!("clone-law: the original of a clone, holding {held} of {cap}"),
+    );
+    for (i, expected) in want.iter().enumerate() {
+      let _ = self.drained_front(
+        &mut copy,
+        expected,
+        &format!("clone-law: pop_front #{i} of the clone of a cache holding {held} of {cap}"),
+        format_args!(
+          "tokora cache conformance [{name} clone-law]: the clone of a cache holding {held} of {cap} answered nothing at pop_front #{i}, expected {:?}. A clone is a copy of the queue.",
+          span_of::<L>(expected)
+        ),
+        " A clone is a copy of the queue: the same entries, in the same order.",
+      );
+    }
+    self.assert_empty(
+      &mut copy,
+      cap,
+      "clone-law: a clone drained of the entries it was taken with",
+    );
+  }
+}

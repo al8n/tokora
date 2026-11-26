@@ -186,6 +186,47 @@ fn cache_kit_accepts_the_blackhole() {
     .run();
 }
 
+// ── The built-ins keep the `Clone` law ──────────────────────────────────────────────
+//
+// `InputRef::look_ahead` copies the cache when it begins and installs the copy after its
+// rollback, so a built-in whose clone were not a copy of the queue would hand every look-ahead a
+// stream the lexer never produced. Each of the four is driven through both constructors.
+
+#[test]
+fn cache_kit_clone_law_holds_for_the_default_ring() {
+  CacheHarness::<CLex<'_>, DefaultCache<'_, CLex<'_>>>::new(SRC)
+    .named("DefaultCache (U3)")
+    .also_built_by(|| <DefaultCache<'_, CLex<'_>> as Cache<'_, CLex<'_>, ()>>::with_options(()))
+    .run_clone();
+}
+
+#[test]
+fn cache_kit_clone_law_holds_for_a_wider_ring() {
+  use hybrid_arraydeque::{ArrayDeque, typenum::U8};
+  type Wide<'a> = ArrayDeque<CachedTokenOf<'a, CLex<'a>>, U8>;
+  CacheHarness::<CLex<'_>, Wide<'_>>::new(SRC)
+    .named("ArrayDeque<_, U8>")
+    .also_built_by(|| <Wide<'_> as Cache<'_, CLex<'_>, ()>>::with_options(()))
+    .run_clone();
+}
+
+#[test]
+fn cache_kit_clone_law_holds_for_the_capacity_one_cache() {
+  type One<'a> = Option<CachedTokenOf<'a, CLex<'a>>>;
+  CacheHarness::<CLex<'_>, One<'_>>::new(SRC)
+    .named("Option (capacity 1)")
+    .also_built_by(|| <One<'_> as Cache<'_, CLex<'_>, ()>>::with_options(()))
+    .run_clone();
+}
+
+#[test]
+fn cache_kit_clone_law_holds_for_the_blackhole() {
+  CacheHarness::<CLex<'_>, ()>::new(SRC)
+    .named("() (capacity 0)")
+    .also_built_by(|| <() as Cache<'_, CLex<'_>, ()>>::with_options(()))
+    .run_clone();
+}
+
 // ── A third-party queue, correct and broken ─────────────────────────────────────────
 
 /// Defect selectors for [`Queue`]. `SOUND` is the deliberately-literal witness queue —
@@ -772,6 +813,10 @@ const EARLY_PUSH_FRONT_REFUSAL_ENTRY_SWAP: u8 = 67;
 /// the true-predicate arm below it. It fails on the entry comparison and not on residency —
 /// nothing is removed — which is what distinguishes it from `WRONG_POP_FRONT_IF`.
 const POP_FRONT_IF_PREDICATE_ARG_STATE_SKEW: u8 = 68;
+/// `Clone` loses the front: the clone holds every entry but the oldest. The unsafe shape the
+/// `Clone` law names first, since a look-ahead that installed it would leave the committed position
+/// in front of a token the stream no longer serves. Inert under `run`, which never clones.
+const CLONE_DROPS_FRONT: u8 = 69;
 
 /// A `VecDeque`-backed third-party cache with a const-selected defect.
 struct Queue<'a, L, const D: u8>
@@ -1805,6 +1850,24 @@ where
   }
 }
 
+/// The `Clone` the kit's `run_clone` checks: a fresh queue at the same two capacities holding the
+/// same entries in the same order, with every other cell's bookkeeping reset, since only the queue
+/// is under the law. [`CLONE_DROPS_FRONT`] loses the front.
+impl<'a, L, const D: u8> Clone for Queue<'a, L, D>
+where
+  L: Lexer<'a>,
+  L::Token: Clone,
+{
+  fn clone(&self) -> Self {
+    let mut copy = Self::build(self.cap, self.claimed_cap);
+    copy.items = self.items.clone();
+    if D == CLONE_DROPS_FRONT {
+      let _ = copy.items.pop_front();
+    }
+    copy
+  }
+}
+
 /// Runs the kit over `Queue<D>`, so each cell below is one line.
 ///
 /// Two passes: `Queue::new()` at capacity 4, then `Queue::with_options(1)` at capacity 1. The
@@ -1820,9 +1883,32 @@ fn run_queue<const D: u8>() {
     .run();
 }
 
+/// [`run_queue`]'s twin for the `Clone` law, over the same two constructors.
+fn run_queue_clone<const D: u8>() {
+  CacheHarness::<CLex<'_>, Queue<'_, CLex<'_>, D>>::new(SRC)
+    .named("third-party queue")
+    .also_built_by(|| <Queue<'_, CLex<'_>, D> as Cache<'_, CLex<'_>, ()>>::with_options(1))
+    .run_clone();
+}
+
 #[test]
 fn cache_kit_accepts_a_correct_third_party_queue() {
   run_queue::<SOUND>();
+}
+
+/// The control for [`cache_kit_catches_a_clone_that_drops_the_front`]: a queue whose `Clone` is a
+/// copy passes the law at both constructors.
+#[test]
+fn cache_kit_clone_law_accepts_a_correct_third_party_queue() {
+  run_queue_clone::<SOUND>();
+}
+
+/// The clone law's teeth: a clone that loses the front is refused at the first residency that has
+/// a front, by the length the clone reports.
+#[test]
+#[should_panic(expected = "clone-law: the clone of a cache holding 1 of 4")]
+fn cache_kit_catches_a_clone_that_drops_the_front() {
+  run_queue_clone::<CLONE_DROPS_FRONT>();
 }
 
 /// #186: the kit never drove `Cache::peek`'s OWNED arm — every built-in cache and every fixture
