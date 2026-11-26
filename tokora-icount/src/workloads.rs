@@ -1,6 +1,9 @@
 //! The nine repetition axes, one driver and one deterministic source each, three of them read a
 //! second time over short collections, plus one control.
 //!
+//! These thirteen rows are the repetition engines' and their control. The Pratt drivers' rows,
+//! which reach no repetition engine, are `pratt_rows.rs`'s, with their own registry.
+//!
 //! ## Why the axes are these nine
 //!
 //! `tokora/src/combinator/many/` is a monomorphised matrix: 259 files and 338 `impl` blocks over

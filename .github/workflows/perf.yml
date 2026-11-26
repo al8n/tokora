@@ -130,10 +130,10 @@ jobs:
   #
   # Two jobs below do carry regression gates, and they are not substitutes for each other or for
   # this one. `icount` counts instructions rather than seconds, over the repetition combinators
-  # only, and resolves 1%. `wall clock (advisory)` times these same five targets in a same-run
-  # A/B and resolves something coarse — a cache cliff, an allocation added per element — which is
-  # exactly the class an instruction count is blind to. These five benches also cover surfaces
-  # `tokora-icount` does not touch at all (the scanner protocol, the typed pratt driver, the CST
+  # and the three Pratt drivers, and resolves 1%. `wall clock (advisory)` times these same five
+  # targets in a same-run A/B and resolves something coarse — a cache cliff, an allocation added
+  # per element — which is exactly the class an instruction count is blind to. These five benches
+  # also cover surfaces `tokora-icount` does not touch at all (the scanner protocol, the CST
   # builder, the raw checkpoint triple). Adding a bench here adds an id to the wall-clock gate
   # and does not add an axis to `icount`; adding a workload there does the reverse.
   bench-smoke:
@@ -194,7 +194,13 @@ jobs:
           echo "bench (smoke): ${#names[@]} named targets — ${names[*]}"
           cargo bench -p tokora-benches "${args[@]}" -- --test
 
-  # ── Gate: instruction counts over the repetition matrix ─────────────────────
+  # ── Gate: instruction counts over the repetition matrix, and the Pratt drivers ──
+  #
+  # The Pratt rows — the typed driver, the flat driver in its three readings and the token-level
+  # driver, fifteen in all — are the first rows of `tokora-icount` that reach no repetition
+  # engine. Everything below that speaks of the repetition engines speaks of the thirteen rows
+  # that do, and the gate is the same for all twenty-eight: one threshold, one acceptance trailer,
+  # one self-comparison that reads zero on every row.
   #
   # `bench (smoke)` above says why the criterion benches are not a regression gate: a GitHub
   # runner's wall clock is far too noisy for the ±2% discipline those benches are held to. This
