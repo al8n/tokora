@@ -199,9 +199,9 @@ pub(crate) struct ResolverState<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Pos
   /// own operand, as this holds the root's, so the storage holds every latch below the root.
   root_latch: Option<Power>,
   /// A copy of the innermost sub-expression's latch, kept so that an offer reads no frame: the
-  /// root's latch at the root, and otherwise the one the frame on top holds. Each push, each pop and
-  /// each latch the rule writes keeps it so, so it is a function of the frames and the root's latch
-  /// alone, and the latches themselves stay where they live.
+  /// root's latch at the root, and otherwise the one the frame on top holds. Each push, each pop
+  /// and each latch the rule writes keeps it so, so it is a function of the frames and the root's
+  /// latch alone, and the latches themselves stay where they live.
   latch: Option<Power>,
   /// The floor the frame on top gives its operand, kept so that an offer reads no frame: read back
   /// off the frame each push leaves on top, once the storage has taken it, and off the frame each
