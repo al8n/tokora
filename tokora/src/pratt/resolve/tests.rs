@@ -715,31 +715,35 @@ impl Clone for Brittle {
 
 impl PrattPower for Brittle {}
 
-/// A push the storage refuses runs no code of the power's: the floor the machine keeps is cloned
-/// only once the storage has taken the frame. So a `Clone` that would panic cannot turn a refusal,
-/// which an adapter reports as a full stack with its trip counted, into an unwind that counts none.
-/// Over a storage of one frame, through the adapters' events, a prefix and an infix operator.
+/// A push the storage refuses through the public events runs no code of the power's: the floor the
+/// machine keeps is read back off the frame only once the storage has taken it, so a refusal runs
+/// the comparisons alone. Over a storage of one frame, a prefix and an infix operator.
 #[test]
-fn a_push_the_storage_refuses_clones_no_power() {
+fn a_public_push_the_storage_refuses_clones_no_power() {
   type BrittleFrame = PrattFrame<u32, u8, u8, u8, u8, Brittle>;
   let mut m: PrattResolver<u32, u8, u8, u8, u8, u8, Brittle, ArrayDeque<BrittleFrame, U1>> =
     PrattResolver::with_stack(ArrayDeque::new());
-  m.push_prefix(Precedenced::new(0, Brittle(5))).unwrap();
+  m.handle_prefix(Precedenced::new(0, Brittle(5))).unwrap();
 
   CLONE_PANICS.with(|armed| armed.set(true));
-  let prefix = m.push_prefix(Precedenced::new(1, Brittle(5)));
+  let prefix = m.handle_prefix(Precedenced::new(1, Brittle(5)));
   CLONE_PANICS.with(|armed| armed.set(false));
-  assert_eq!(prefix, Err(Precedenced::new(1, Brittle(5))));
+  let refused = prefix.unwrap_err();
+  assert_eq!(refused.why(), PrattRefusal::Full);
+  assert_eq!(refused.into_item(), Precedenced::new(1, Brittle(5)));
 
-  m.put_operand(1);
+  m.handle_operand(1).unwrap();
   CLONE_PANICS.with(|armed| armed.set(true));
-  let infix = m.push_infix(Precedenced::new(PrattInfix::Right(2), Brittle(7)));
+  let infix = m.handle_infix(Precedenced::new(PrattInfix::Right(2), Brittle(7)));
   CLONE_PANICS.with(|armed| armed.set(false));
+  let refused = infix.unwrap_err();
+  assert_eq!(refused.why(), PrattRefusal::Full);
   assert_eq!(
-    infix,
-    Err(Precedenced::new(PrattInfix::Right(2), Brittle(7)))
+    refused.into_item(),
+    Precedenced::new(PrattInfix::Right(2), Brittle(7))
   );
   assert_eq!(m.depth(), 1);
+  assert_eq!(m.poll(), PrattPoll::Operator);
 }
 
 /// `Adjacent` is a left-associative infix operator at its power: the offer applies the floor to it,
