@@ -55,8 +55,10 @@ where
 {
   /// Carried out of the **scan** path by value (its post-token lexer state included). The scan
   /// never advanced the committed cursor, so the token is already out of the input and neutral;
-  /// [`commit_probed`](InputRef::commit_probed) settles it by value with no re-lex — the
-  /// cache-independent path a blackhole `()` needs (a pushed-back closer would be dropped).
+  /// [`commit_probed`](InputRef::commit_probed) settles it by value with no re-lex, in every
+  /// cache capacity. A pushed-back closer would not be lost either: under the blackhole `()` it
+  /// goes to the parked slot, and the next read takes it without lexing. Carrying it saves the
+  /// push-back and the re-take, not a re-scan.
   Scanned {
     /// The probed closer, carried out of the scan by value.
     carried: CachedTokenOf<'inp, L>,
@@ -434,9 +436,11 @@ where
   /// (peeked, not popped) on the cache path. The caller settles it later with
   /// [`commit_probed`](Self::commit_probed) at its own program point — immediately, or
   /// deferred past an end-of-list pass — and that commit re-lexes nothing, in any cache
-  /// capacity (including the blackhole `()`, where pushing a scanned closer back would be
-  /// dropped and force a re-scan). On [`WrongToken`](CloseStatus::WrongToken) the token is
-  /// left at the front for the downstream parse, and the [`CloseMiss`] carries no copy of it.
+  /// capacity, the blackhole `()` included. A scanned closer pushed back under `()` would go to
+  /// the parked slot, where the next read takes it without lexing, so carrying it out saves the
+  /// push-back and the re-take, not a re-scan. On [`WrongToken`](CloseStatus::WrongToken) the
+  /// token is left at the front for the downstream parse, and the [`CloseMiss`] carries no copy
+  /// of it.
   ///
   /// This is the structural counterpart to a close classifier built on `try_expect`,
   /// whose `Ok(None)` folds a genuine end of input together with a terminal stop:
@@ -481,7 +485,9 @@ where
       Scan::Token(tok) => {
         if pred(tok.as_ref()) {
           // Close (scan origin): carry the scanned closer OUT by value (token + post-token
-          // state) rather than push it to a cache the blackhole `()` would drop. The scan never
+          // state) rather than push it back. Pushed back, it would go to the cache front, or to
+          // the parked slot under the blackhole `()`, and the commit would take it from there
+          // without lexing; carrying it saves that push-back and re-take. The scan never
           // advanced the committed cursor, so this is already neutral; `commit_probed` settles
           // it by value with no second scan, in every cache capacity.
           let (span, token) = tok.into_components();
@@ -560,8 +566,9 @@ where
   /// write, so the closer is committed **exactly once**, cache-independently:
   ///
   /// - [`Scanned`](ClosePayload::Scanned): the token carried out of the scan is settled by
-  ///   value — the path a blackhole `()` needs (a pushed-back closer would be dropped and
-  ///   re-lexed).
+  ///   value. A pushed-back closer would not be re-lexed either: under the blackhole `()` it
+  ///   goes to the parked slot, where the next read takes it without lexing. Carrying it saves
+  ///   the push-back and the re-take.
   /// - [`AtFront`](ClosePayload::AtFront): the closer was left at the front of the stream by the
   ///   probe; take it now (`try_expect`'s front arm, which never re-lexes) and settle it. Taking
   ///   it here — not at probe time — keeps `cursor` neutral until this commit point, so the

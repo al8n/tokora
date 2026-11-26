@@ -2177,9 +2177,10 @@ fn probe_close_carries_the_closer_out_and_commit_probed_advances() {
   // An accepting probe takes the closer OUT of the input (carried in the `Close`
   // payload), and `commit_probed` settles it by value — advancing the cursor over it
   // with no re-scan. After the commit a follow-up `next()` sees the input exhausted: the
-  // closer is not left behind for a re-lex (the blackhole-cache double-scan). For the `Close`
-  // case the carry-out supersedes a "probe never advances / follow-up next() re-yields the
-  // closer" contract.
+  // closer is not left behind to be read a second time. (A pushed-back closer would not be
+  // re-lexed either: under the blackhole `()` it goes to the parked slot, where the next read
+  // takes it without lexing.) For the `Close` case the carry-out supersedes a "probe never
+  // advances / follow-up next() re-yields the closer" contract.
   let mut input = Input::<Lex<'_>, CompleteCtx<'_>, (), Complete>::with_state_and_context(
     "a",
     (),
@@ -2215,10 +2216,11 @@ fn commit_probed_lexes_the_closer_once_under_every_cache() {
   // classifies the closer by lexing it ONCE, and `commit_probed` settles that carried token
   // by value with no re-lex, under the blackhole `()` cache and `DefaultCache` alike. (The
   // `sep` family reaches the identical Shape-B site through the driver — see
-  // `tests/probe_close_no_rescan.rs`; a push-back shape re-lexes the closer under `()` for a
-  // tally of 2.)
+  // `tests/probe_close_no_rescan.rs`. A push-back shape would not re-lex the closer under `()`
+  // either: the closer goes to the parked slot, and the next read takes it without lexing.)
 
-  // Blackhole `()` cache: a push-back-then-`try_expect` shape would re-lex the closer here.
+  // Blackhole `()` cache: the cache holds nothing, so a pushed-back closer would wait in the
+  // parked slot; the carried one is settled from the payload.
   let tracker = LimitTracker::with_limit(usize::MAX);
   let scanned = tracker.counter();
   let mut input = Input::<LimLex<'_>, (Verbose<PErr>, ()), (), Complete>::with_state_and_context(

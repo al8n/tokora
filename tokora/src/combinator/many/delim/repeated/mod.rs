@@ -136,8 +136,9 @@ impl<'inp, L, P, O, Ctx, Delim, Lang: ?Sized, Cmpl>
         // Classify the close position with the four-way probe so a terminal scanner
         // stop is not misread as EOF and grown into a spurious `Unclosed`.
         match inp.probe_close(|t| Delim::is_close(&t.data.kind()))? {
-          // The closer is at hand: commit the carried token by value — no re-scan,
-          // and cache-independent (a blackhole `()` would drop a pushed-back closer).
+          // The closer is at hand: commit the carried token by value — no re-scan, in any cache
+          // capacity (under the blackhole `()` a pushed-back closer would go to the parked slot,
+          // and the next read would take it without lexing).
           //
           // The probe is cache-first, so this verdict rests on a REAL pre-trip token — and that
           // token settles the POSITION question, not the COUNTER one. The construct closed ahead

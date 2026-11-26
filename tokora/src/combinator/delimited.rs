@@ -331,8 +331,9 @@ where
 {
   match inp.probe_close(|t| is_close(t.data))? {
     // The closer is at hand: commit the probed token by value via `commit_probed` — no
-    // re-scan, and cache-independent (a blackhole `()` would drop a pushed-back closer) — and
-    // span the construct to its committed end.
+    // re-scan, in any cache capacity (under the blackhole `()` a pushed-back closer would go to
+    // the parked slot, and the next read would take it without lexing) — and span the construct
+    // to its committed end.
     CloseStatus::Close(payload) => {
       let closer = inp.commit_probed(payload);
       Ok((make_close(closer.into_span()), inp.span_since(cursor)))
