@@ -288,3 +288,30 @@ unwrap_bytes/discarded
 unwrap_budget_exhausted/discarded
 unwrap_budget_exhausted_ref/discarded
 unwrap_budget_exhausted_mut/discarded
+
+# ── `TokenBudgetTally::look_ahead_spent` — a `&self` getter on a PRE-EXISTING, borrow-only owner ─
+#
+# `TokenBudgetTally` shipped in 0.13 as the per-input tally a consumer reads through
+# `InputRef::token_budget`, and 0.14 gives it `look_ahead_spent`, a `&self` getter returning a plain
+# `usize`: the `Verbose` getters' shape on a different owner. A consumer holding the tally had
+# somewhere to hang that name, and an inherent item outranks a trait item at the same step of the
+# receiver walk.
+#
+# The owner is reachable only as a SHARED borrow, so the probe's consumer item takes `&self`, which
+# is the extension method such a consumer can write; `gen_probe.py`'s `TokenBudgetTally` branch says
+# why, and why the `&mut self` item every other template uses would make the base side E0596.
+#
+# Derived from that walk, not yet measured: this branch's own pull-request run measures it, and a
+# row listed here that does not reproduce is STALE and fails that run. The expected rows:
+#
+#     loud    look_ahead_spent/used         base=witness=1  head=no-compile   (E0308, `-> u8`)
+#     SILENT  look_ahead_spent/discarded    base=witness=1  head=witness=0
+#
+# The discarded return is the whole of the difference: `usize` carries no `#[must_use]`, and
+# `unused_must_use` does not fire on it. Same discriminator as every row above: the lint, not an
+# attribute. `#[must_use]` was not added, for the reason it was not added to `Verbose`'s getters.
+#
+# `InputRef::look_ahead`, the same release's other name, is not here: both of its rows are `loud` by
+# the probe's own arity (E0061: tokora's takes a closure and the consumer's nothing), a verdict about
+# the probe and not about the name.
+look_ahead_spent/discarded
