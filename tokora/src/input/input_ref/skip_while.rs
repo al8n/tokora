@@ -584,6 +584,14 @@ where
           self.commit_position(span.into(), state);
           return Ok(());
         }
+        // The same end of input, met through the end-of-input memo: the rest is lexer errors a
+        // peek already lexed and reported. This lexer lexed none of them, so its span says nothing
+        // about where they end, and the settle commits what the memo keeps for it instead — the
+        // pair a replay of the run would have committed on the arm above.
+        Ok(Scan::Tail) => {
+          self.settle_error_tail();
+          return Ok(());
+        }
         // A fatal rejection of a crossed lexer error's diagnostic: `settle_fatal` already
         // committed the position inside `scan_with`, over a prefix whose tokens this loop had
         // already committed one by one. Nothing is left to settle.

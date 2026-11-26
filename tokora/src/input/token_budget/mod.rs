@@ -341,6 +341,16 @@ impl TokenBudgetTally {
     self.spent >= self.budget.max && self.budget.max != usize::MAX
   }
 
+  /// Whether [`is_exhausted`](Self::is_exhausted) would answer `true` after `n` more charges,
+  /// without making them: the same gate, asked of a spend that has not happened.
+  ///
+  /// For the end-of-input memo, which answers a read without lexing a run of lexer errors again and
+  /// still has to settle where a replay of that run would have: at the met ceiling, or short of it.
+  #[inline(always)]
+  pub(crate) const fn exhausted_after(&self, n: usize) -> bool {
+    self.spent.saturating_add(n) >= self.budget.max && self.budget.max != usize::MAX
+  }
+
   /// Charges the one item [`is_exhausted`](Self::is_exhausted) authorized.
   ///
   /// **Precondition: `!is_exhausted()`**, established by the driver's preflight immediately before

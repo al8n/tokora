@@ -1506,8 +1506,8 @@ fn the_witness_is_absolute_and_says_nothing_about_the_window_it_is_read_in() {
 // by every later read, which resumed at that token: charged once per read, and refused outright
 // at a ceiling the first lex had already met. Its reports were deduplicated, so only the budget
 // saw it. The input now keeps an end-of-input memo of such a run, keyed so that it answers only
-// where lexing the run again would give the same answer, and the next read resumes past it
-// (#380).
+// where lexing the run again would give the same answer, and the lexing site answers from it
+// wherever a later read reaches the run (#380).
 //
 // The cells are the issue's list: the run charged once, the same at `spent == max`, a rollback
 // and a re-key standing the memo down, a partial input left as it was, and the public readings of
@@ -1546,8 +1546,9 @@ fn a_peek_over_an_error_tail_then_a_consume_charges_the_tail_once() {
   assert_eq!(spent, 3, "`a` and the two `?`, each charged once");
   assert_eq!(
     scans(),
-    5,
-    "the peek's three items and its end of input, then the consume's end of input"
+    4,
+    "the peek's three items and its end of input; the consume's end of input is the memo's \
+     answer, with no lexer call"
   );
   assert_eq!(diagnostics, 2, "and each `?` reported once");
 }
@@ -1576,14 +1577,15 @@ met_ceiling_driver!(met_ceiling_flood, Lex<'inp>, Ctx<'inp>);
 met_ceiling_driver!(met_ceiling_skip, SkipLexer<'inp>, SkipCtx<'inp>);
 
 /// **At exactly `spent == max`.** A ceiling of 3 is met by the peek itself: `a` and the two `?`.
-/// What follows must still be an end of input. The resume past the run stands at the end of the
-/// source, so the met-ceiling settle answers from its first step, the end of the source, and never
-/// reaches the one-shot probe. The skip's end-of-input settle commits the resumed lexer's span,
-/// which is the end of the source.
+/// What follows must still be an end of input. The memo answers the skip at the end of `a`, so
+/// nothing is lexed, charged or refused, and the skip settles where a replay of the run would:
+/// charging the two `?` again meets the ceiling, and where the run ends the source the met-ceiling
+/// settle answers from the source's length, leaving the replay at the last `?`, `(2, 3)`.
 ///
 /// Twice: once where the run ends the source, and once where a tail the lexer skips follows it.
-/// There the peek's own probe found the skipped tail and latched nothing, and the memo resumes
-/// past the tail as well.
+/// There the peek's own probe found the skipped tail and latched nothing, and a replay at the
+/// ceiling would probe the same way, so the skip settles where the lexer stands once exhausted,
+/// past the tail.
 ///
 /// Falsifying output before the memo, for both: `(3, SimpleSpan { start: 0, end: 1 }, true,
 /// false)`. The skip resumed at the end of `a`, the ceiling refused the first `?` — an item lexed
@@ -1599,9 +1601,9 @@ fn an_error_tail_a_peek_charged_to_the_ceiling_ends_the_input_and_is_not_refused
     .expect("no error on this path");
   assert_eq!(
     ends_the_source,
-    (3, SimpleSpan::new(3, 3), false, true),
-    "the peek spent the ceiling, the skip settled at the end of the source, nothing was refused, \
-     and the consume met a genuine end of input"
+    (3, SimpleSpan::new(2, 3), false, true),
+    "the peek spent the ceiling, the skip settled at the last `?` where a replay meets the \
+     ceiling, nothing was refused, and the consume met a genuine end of input"
   );
   assert_eq!(
     scans(),
@@ -1682,7 +1684,7 @@ fn a_rollback_that_takes_the_tail_s_reports_back_lexes_and_reports_it_again() {
   assert_eq!(
     kept,
     (2, 2, 3),
-    "kept: both reports stand, and the consume resumed past the run without lexing it"
+    "kept: both reports stand, and the consume met the memo and lexed none of the run"
   );
 
   let declined = Parser::with_context(Ctx::new(Verbose::new()))
@@ -1781,7 +1783,7 @@ two_peeks_driver!(two_peeks_open, SkipLexer<'inp>, SkipCtx<'inp>, Partial);
 /// frontier rules are off and a complete input would answer from the memo, and open, where a tail
 /// the lexer skips stands between the run and the buffer's end.
 ///
-/// The complete input is the control: its second peek resumes past the run and charges nothing.
+/// The complete input is the control: the memo answers its second peek, which charges nothing.
 /// That row fails before the memo, with 5; the two partial rows pass either way.
 #[test]
 fn a_partial_input_lexes_the_tail_again_as_it_did() {
@@ -1832,17 +1834,17 @@ fn peek_twice_then_consume<'inp>(
   Ok([after_the_peek, after_the_second_peek, readings(inp)])
 }
 
-/// **`offset()` and the resume agree after a resume past the run.** The input's own resume starts
-/// past the run once the memo stands, and nothing public moves with it: `offset` still names the
-/// end of `a`, the lexer `InputRef::lexer` hands out still starts there, and the frontier is not
-/// at the end of input. They read the same after the peek that wrote the memo, after the second
-/// peek that resumed from it, and after the consume that met the end of input through it, and the
-/// only reading the memo changes is the spend, which stays at 3.
+/// **`offset()` and the resume agree where the memo answers.** The input's lexing site answers
+/// for the run once the memo stands, and nothing public moves with it: `offset` still names the
+/// end of `a`, the lexer `InputRef::lexer` hands out still starts there, and the frontier is not at
+/// the end of input. They read the same after the peek that wrote the memo, after the second peek
+/// the memo answered, and after the consume that met the end of input through it, and the only
+/// reading the memo changes is the spend, which stays at 3.
 ///
 /// Falsifying output before the memo: the second reading spends 5 and the third 7, one re-lex of
 /// the run for each read after the first.
 #[test]
-fn offset_and_the_public_lexer_still_agree_after_a_resume_past_the_tail() {
+fn offset_and_the_public_lexer_still_agree_where_the_memo_answers_the_tail() {
   let seen = Parser::with_context(Ctx::new(Verbose::new()))
     .apply(peek_twice_then_consume)
     .parse_with_state("a??", TokenLimiter::new())

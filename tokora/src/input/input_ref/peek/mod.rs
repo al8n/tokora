@@ -420,10 +420,12 @@ where
     // Set when a limit trip latches the input mid-scan: the staged overflow
     // tokens then become unreachable and must be truncated away (see below).
     let mut tripped = false;
-    // ERROR_TAIL — whether this fill reported a lexer error, and whether its loop stopped with no
-    // item left to lex. They are written on the error arm and the stop arm, never on the token
-    // arm, and together they decide whether the end-of-input memo is asked about after the loop.
-    let mut crossed_error = false;
+    // ERROR_TAIL — the run behind the newest token this fill produced: how many lexer errors it
+    // holds, and the last one's span with the state it left the lexer in; and whether the loop
+    // stopped with no item left to lex. Together they decide, after the loop, whether this fill
+    // leaves an end-of-input memo. The token arm only zeroes the count.
+    let mut run = 0usize;
+    let mut last_error: Option<(L::Span, L::State)> = None;
     let mut stopped = false;
 
     // Otherwise, lex additional tokens to fill the request. `lex_within_boundary`
@@ -494,6 +496,13 @@ where
               break;
             }
             Verdict::Error(err) => {
+              // ERROR_TAIL — the error's span, read before the emit takes it. A partial input
+              // keeps no memo, so it takes nothing.
+              let span = if Cmpl::PARTIAL {
+                None
+              } else {
+                Some(err.span_ref().clone())
+              };
               // Emit immediately regardless of cache fullness so an error in the
               // overflow region is never silently dropped. The dedup mark keeps a
               // later consume that re-lexes this region from reporting it twice.
@@ -503,9 +512,13 @@ where
                 buf.truncate(buf_len);
                 return Err(err);
               }
-              crossed_error = true;
+              if let Some(span) = span {
+                run += 1;
+                last_error = Some((span, lexer.state().clone()));
+              }
             }
             Verdict::Token(tok) => {
+              run = 0;
               let cached = CachedToken::new(tok, lexer.state().clone());
 
               // Try to cache the token; if cache is full, stage it for the output buffer
@@ -531,6 +544,10 @@ where
         // The withheld-head memo answered for lexing from here: the fill stops short exactly as
         // at the `Withheld` arm above, without lexing the item or charging for it.
         LexStep::Withheld => break,
+        // The end-of-input memo answered for lexing from here: the rest is lexer errors already
+        // reported, then the end of input, so the fill stops short as at an end of input — and
+        // leaves the memo as it stands, since this lexer lexed none of the run.
+        LexStep::Tail => break,
         // The token budget refused to authorize the step, so no lexer ran.
         // `lex_within_boundary` has already latched the boundary and counted the trip, so this is
         // the `Trip` arm minus the emit — there is no diagnostic, and the truncation below is the
@@ -544,13 +561,18 @@ where
     *at_slot = lex_at;
 
     // ERROR_TAIL — a fill that stopped at the end of input behind lexer errors, with nothing
-    // staged, may have lexed a run no token is retained after: every later read would resume at
-    // the newest retained token and lex it again, charged again. `remember_error_tail` keeps the
-    // end-of-input memo where that is so, and `resume` answers from it. A staged token is not
-    // retained, so a run behind one is not a run the memo can skip. A trip is not a stop, so
-    // `tripped` and `stopped` never both hold. Const-gated: a `Partial` input never writes it.
-    if !Cmpl::PARTIAL && stopped && crossed_error && staged == 0 {
-      self.remember_error_tail(&resume);
+    // staged, lexed a run no token is retained after: every later read that reaches it would lex it
+    // again, charged again. `remember_error_tail` keeps the end-of-input memo of it, and the
+    // lexing site answers from that. A staged token is not retained, so a run behind one is not a
+    // run the memo can skip. A trip is not a stop, so `tripped` and `stopped` never both hold.
+    // Const-gated: a `Partial` input never writes it.
+    if !Cmpl::PARTIAL
+      && stopped
+      && run > 0
+      && staged == 0
+      && let Some(last) = last_error
+    {
+      self.remember_error_tail(&resume, run, last);
     }
 
     if tripped {
