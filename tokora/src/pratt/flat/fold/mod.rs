@@ -625,9 +625,11 @@ where
                   break;
                 }
               }
-              // Not grown: the error reports the storage's bound, and the operator is dropped.
+              // Not grown: the error reports the storage's bound, with its trip counted before the
+              // operator is dropped, so a token's destructor that unwinds cannot hide the trip.
+              let full = stack_full(input, machine.capacity());
               drop(operator);
-              return Err(stack_full(input, machine.capacity()));
+              return Err(full);
             }
           }
           // No term. A trip since the expression began answers for it, since the operand parser
@@ -768,10 +770,11 @@ where
                       continue;
                     }
                   }
-                  // Not grown: the error reports the storage's bound, and the operator is
-                  // dropped.
+                  // Not grown: as for a prefix operator above, the trip is counted before the
+                  // operator is dropped.
+                  let full = stack_full(input, machine.capacity());
                   drop(operator);
-                  return Err(stack_full(input, machine.capacity()));
+                  return Err(full);
                 }
                 break;
               }
