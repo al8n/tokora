@@ -58,20 +58,7 @@ impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized, Cmpl>
     trace_event!(inp, "separated");
     // Sync the input to the next token boundary, any lexer errors will be emitted during this process.
     let anchor = inp.cursor().clone();
-    let mut first_kind = None;
-    let left_delimiter = inp.try_expect_or_stop(|tok| {
-      let (span, tok) = tok.into_components();
-      match Delim::is_open(&tok.kind()) {
-        false => {
-          first_kind = Some(Delim::unexpected_open_token(Spanned::new(
-            span.clone(),
-            tok.clone(),
-          )));
-          false
-        }
-        true => true,
-      }
-    })?;
+    let left_delimiter = inp.try_expect_or_stop(|tok| Delim::is_open(&tok.data.kind()))?;
 
     // The opener's span, captured iff an opener is actually committed. It is the anchor of
     // the `Unclosed` diagnostic below: no opener, no unclosed.
@@ -96,28 +83,25 @@ impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized, Cmpl>
     // The predicate is frame-independent, which is why all eight close-miss arms read it with one
     // identical line: uniformity here is a property of the mechanism rather than a claim about
     // each driver's control flow.
-    // Discriminate on the captured evidence, NOT on `is_eoi`: the opener predicate lexes the
+    // Discriminate on the front of the stream, NOT on `is_eoi`: the opener predicate lexes the
     // candidate token, so a wrong FINAL token leaves the lexer at EOI even though a real token
-    // sat at the opener position (issue #85). `first_kind` records that observation.
-    match (left_delimiter, first_kind) {
+    // sat at the opener position (issue #85). A declined token stays at the front in every cache
+    // capacity, so after `Ok(None)` the front holds a token exactly when the predicate declined.
+    match left_delimiter {
       // An opener is committed — behavior unchanged.
-      (Some(open), _) => {
+      Some(open) => {
         open_span = Some(open.span_ref().clone());
         container.on_open_delimiter(open);
       }
-      // A wrong opener was observed: emit the captured unexpected-open-token regardless of the
-      // lexer's EOI state. The token stays cached/unconsumed, exactly like the non-EOI path.
-      (None, Some(wrong)) => {
-        // The watermark is published by the same body that appends the report, and only if the
-        // append succeeded — which is what keeps "watermark implies a live report" inductive.
-        let front_end = wrong.span_ref().end_ref().clone();
-        inp.emit_unexpected_front(wrong, front_end)?;
-      }
-      // Nothing was observed at the opener position: a genuinely empty opener slot — the one
-      // genuine EOI path. A terminal scanner stop no longer lands here — `try_expect_or_stop`
-      // surfaces it directly above — so this end-of-input error stays recoverable.
-      (None, None) => {
-        return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into());
+      // A wrong opener is reported from the front, whatever the lexer's EOI state, and stays
+      // unconsumed. `report_wrong_opener` publishes the watermark in the body that appends the
+      // report. An empty front is a genuinely empty opener slot — the one genuine EOI path. A
+      // terminal scanner stop no longer lands here — `try_expect_or_stop` surfaces it directly
+      // above — so this end-of-input error stays recoverable.
+      None => {
+        if !inp.report_wrong_opener(Delim::unexpected_open_token)? {
+          return Err(UnexpectedEot::eot_of(inp.cursor().as_inner().clone()).into());
+        }
       }
     }
 
@@ -259,18 +243,14 @@ impl<'inp, L, P, Sep, O, Ctx, Delim, Lang: ?Sized, Cmpl>
         close_carrier = Some(ct)
       }
       // (b) a wrong token sits where the closer should: unexpected-token, expected-close.
-      CloseStatus::WrongToken(tok) => {
+      CloseStatus::WrongToken(miss) => {
         // No closer: the loop's absence exit plus this verdict conclude "no more elements" from
         // what the last element attempt did, so surface a terminal stop it hit ahead of the
         // close-miss diagnostic rather than reporting a close that never happened.
         absence_after_element(inp, &latch, scans, elem_trips)?;
         // One junk token, one report: emit unless the emitter already holds a live report naming
         // this very front token. See FRONT_REPORTED at the top of this body.
-        if !inp.front_report_live(tok.span_ref().end_ref()) {
-          inp
-            .emitter()
-            .emit_unexpected_token(Delim::unexpected_close_token(tok))?
-        }
+        inp.report_close_miss(miss, Delim::unexpected_close_token)?;
       }
       // (a) genuine end of input with the opener still open: never closed — the ONE
       // `Unclosed` path.

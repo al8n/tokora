@@ -2215,6 +2215,47 @@ fn drive() {{
   }}));
 }}
 """ + WITNESS
+    if owner == "RecursionLimiter":
+        # A PRE-EXISTING public struct, the recursion budget every release in the CHANGELOG has
+        # shipped, so a consumer holding one already had somewhere to hang these names, and the
+        # base side is a real before-state. This is the pre-existing-owner shape
+        # `INHERENT_SUBJECTS`' header prescribes: the consumer's item returns `u8`, the `used`
+        # spelling binds that `u8`, and the base side compiles and runs the consumer's item.
+        # `inherent_assoc_fn` has this owner's path-resolved half.
+        #
+        # Its first receiver method is `with_depth(self, depth: usize) -> Self`. It takes `self` by
+        # value, so on the head side it is found at the first step of the receiver walk, ahead of
+        # the consumer's `&mut self` item, and the call passes no argument: `E0061` on both
+        # spellings, a `loud` verdict about this probe's arity and not about the name (README,
+        # "What this harness does NOT test").
+        #
+        # The subject is `RecursionLimiter::new()`, which every base ref has. The binding is `mut`
+        # for the reason `Errors` gives: the consumer's item takes `&mut self`, and on the base side
+        # it is the only candidate. `drive()` allows `unused_mut` for the reason `Verbose`'s branch
+        # gives: a head side on which tokora's item takes the call never uses the `mut`, and must
+        # not gain a warning the template made.
+        call = f"let _v: u8 = subject.{name}();" if spelling == "used" else f"subject.{name}();"
+        return ITEM_FIXTURE + f"""
+use tokora::state::RecursionLimiter;
+
+pub trait ConsumerExt {{
+  fn {name}(&mut self) -> u8;
+}}
+
+impl ConsumerExt for RecursionLimiter {{
+  fn {name}(&mut self) -> u8 {{
+    ran();
+    7
+  }}
+}}
+
+#[allow(unused_mut)]
+fn drive() {{
+  let mut subject: RecursionLimiter = RecursionLimiter::new();
+  reached();
+  {call}
+}}
+""" + WITNESS
     # Not a default and not a skip: an owner with no template must stop the run, because a probe
     # that rides the wrong subject collides with nothing and reports a clean run.
     #

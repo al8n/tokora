@@ -292,8 +292,8 @@ impl PairIdentity {
 /// - [`WrongToken`](CloseStatus::WrongToken): a non-closer sits where the closer belongs —
 ///   `expect_close` turns it into the expected-close [`UnexpectedToken`](crate::error::UnexpectedToken), emitted through the
 ///   emitter (a fail-fast emitter turns it into `Err`, a recovering one records it), then the
-///   shape recovers with a closer synthesized at the current cursor (the committed frontier /
-///   the wrong token's start, per cache);
+///   shape recovers with a closer synthesized at the current cursor (the wrong token's start, in
+///   every cache capacity);
 /// - [`Eof`](CloseStatus::Eof): end of input with the opener still open — the one and only
 ///   [`Unclosed`] path: emit it anchored at `open_span`, then recover with a synthesized
 ///   closer;
@@ -306,10 +306,11 @@ impl PairIdentity {
 /// zero-width span at `inp.cursor()` and span the construct via `inp.span_since(cursor)`,
 /// exactly as the delimited many-builder does; both end at the live cursor, so
 /// `close.span().end() == <shape>.span().end() == inp.cursor()` and the recovered shape never
-/// outruns the cursor (an enclosing parent's span always contains it). Cache capacity only
-/// moves the cursor within the trailing-trivia gap — the committed frontier under the blackhole
-/// `()`, the wrong token's start under a retaining cache — matching the many-builder in every
-/// capacity.
+/// outruns the cursor (an enclosing parent's span always contains it). Cache capacity does not
+/// move the cursor: after a close miss it is the wrong token's start in every capacity, since
+/// the probe leaves that token at the front of the stream (the parked slot under the blackhole
+/// `()`), and at the end of input it is the committed frontier — matching the many-builder in
+/// every capacity.
 #[inline]
 fn commit_delim_close<'inp, 'c, D, L, Ctx, Lang, Cmpl, CV>(
   inp: &mut InputRef<'inp, 'c, L, Ctx, Lang, Cmpl>,
@@ -330,19 +331,21 @@ where
 {
   match inp.probe_close(|t| is_close(t.data))? {
     // The closer is at hand: commit the probed token by value via `commit_probed` — no
-    // re-scan, and cache-independent (a blackhole `()` would drop a pushed-back closer) — and
-    // span the construct to its committed end.
+    // re-scan, in any cache capacity (under the blackhole `()` a pushed-back closer would go to
+    // the parked slot, and the next read would take it without lexing) — and span the construct
+    // to its committed end.
     CloseStatus::Close(payload) => {
       let closer = inp.commit_probed(payload);
       Ok((make_close(closer.into_span()), inp.span_since(cursor)))
     }
     // A non-closer where the closer belongs: the existing expected-close diagnostic (unchanged
-    // in kind), routed through the emitter so a recovering emitter records it. Then recover at
-    // the LIVE cursor — the committed frontier under the blackhole `()`, the wrong token's start
-    // under a retaining cache — exactly as the delimited many-builder's `span_since(cursor)`. The
-    // recovered span never outruns the cursor, so an enclosing parent contains the shape and
-    // `close.end() == shape.end() == inp.cursor()`.
-    CloseStatus::WrongToken(tok) => match expect_close(tok) {
+    // in kind), routed through the emitter so a recovering emitter records it. The probe left the
+    // token at the front of the stream, and `close_miss_token` reads it there. Then recover at
+    // the LIVE cursor — the wrong token's start in every cache capacity, since under the
+    // blackhole `()` the token waits in the parked slot — exactly as the delimited
+    // many-builder's `span_since(cursor)`. The recovered span never outruns the cursor, so an
+    // enclosing parent contains the shape and `close.end() == shape.end() == inp.cursor()`.
+    CloseStatus::WrongToken(miss) => match expect_close(inp.close_miss_token(miss)) {
       // Unreachable — the probe reported `WrongToken` — but commit it if it is the closer.
       Ok(closer) => Ok((make_close(closer.into_span()), inp.span_since(cursor))),
       Err(err) => {

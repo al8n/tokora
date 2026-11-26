@@ -173,11 +173,12 @@ where
     // One fused scan: lex (or serve the cache front), classify by kind, and commit on a
     // hit — `try_expect_map` is the same protocol `try_expect` uses, so the miss path
     // puts the token back through the cache's lineage-counted staging and the hit path
-    // adopts span and lexer state exactly like a plain consume. The classifier captures
-    // the miss witness (span + token) while the token is in hand, so the diagnostic
-    // below never depends on the put-back having found cache room (a zero-capacity
-    // cache drops it; the peek shape's overflow serves it without caching — either way
-    // the cursor stayed put and the error payload here is identical).
+    // adopts span and lexer state exactly like a plain consume. A zero-capacity cache
+    // refuses the put-back, so the token goes to the parked slot, and the next read takes
+    // it from there without lexing; the peek shape's overflow serves it without caching.
+    // Either way the committed cursor stayed put. The classifier captures the miss witness (span +
+    // token) while the token is in hand, and the diagnostic below is built from that copy
+    // rather than read back from the front, so its payload is identical in every capacity.
     let table = self.table;
     let mut miss = None;
     let hit = inp.try_expect_map(|tok| {

@@ -13,9 +13,11 @@
 //! - final wrong token  ⇒ (buggy) `UnexpectedEot`;
 //! - same wrong token + a follower ⇒ `UnexpectedToken`, correctly expecting the opener.
 //!
-//! The fix discriminates on the captured evidence instead of `is_eoi`: a wrong opener is
+//! The fix discriminates on the front of the stream instead of `is_eoi`: a wrong opener is
 //! always the expected-open unexpected-token diagnostic (regardless of EOI state, the token
 //! staying cached/unconsumed); `UnexpectedEot` is reserved for a genuinely empty opener slot.
+//! Scenarios 1 and 5 also run under the blackhole `()` cache, where the declined opener waits in
+//! the parked slot.
 //!
 //! Covered per driver (repeated / repeated-while / separated / separated-while):
 //! 1. wrong opener as the FINAL token ⇒ expected-open `UnexpectedToken` carrying it, NOT EOT;
@@ -676,3 +678,101 @@ driver_cases!(
   separated_while_empty_input_is_eot,
   separated_while_wrong_opener_unconsumed
 );
+
+// ── Scenarios 1 and 5 under the blackhole cache `()` ──────────────────────────
+//
+// A driver reports a wrong opener from the front of the stream, where the opener test's decline
+// left it, and not from a copy the test took. Under `()` the cache refuses the put-back, so the
+// token waits in the parked slot. These two cells pin that premise for the four drivers at once.
+
+type NoCacheFatalCtx = ParserContext<'static, TestLexer<'static>, Fatal<WE>, ()>;
+type NoCacheVerboseCtx<'inp> = ParserContext<'inp, TestLexer<'inp>, Verbose<WE>, ()>;
+
+fn no_cache_fatal_ctx() -> NoCacheFatalCtx {
+  ParserContext::new(Fatal::new())
+}
+fn no_cache_verbose_ctx() -> NoCacheVerboseCtx<'static> {
+  ParserContext::new(Verbose::new())
+}
+
+// Scenario 1: the FINAL wrong opener, which the lexer has passed to EOI, is still the
+// expected-open diagnostic carrying it.
+#[test]
+fn no_cache_final_wrong_opener_is_unexpected_token() {
+  let outcomes: [(&str, Result<Vec<i64>, WE>); 4] = [
+    (
+      "repeated",
+      Parser::with_context(no_cache_fatal_ctx())
+        .apply(go_repeated)
+        .parse_str("x"),
+    ),
+    (
+      "repeated_while",
+      Parser::with_context(no_cache_fatal_ctx())
+        .apply(go_repeated_while)
+        .parse_str("x"),
+    ),
+    (
+      "separated",
+      Parser::with_context(no_cache_fatal_ctx())
+        .apply(go_separated)
+        .parse_str("x"),
+    ),
+    (
+      "separated_while",
+      Parser::with_context(no_cache_fatal_ctx())
+        .apply(go_separated_while)
+        .parse_str("x"),
+    ),
+  ];
+  for (driver, outcome) in outcomes {
+    assert_eq!(
+      outcome,
+      Err(wrong(TokenKind::Ident, 0, 1)),
+      "{driver}: under `()` the final wrong opener must be the expected-open UnexpectedToken \
+       (Ident @ 0..1), read from the parked slot"
+    );
+  }
+}
+
+// Scenario 5: the wrong opener is reported exactly once. The close probe re-sees the same parked
+// token and must not report it again.
+#[test]
+fn no_cache_wrong_opener_is_flagged_once() {
+  macro_rules! recorded {
+    ($go:ident) => {{
+      fn probe<'inp>(
+        inp: &mut InputRef<'inp, '_, TestLexer<'inp>, NoCacheVerboseCtx<'inp>>,
+      ) -> Result<Vec<WE>, WE> {
+        $go(inp)?;
+        Ok(
+          inp
+            .emitter_ref()
+            .errors()
+            .values()
+            .flatten()
+            .cloned()
+            .collect(),
+        )
+      }
+      Parser::with_context(no_cache_verbose_ctx())
+        .apply(probe)
+        .parse_str("x")
+        .expect("a recording emitter recovers past a wrong opener")
+    }};
+  }
+  let recorded: [(&str, Vec<WE>); 4] = [
+    ("repeated", recorded!(go_repeated)),
+    ("repeated_while", recorded!(go_repeated_while)),
+    ("separated", recorded!(go_separated)),
+    ("separated_while", recorded!(go_separated_while)),
+  ];
+  for (driver, recorded) in recorded {
+    assert_eq!(
+      recorded,
+      vec![WE::Other, wrong(TokenKind::Ident, 0, 1)],
+      "{driver}: under `()` the wrong opener must be reported exactly once (the TooFew \
+       secondary, then one expected-open unexpected-token)",
+    );
+  }
+}

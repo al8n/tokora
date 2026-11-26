@@ -115,6 +115,35 @@ when the two signatures are compatible. The two-sided name-collision probe has n
 names: it inventories the items tokora declares and skips the ones it re-exports from another
 crate. **The remedy is UFCS**: `MyExt::fold(maybe, ..)` pins your method by name.
 
+#### `RecursionLimiter::with_depth` — loud by the probe's own arity, so unprobed
+
+**You are exposed if you call a `with_depth` method of your own, from an extension trait, on a
+`state::RecursionLimiter`.** This release adds an inherent `with_depth(self, depth: usize) -> Self`.
+It takes `self` by value, so on a `RecursionLimiter` value it is found at the first pick of the
+receiver walk, ahead of a method of yours whatever receiver that one takes, and it takes the call.
+Nothing reports that when the two signatures are compatible.
+
+The rows of `ci/name_collision/`, two-sided against the base of this release:
+
+```text
+loud    with_depth/used         base=witness=1  head=no-compile
+loud    with_depth/discarded    base=witness=1  head=no-compile
+```
+
+Both rows are `loud` by the probe's own arity (`E0061`: the probe's consumer takes no argument and
+tokora's takes one). That verdict is about the probe, not the name: a method of yours with tokora's
+signature is not probed, so read it as unprobed rather than as safe.
+
+`with_depth` is `#[must_use]`, where `RecursionLimiter::unlimited` and
+`Verbose::with_max_diagnostics` are not. For those two the attribute was rejected as the fix,
+since it does not reach a consumer who *assigns* the result and it fires on legitimate discards. It
+is not the fix here either, and an assigned result is still taken silently, but it fires on nothing
+legitimate: a by-value builder on a `Copy` type has no legitimate discard, since a discarded call
+changes nothing. And it catches the likeliest collision, a `&mut self` setter of yours that returns
+nothing and is called as a statement. tokora's method would take that call and set the depth on a
+copy, and `unused_must_use` reports it. **The remedy is UFCS**:
+`MyExt::with_depth(&mut limiter, depth)` pins your method by name.
+
 <a id="unreleased-source-breaking-additions-that-fail-loudly"></a>
 
 ### Source-breaking additions that fail *loudly*
@@ -283,6 +312,36 @@ crate. **The remedy is UFCS**: `MyExt::fold(maybe, ..)` pins your method by name
   storage that does not grow. It is terminal for every error type, since the driver counts the trip
   on the input session before it builds the value.
 - **`Precedenced` and `PrattInfix` derive `PartialEq` and `Eq`.**
+- **`state::RecursionLimiter::with_depth`**, the tracker at a given depth with its limitation
+  unchanged: the one that many `increase` calls from zero would have left, so `check` answers from
+  it as from a tracker stepped there. It is for a caller that keeps the depth outside the tracker,
+  in a lexer state packed into fewer words say, and needs a tracker to hand on or a
+  `RecursionLimitExceeded` to report. It is `const`, and it can take the call of a `with_depth` of
+  your own: see
+  [above](#unreleased-source-breaking-additions-that-can-change-behaviour-with-no-diagnostic-at-the-call-site).
+
+### Performance
+
+- **A delimited many-builder's opener test only classifies.** All four delimited many-builders
+  (`repeated`, `repeated_while`, `separated_by_*`, `separated_by_*_while`) tested the opening
+  delimiter with a predicate that, on a wrong opener, cloned the token and its span and built the
+  expected-open `UnexpectedToken` inside itself. It did that only when it declined, but its size
+  and frame were paid on every call, the calls that find the opener among them. It now only
+  classifies. A wrong opener is reported after it, from the front of the stream, where the decline
+  leaves the token in every cache capacity, by a cold path that clones the token once. The report
+  is the same value, emitted at the same point and suppressed by the same key, and a missing opener
+  at the end of input is the same error. Internal: no public item changes.
+- **A delimited close probe that misses copies nothing (#373).** The close-position probe of the
+  four delimited many-builders and of the `delimited` shapes cloned the token it found, and its
+  span, into its answer whenever that token was not the closer, though only a report of the miss
+  ever read the copy. A delimited `repeated_while` list probes before every element, so it cloned
+  each next token once. The probe now hands back no token: a list that goes on clones no token, and
+  a reported miss reads the token from the front of the stream, where the probe left it in every
+  cache capacity, the parked slot under `()` included, cloning it once as before. For a token whose
+  value does not change while the input holds it, the report, its suppression and the recovery
+  cursor are unchanged; the new paragraph on `Token` states that contract. Reading the token lexes
+  nothing.
+  Internal: no public item changes.
 
 ## 0.13.2 (2026-11-15)
 
