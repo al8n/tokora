@@ -1269,10 +1269,11 @@ pub(crate) enum Closed<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Power> {
 /// - **The latch is applied at the pop.** Under a pending operator `close_and_reduce` pops its
 ///   frame and applies the latch rule there, before the fold, where the public path applies it in
 ///   `handle_reduced` once the value is back. It is the same rule, `infix_latch`, at an earlier
-///   point: during the fold the machine holds one frame fewer, and the latch it keeps after.
+///   point: during the fold the machine holds one frame fewer, and the latch already written where
+///   it lives, on the frame now on top or as the root's.
 /// - **Depth 0 is the close's own case.** At the root nothing is pending: `close_and_reduce` pops
 ///   nothing, and hands the value out as `Done` with the root's latch cleared, as `poll`'s `Done`
-///   does, so the machine is as `reset` leaves it. It never reaches `pop_frame` with no frame
+///   does, so the machine is as `reset` leaves it. It never reaches `pop_raw` with no frame
 ///   pending.
 /// - **Postfix.** `take_postfix` pops nothing either. Its operator is on no frame, so the depth is
 ///   as it was, and a postfix reduction leaves the latch as it is, which is the rule.
