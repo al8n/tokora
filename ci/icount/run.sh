@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #
-# Instruction-count regression gate: this branch's repetition engines against its merge-base's.
+# Instruction-count regression gate: this branch's repetition engines and Pratt drivers against
+# its merge-base's.
 #
 # ── THE ONE DECISION THIS SCRIPT IS ─────────────────────────────────────────────────────────
 #
