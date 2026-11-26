@@ -16,7 +16,8 @@
 //! inline, and allocate nothing while no more than four are pending. A bare driver keeps no stack
 //! and never allocates. A kept driver keeps the storage it grew: its first parse past four
 //! allocates, and the same parse again does not. A driver built afresh for each call grows afresh,
-//! and allocates each time.
+//! and allocates each time. The token-level driver, `InputRef::pratt`, runs on the same machine
+//! and keeps its pending operators on the native stack, four to a frame: it never allocates.
 //!
 //! Only the parse is counted. The operand parser, the handler and the folds allocate nothing, and
 //! the lexer's log is given room before each parse.
@@ -27,13 +28,15 @@ use core::cell::Cell;
 use std::alloc::{GlobalAlloc, Layout, System};
 
 use tokora::{
-  Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser, ParserContext,
-  TryParseInput,
+  Emitter, EmitterView, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser,
+  ParserContext, SimpleSpan, TryParseInput,
   emitter::Fatal,
-  pratt::{PrattHandler, Precedenced, flat},
+  pratt::{PrattHandler, PrattInfix, Precedenced, flat},
+  span::Spanned,
+  state::RecursionLimiter,
 };
 
-use flat_fixture::{Fail, FatalIr, InfixOp, Skip, TABLE, Tk, reserve_lexes};
+use flat_fixture::{Expr, Fail, FatalIr, InfixOp, Skip, TABLE, Tk, Tok, reserve_lexes};
 
 // ── The counting allocator ────────────────────────────────────────────────────────────────────
 
@@ -330,5 +333,63 @@ fn a_folding_driver_built_afresh_allocates_each_time() {
       allocated > 0,
       "call {call}: a fresh driver grows its own storage"
     );
+  }
+}
+
+// ── The token-level driver ────────────────────────────────────────────────────────────────────
+
+/// A token-level prefix fold: its operand.
+fn tok_prefix<'inp, E>(
+  _operator: Tk,
+  operand: Tk,
+  _: EmitterView<'_, 'inp, Skip<'inp>, E>,
+) -> Result<Tk, Fail> {
+  Ok(operand)
+}
+
+/// A token-level infix fold: its left operand.
+fn tok_infix<'inp, E>(
+  left: Tk,
+  _right: Tk,
+  _operator: Spanned<PrattInfix<Tok, Tok, Tok>, SimpleSpan>,
+  _: EmitterView<'_, 'inp, Skip<'inp>, E>,
+) -> Result<Tk, Fail> {
+  Ok(left)
+}
+
+/// A token-level postfix fold: its operand.
+fn tok_postfix<'inp, E>(
+  operand: Tk,
+  _operator: Tk,
+  _: EmitterView<'_, 'inp, Skip<'inp>, E>,
+) -> Result<Tk, Fail> {
+  Ok(operand)
+}
+
+/// The token-level driver never allocates, at any depth: a hundred right-associative operators,
+/// and a hundred prefix operators, each kept pending at once under a budget of 128, are held on
+/// the native stack, four to a frame.
+#[test]
+fn the_token_level_driver_never_allocates() {
+  for src in [chain('^', 100), prefixes(100)] {
+    reserve_lexes(1 << 12);
+    let (parsed, allocated) = Parser::with_context(
+      ParserContext::new(Fatal::new())
+        .with_recursion_limiter(RecursionLimiter::with_limitation(128)),
+    )
+    .apply(|input: &mut FatalIr<'_, '_, true>| {
+      let mut result = Ok(None);
+      let allocated = allocations(|| {
+        result = input.pratt::<_, _, _, Expr, u8>(
+          tok_prefix::<Fatal<Fail>>,
+          tok_infix::<Fatal<Fail>>,
+          tok_postfix::<Fatal<Fail>>,
+        );
+      });
+      Ok((result.map(|value| value.is_some()), allocated))
+    })
+    .parse_str(&src)
+    .expect("the parse's own error is caught");
+    assert_eq!((parsed, allocated), (Ok(true), 0), "{src}");
   }
 }
