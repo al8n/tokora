@@ -369,12 +369,11 @@ where
       .limitation()
       .saturating_sub(this.recursion().depth());
     // Four frames in this native frame, written only as frames are pushed, and nothing to drop at
-    // the end but their own count.
+    // the end but their own count. The floor is the caller's, and no `Power` is built from
+    // `Default` for it.
     let mut first: Segment<'_, Frame<'inp, L, Power>, K> = Segment::root();
     let machine: Machine<'inp, L, Power, &mut Segment<'_, Frame<'inp, L, Power>, K>> =
-      PrattResolver::with_stack(&mut first)
-        .min_precedence(min_precedence)
-        .max_depth(cap);
+      PrattResolver::with_stack_and_floor(&mut first, min_precedence).max_depth(cap);
     let mut folds = Folds {
       prefix: fold_prefix,
       infix: fold_infix,

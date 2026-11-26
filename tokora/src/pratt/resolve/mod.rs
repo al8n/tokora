@@ -202,11 +202,21 @@ impl<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Post, Power: Default>
   /// Nothing pending, no latch, no cap, and the floor at `Power::default()`.
   #[inline]
   fn new() -> Self {
+    Self::floored(Power::default())
+  }
+}
+
+impl<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Post, Power>
+  ResolverState<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Post, Power>
+{
+  /// Nothing pending, no latch, no cap, and the floor `floor`: no `Power` is built here.
+  #[inline]
+  fn floored(floor: Power) -> Self {
     Self {
       phase: Phase::Term,
       depth: 0,
       max_depth: usize::MAX,
-      floor: Power::default(),
+      floor,
       root_latch: None,
       _frames: PhantomData,
     }
@@ -549,6 +559,23 @@ where
     Self {
       stack,
       state: ResolverState::new(),
+    }
+  }
+
+  /// [`with_stack`](Self::with_stack), with the root's floor at `floor`, inclusive, and no
+  /// `Power` built from `Default`: for an adapter whose caller names the floor, which
+  /// [`min_precedence`](Self::min_precedence) would set only after a default had been built and
+  /// dropped. The storage is emptied as `with_stack` empties it.
+  #[inline]
+  pub(crate) fn with_stack_and_floor(mut stack: S, floor: Power) -> Self {
+    for _ in 0..stack.len() {
+      if stack.pop().is_none() {
+        break;
+      }
+    }
+    Self {
+      stack,
+      state: ResolverState::floored(floor),
     }
   }
 

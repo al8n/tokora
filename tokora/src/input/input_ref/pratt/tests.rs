@@ -478,6 +478,8 @@ mod with_std {
     typenum::{U1, U2},
   };
 
+  use core::cell::Cell;
+
   use super::{ByteLexer, Expr, Fail, Op, Tok, fold_infix, fold_postfix, fold_prefix, log};
   use crate::{
     InputRef, SimpleSpan,
@@ -485,8 +487,10 @@ mod with_std {
     emitter::{Emitter, PrattEmitter},
     error::{UnexpectedEoLhs, UnexpectedEoRhs, UnexpectedTokenOf},
     input::{Cursor, Input, InputContext},
+    pratt::{PrattInfix, PrattLHS, PrattPower, PrattRHS, Precedenced},
     span::Spanned,
     state::RecursionLimiter,
+    token::PrattToken,
   };
 
   /// An emitter that writes what it is handed into the ordered log and goes on.
@@ -780,6 +784,107 @@ mod with_std {
         assert_eq!(got, want, "`{src}` under a budget of {limit:?}");
       }
     }
+  }
+
+  /// A power whose `Default` is counted, on the thread.
+  #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+  struct Counted(u8);
+
+  std::thread_local! {
+    static DEFAULTS: Cell<usize> = const { Cell::new(0) };
+  }
+
+  impl Default for Counted {
+    fn default() -> Self {
+      DEFAULTS.with(|defaults| defaults.set(defaults.get() + 1));
+      Self(0)
+    }
+  }
+
+  impl PrattPower for Counted {}
+
+  /// Digits, the prefix `-` at 40, `+` at 10, left, and `^` at 30, right, at the counted power.
+  impl PrattToken<'_, Expr, Counted> for Tok {
+    fn try_pratt_lhs(&self) -> Option<PrattLHS<(), (), Counted>> {
+      match self.0 {
+        b'0'..=b'9' => Some(PrattLHS::Operand(())),
+        b'-' => Some(PrattLHS::Prefix(Precedenced::new((), Counted(40)))),
+        _ => None,
+      }
+    }
+
+    fn try_pratt_rhs(&self) -> Option<PrattRHS<(), (), (), (), Counted>> {
+      match self.0 {
+        b'+' => Some(PrattRHS::Infix(Precedenced::new(
+          PrattInfix::Left(()),
+          Counted(10),
+        ))),
+        b'^' => Some(PrattRHS::Infix(Precedenced::new(
+          PrattInfix::Right(()),
+          Counted(30),
+        ))),
+        _ => None,
+      }
+    }
+  }
+
+  /// Parses `src` at the counted power, under no budget: through the crate-private loop in
+  /// segments of `size` frames where `size` is one or two, through `pratt_with_min_precedence` at
+  /// the floor `Counted(0)` where it is four, and through `pratt`, which names no floor, where it
+  /// is `None`. With the `Default`s built during the parse.
+  fn counted(src: &str, size: Option<usize>) -> (Result<Option<Op>, Fail>, usize) {
+    let mut input =
+      Input::<ByteLexer<'_>, (Logged, DefaultCache<'_, ByteLexer<'_>>), ()>::with_state_and_context(
+        src,
+        (),
+        InputContext::new(Logged, DefaultCache::default())
+          .with_recursion_limiter(RecursionLimiter::unlimited()),
+      );
+    let mut inp = input.as_ref();
+    DEFAULTS.with(|defaults| defaults.set(0));
+    let result = match size {
+      Some(1) => inp.pratt_in::<_, _, _, Expr, Counted, U1>(
+        Counted(0),
+        &mut fold_prefix::<Logged>,
+        &mut fold_infix::<Logged>,
+        &mut fold_postfix::<Logged>,
+      ),
+      Some(2) => inp.pratt_in::<_, _, _, Expr, Counted, U2>(
+        Counted(0),
+        &mut fold_prefix::<Logged>,
+        &mut fold_infix::<Logged>,
+        &mut fold_postfix::<Logged>,
+      ),
+      Some(_) => inp.pratt_with_min_precedence::<_, _, _, Expr, Counted>(
+        fold_prefix::<Logged>,
+        fold_infix::<Logged>,
+        fold_postfix::<Logged>,
+        Counted(0),
+      ),
+      None => inp.pratt::<_, _, _, Expr, Counted>(
+        fold_prefix::<Logged>,
+        fold_infix::<Logged>,
+        fold_postfix::<Logged>,
+      ),
+    };
+    (result, DEFAULTS.with(Cell::get))
+  }
+
+  /// A parse that names its floor seats the machine on it, and builds no `Power` from `Default`,
+  /// at any segment size: five pending operators make segments at each. The entry point that asks
+  /// for the default precedence builds the one it passes on.
+  #[test]
+  fn a_named_floor_builds_no_default_power() {
+    let src = "1^2^-3^4^5^6+7";
+    let value: Result<Option<Op>, Fail> = Ok(Some(Spanned::new(SimpleSpan::new(0, 14), Tok(b'#'))));
+    for size in [1, 2, 4] {
+      assert_eq!(
+        counted(src, Some(size)),
+        (value.clone(), 0),
+        "in segments of {size}"
+      );
+    }
+    assert_eq!(counted(src, None), (value, 1));
   }
 
   /// `1 ^ 1 ^ … ^ 1`, right-associative, with `n` operators: each keeps the one before it pending.
