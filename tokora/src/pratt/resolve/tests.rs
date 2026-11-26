@@ -1424,8 +1424,8 @@ struct Drive {
 /// gone: the protocol of a loop that grows by segments, with the reference machine as its oracle.
 fn run<K: ArraySize>(mut m: Machine<&mut Segment<'_, Frame, K>>, drive: &mut Drive) -> Exit {
   loop {
-    // The return test, at every point but between a reduction and its value: the latch that value
-    // leaves is the one write that may cross the link.
+    // The return test, at every point but between a reduction and its value, where the adapters
+    // put it: they return once the value is back.
     if !matches!(m.state.phase, Phase::Reducing(_)) {
       if m.stack.drained() {
         drive.counts.drained += 1;
