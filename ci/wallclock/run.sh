@@ -162,6 +162,12 @@ set -euo pipefail
 # 16.22% is a LOWER bound on what a real comparison faces: a self-comparison runs one identical
 # binary twice, while a merge-base comparison runs two different ones, which adds the codegen
 # placement this measurement was able to exclude.
+#
+# **The population has grown since this was derived.** The 46 ids above are the five targets as
+# they stood. `pratt_typed` now carries a second group, `pratt/flat`, of 39 ids: the flat driver's
+# `fold/`, `fold_kept/`, `collect/`, `collect_bare/` and `collect_kind/` cells, 85 in all. The
+# threshold was derived over 46 and is not re-derived by adding them: dispatching `perf.yml` runs
+# `--self` over the whole population, which derives the floor again.
 : "${WALL_THRESHOLD:=25.0}"
 
 # Five rounds a side. The minimum needs at least one clean round per side to land on, and
@@ -178,7 +184,7 @@ set -euo pipefail
 # read — so `--measurement-time` is inert in `input_scan`, `parser_combinators` and `backtrack`
 # and live in `cst` and `pratt_typed`. `tokora-benches/benches/support/mod.rs` is a no-op unless
 # these variables are set and applies them after the pins, which is what lets one number reach
-# all forty-six ids. The shipped defaults — 1s warm-up, 3s measurement — are untouched by this,
+# every id. The shipped defaults — 1s warm-up, 3s measurement — are untouched by this,
 # so a local `cargo bench` and `bench (smoke)` still measure what they always did.
 #
 # 500ms buys about ten samples of tens to hundreds of iterations each on every id in the

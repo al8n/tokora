@@ -25,12 +25,12 @@
 //!
 //! With a variable set, the override is applied **after** the file's own call, so it wins over a
 //! pin and over criterion's default alike. That is the whole point: one setting, five binaries,
-//! forty-six ids, one window.
+//! every id, one window.
 //!
 //! # A malformed value is a panic, not a shrug
 //!
 //! `TOKORA_BENCH_MEASUREMENT_MS=1O0` — capital O — parses as nothing. Ignoring it would leave the
-//! gate running its 46 ids at a window it did not ask for, reporting a spread it would then treat
+//! gate running its ids at a window it did not ask for, reporting a spread it would then treat
 //! as this runner's floor, and nothing anywhere would say so. So a value that does not parse, or
 //! that is zero, aborts the binary. `pratt_typed`'s `TOKORA_PRATT_ITERS` is read the same way and
 //! for the same reason.

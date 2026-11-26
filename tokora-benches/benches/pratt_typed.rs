@@ -18,7 +18,9 @@
 //! number: a harness running only `pratt_expr` compiles byte-identical across a wholesale
 //! replacement of the typed driver's transaction structure.
 //!
-//! Everything in this file drives the typed combinator and nothing else.
+//! Everything in group `pratt/typed` drives the typed combinator and nothing else. A second group,
+//! `pratt/flat`, drives the flat driver over the same lexer and the same fixtures: see *The flat
+//! group* below.
 //!
 //! # What the typed driver's transaction structure costs
 //!
@@ -181,6 +183,63 @@
 //!
 //! That the check *fires* was established by mutation, once — see *Recorded measurements*.
 //!
+//! # The flat group (`pratt/flat`), and the harness's driver switch
+//!
+//! The same binary reads tokora's third driver, [`flat`], in a second group. It is laid out to be
+//! read against `pratt/typed` cell for cell: the same lexer with its 64-byte [`ExprState`], the same
+//! fixtures — each cell's bytes are those of the typed cell of the same shape, from the same
+//! generators — and the same checked accumulators. Nothing in `pratt/typed` changed: its ids, its
+//! fixtures and its drain are the ones this header describes above.
+//!
+//! The harness's switch is [`Driver`]. A cell carries its driver, [`parse_once`] matches on it, and
+//! so the criterion path and the fixed-iteration path choose a drain in the one place.
+//!
+//! | ids | [`Driver`] | drain | what it reads |
+//! |---|---|---|---|
+//! | `pratt/typed/…` | `Typed` | [`typed_pratt_drain`] | `pratt(..)`, over this file's own channels |
+//! | `pratt/flat/fold/…` | `Fold` | [`flat_fold_drain`] | `flat(..).folding(..)`, over its default storage: four frames in the driver, then the heap |
+//! | `pratt/flat/fold_kept/…` | `FoldKept` | [`flat_fold_kept_drain`] | the same, over a `Vec` the drain keeps |
+//! | `pratt/flat/collect/…` | `Collect` | [`flat_collect_drain`] | `flat(..).parse_into(..)` in `Checked` mode, with a handler that sums |
+//! | `pratt/flat/collect_bare/…` | `CollectBare` | [`flat_collect_bare_drain`] | the same with `bare()` |
+//! | `pratt/flat/collect_kind/…` | `CollectKind` | [`flat_collect_kind_drain`] | `collect/` with the seam: `with_cst_kind`, under the fail-fast emitter |
+//!
+//! `fold/`, `collect/` and `collect_bare/` each have the eleven shapes of `pratt/typed`:
+//! `bare_operand`, and `left_chain/d` and `right_chain/d` at each depth `d` of 1, 2, 8, 32 and 64.
+//! `fold_kept/` has three, `right_chain/{8,32,64}`, and `collect_kind/` three, `bare_operand` and
+//! the pair at depth 1; [`flat_cells`] says why each has those and no others.
+//!
+//! **What an accumulator is.** `fold/` and `fold_kept/` owe the typed cell's: their folds are
+//! [`fold_infix`]'s arithmetic, which is blind to associativity on purpose, so a `fold/` cell and
+//! the `pratt/typed` cell of its shape perform the same folds into the same tree. `collect/`,
+//! `collect_bare/` and `collect_kind/` owe [`collect_checksum`]: the operands' sum and the
+//! operators' count, read off the source's bytes. A sum cannot tell a left chain from a right one,
+//! so for those the pair at one depth must agree at every depth, where for the fold families it
+//! must differ past depth 1; [`check_pair`] asserts whichever holds.
+//!
+//! **Two ways to read the head.** The typed group's channels, [`parse_lhs`] and [`parse_rhs`],
+//! consume a token and put it back; the flat group's table is `ExprTok`'s `PrattToken`
+//! implementation, whose rows are `parse_rhs`'s, power for power. So a `fold/` cell against its
+//! typed cell compares the drivers and also how each reads the head. The typed driver over the
+//! table's own channels, `PrattTable::lhs` and `rhs`, is `tokora-icount`'s `pratt_typed_*` rows.
+//!
+//! **What each reading is for:**
+//!
+//! * `fold/X` against `pratt/typed/X`, by time: the flat driver against the typed one. A cell that
+//!   does not read below its typed cell is reported as it is, and the guide's sentence on speed is
+//!   narrowed to the cells that do.
+//! * `fold/bare_operand` is read alone. It is where the typed driver's expression guard buys
+//!   nothing, and where the flat driver opens none.
+//! * `left_chain/d` is where a waiting operator shows: every operator after the first waits for a
+//!   reduction there, and none does on a right chain. The pair at one depth prices it, at the
+//!   state's 64 bytes.
+//! * `fold/right_chain/{8,32,64}` against `fold_kept/right_chain/{8,32,64}`: what the default
+//!   storage's spill past four frames costs. `/8` is there because four is the default's bound.
+//! * `collect/` less `collect_bare/` is the unit machine's price for each operator, and
+//!   `collect_bare/` is read against the control `tokora-icount` writes by hand
+//!   (`pratt_flat_control_*`), which it must equal.
+//! * `collect_kind/` less `collect/`, at the same shape, is what the seam costs without a sink:
+//!   the leading-trivia peek and the two events.
+//!
 //! # The measurement knobs are deliberately left live
 //!
 //! The other bench files in this directory pin `measurement_time(3s)` and `warm_up_time(1s)`
@@ -200,6 +259,9 @@
 //! ```text
 //! TOKORA_PRATT_CELL=bare_operand TOKORA_PRATT_ITERS=400 ./pratt_typed
 //! ```
+//!
+//! `TOKORA_PRATT_CELL` takes an id of either group: `right_chain/8` is the typed driver's and
+//! `fold/right_chain/8` the flat driver's. The cell carries its driver, so nothing else is set.
 //!
 //! It builds one fixture, runs exactly that many parses of it — each one checked against the
 //! fixture's expected accumulator, as on the criterion path — prints a checksum, and exits
@@ -326,8 +388,35 @@
 //!   inlined `check` sites while the comment claimed two loads per token. See
 //!   [`check`](State::check) for the whole argument.
 //!
+//! ## The flat group, as measured (PR 2)
+//!
+//! **Every cell of this section is a placeholder until a run fills it, and none is a
+//! measurement.** The figures come from the `wall clock (advisory)` job's readings
+//! (`wallclock-readings`, the `ns_per_iter` of each id), which times each id on both sides of the
+//! comparison, and from a local `cargo bench -p tokora-benches --bench pratt_typed` for any cell
+//! the job's population cannot separate. Each is a ratio of two cells of one shape, read as the
+//! file's header reads a pair: the median over the rounds that were not contended, with its range.
+//!
+//! | shape | `fold/` over `pratt/typed/` | `fold_kept/` over `fold/` | `collect/` over `collect_bare/` | `collect_kind/` over `collect/` |
+//! |---|---|---|---|---|
+//! | `bare_operand` | TBD(wall clock) | | TBD(wall clock) | TBD(wall clock) |
+//! | `left_chain/1` | TBD(wall clock) | | TBD(wall clock) | TBD(wall clock) |
+//! | `right_chain/1` | TBD(wall clock) | | TBD(wall clock) | TBD(wall clock) |
+//! | `left_chain/2` | TBD(wall clock) | | TBD(wall clock) | |
+//! | `right_chain/2` | TBD(wall clock) | | TBD(wall clock) | |
+//! | `left_chain/8` | TBD(wall clock) | | TBD(wall clock) | |
+//! | `right_chain/8` | TBD(wall clock) | TBD(wall clock) | TBD(wall clock) | |
+//! | `left_chain/32` | TBD(wall clock) | | TBD(wall clock) | |
+//! | `right_chain/32` | TBD(wall clock) | TBD(wall clock) | TBD(wall clock) | |
+//! | `left_chain/64` | TBD(wall clock) | | TBD(wall clock) | |
+//! | `right_chain/64` | TBD(wall clock) | TBD(wall clock) | TBD(wall clock) | |
+//!
+//! The instruction counts of the same comparisons, over one chain of 63 operators and over
+//! expressions of one operator each, are `tokora-icount`'s `pratt_rows.rs`, in its own header.
+//!
 //! [`Pratt`]: tokora::pratt::Pratt
 //! [pratt]: tokora::pratt::pratt
+//! [`flat`]: tokora::pratt::flat
 //! [`InputRef::pratt`]: tokora::InputRef::pratt
 
 /// The wall-clock regression gate's measurement window, shared by all five bench binaries.
@@ -341,13 +430,20 @@ use std::hint::black_box;
 use criterion::{Criterion, Throughput, criterion_group};
 
 use tokora::{
-  Emitter, FatalContext, InputRef, Parse, ParseContext, ParseInput, Parser, ParserContext, Token,
-  emitter::Fatal,
-  error::{NonAssociativeChain, RecursionLimitReached, UnexpectedEnd, UnexpectedToken},
+  Emitter, FatalContext, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser,
+  ParserContext, SimpleSpan, Token,
+  emitter::{CstEmitter, Fatal},
+  error::{
+    NonAssociativeChain, PrattStackFull, RecursionLimitReached, UnexpectedEnd, UnexpectedToken,
+  },
   lexer::LogosLexer,
   logos::{self, Logos},
-  pratt::{PrattInfix, PrattLHS, PrattRHS, Precedenced, pratt},
+  pratt::{
+    PrattFrame, PrattHandler, PrattInfix, PrattLHS, PrattRHS, PrattTable, Precedenced, flat, pratt,
+  },
+  span::Spanned,
   state::{RecursionLimiter, State},
+  token::PrattToken,
 };
 
 // ── The lexer state ───────────────────────────────────────────────────────────
@@ -649,6 +745,14 @@ impl From<NonAssociativeChain> for BenchError {
   }
 }
 
+/// The flat driver's own refusal, which `pratt/flat`'s drains require the error to absorb. No
+/// fixture reaches it: no drain sets a cap, and the storage of each is sized for the deepest chain.
+impl From<PrattStackFull> for BenchError {
+  fn from(_: PrattStackFull) -> Self {
+    BenchError
+  }
+}
+
 impl<'inp, L, Lang: ?Sized> tokora::emitter::FromUnclosed<'inp, L, Lang> for BenchError
 where
   L: tokora::Lexer<'inp>,
@@ -821,6 +925,296 @@ where
   Ok(acc)
 }
 
+// ── The flat group's grammar ──────────────────────────────────────────────────
+//
+// `pratt/flat` reads the same tokens through the flat driver. That driver takes its operators from
+// a table, which is a token's own `PrattToken` implementation, where the typed driver above takes
+// them from the two channels the grammar writes; so the group has a table of its own, and the
+// operand parser, the folds and the handler the flat driver's two adapters are given.
+
+/// The table's marker. `ExprTok`'s [`PrattToken`] implementation for it is the flat group's
+/// operator table.
+struct BenchExpr;
+
+/// The table, named once. Its two rows are [`parse_rhs`]'s, power for power and associativity for
+/// associativity: `+` is left-associative at [`PREC_SUM`] and `^` right-associative at
+/// [`PREC_EXP`], and an operand is an integer. So the flat group's cells and the typed group's
+/// parse the same expressions to the same trees.
+const TABLE: PrattTable<BenchExpr, i64> = PrattTable::new();
+
+impl PrattToken<'_, BenchExpr, i64> for ExprTok {
+  fn try_pratt_lhs(&self) -> Option<PrattLHS<(), (), i64>> {
+    match self {
+      ExprTok::Int(_) => Some(PrattLHS::Operand(())),
+      ExprTok::Caret | ExprTok::Plus | ExprTok::Semi => None,
+    }
+  }
+
+  fn try_pratt_rhs(&self) -> Option<PrattRHS<(), (), (), (), i64>> {
+    match self {
+      ExprTok::Plus => Some(PrattRHS::Infix(Precedenced::new(
+        PrattInfix::Left(()),
+        PREC_SUM,
+      ))),
+      ExprTok::Caret => Some(PrattRHS::Infix(Precedenced::new(
+        PrattInfix::Right(()),
+        PREC_EXP,
+      ))),
+      ExprTok::Int(_) | ExprTok::Semi => None,
+    }
+  }
+}
+
+/// A committed token with its span: what the flat driver hands a fold or a handler as an operator.
+type FlatTok = Spanned<ExprTok, SimpleSpan>;
+
+/// One pending operator of the flat driver's machine over this file's values: what a storage lent
+/// to `FlatFold::with_stack` holds.
+type FoldFrame = PrattFrame<i64, FlatTok, FlatTok, FlatTok, FlatTok, i64>;
+
+/// The frames the storage `fold_kept/` keeps holds before it would ever grow: one for each
+/// operator of the deepest chain, and one to spare.
+const KEPT_FRAMES: usize = DEPTHS[DEPTHS.len() - 1] + 1;
+
+/// The error `Ctx`'s emitter returns.
+type ErrorIn<'inp, Ctx> =
+  <<Ctx as ParseContext<'inp, ExprLexer<'inp>>>::Emitter as Emitter<'inp, ExprLexer<'inp>>>::Error;
+
+/// The flat driver's operand parser: an integer, which it accepts, and anything else, which it
+/// declines and leaves on the input.
+fn try_operand<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, ExprLexer<'inp>, Ctx>,
+) -> Result<ParseAttempt<i64>, BenchError>
+where
+  Ctx: ParseContext<'inp, ExprLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, ExprLexer<'inp>, Error = BenchError>,
+{
+  Ok(
+    match inp.try_expect(|t| matches!(t.data(), ExprTok::Int(_)))? {
+      Some(tok) => match tok.into_data() {
+        ExprTok::Int(n) => ParseAttempt::Accept(n),
+        _ => unreachable!("the predicate admits only integers"),
+      },
+      None => ParseAttempt::Decline,
+    },
+  )
+}
+
+/// Never reached — this grammar has no prefix operator — but `folding` takes a fold for one.
+fn fold_flat_prefix<'inp, Ctx>(
+  _inp: &mut InputRef<'inp, '_, ExprLexer<'inp>, Ctx>,
+  operand: i64,
+  _operator: Precedenced<FlatTok, i64>,
+) -> Result<i64, BenchError>
+where
+  Ctx: ParseContext<'inp, ExprLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, ExprLexer<'inp>, Error = BenchError>,
+{
+  Ok(operand.wrapping_neg())
+}
+
+/// The one fold the fixtures reach, with [`fold_infix`]'s arithmetic: associativity-blind on
+/// purpose, so a `fold/` cell and the `pratt/typed` cell of the same shape perform the same folds
+/// and owe the same accumulator.
+fn fold_flat_infix<'inp, Ctx>(
+  _inp: &mut InputRef<'inp, '_, ExprLexer<'inp>, Ctx>,
+  left: i64,
+  right: i64,
+  _operator: Precedenced<PrattInfix<FlatTok, FlatTok, FlatTok>, i64>,
+) -> Result<i64, BenchError>
+where
+  Ctx: ParseContext<'inp, ExprLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, ExprLexer<'inp>, Error = BenchError>,
+{
+  Ok(left.wrapping_mul(31).wrapping_add(right))
+}
+
+/// Never reached — this grammar has no postfix operator.
+fn fold_flat_postfix<'inp, Ctx>(
+  _inp: &mut InputRef<'inp, '_, ExprLexer<'inp>, Ctx>,
+  operand: i64,
+  _operator: Precedenced<FlatTok, i64>,
+) -> Result<i64, BenchError>
+where
+  Ctx: ParseContext<'inp, ExprLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, ExprLexer<'inp>, Error = BenchError>,
+{
+  Ok(operand)
+}
+
+/// The handler `collect/` and `collect_bare/` share: it sums the operands it is told and counts
+/// the operators, and keeps nothing else. So what it owes is [`collect_checksum`] of the source,
+/// which a driver cannot reach without telling every operand and every operator once.
+#[derive(Debug, Default)]
+struct Sum(i64);
+
+impl<'inp, Ctx> PrattHandler<'inp, i64, ExprLexer<'inp>, i64, Ctx> for Sum
+where
+  Ctx: ParseContext<'inp, ExprLexer<'inp>>,
+{
+  #[inline(always)]
+  fn on_prefix(
+    &mut self,
+    _input: &mut InputRef<'inp, '_, ExprLexer<'inp>, Ctx>,
+    _operator: Precedenced<FlatTok, i64>,
+  ) -> Result<(), ErrorIn<'inp, Ctx>> {
+    Ok(())
+  }
+
+  #[inline(always)]
+  fn on_operand(
+    &mut self,
+    _input: &mut InputRef<'inp, '_, ExprLexer<'inp>, Ctx>,
+    operand: i64,
+  ) -> Result<(), ErrorIn<'inp, Ctx>> {
+    self.0 = self.0.wrapping_add(operand);
+    Ok(())
+  }
+
+  #[inline(always)]
+  fn on_infix(
+    &mut self,
+    _input: &mut InputRef<'inp, '_, ExprLexer<'inp>, Ctx>,
+    _operator: Precedenced<PrattInfix<FlatTok, FlatTok, FlatTok>, i64>,
+  ) -> Result<(), ErrorIn<'inp, Ctx>> {
+    self.0 = self.0.wrapping_add(1);
+    Ok(())
+  }
+
+  #[inline(always)]
+  fn on_postfix(
+    &mut self,
+    _input: &mut InputRef<'inp, '_, ExprLexer<'inp>, Ctx>,
+    _operator: Precedenced<FlatTok, i64>,
+  ) -> Result<(), ErrorIn<'inp, Ctx>> {
+    Ok(())
+  }
+}
+
+/// Runs `$step` once for each `;`-terminated expression to the end of input, and requires the
+/// terminator after each. [`typed_pratt_drain`] spells the same loop out, and its header says why a
+/// missing terminator is an error and not an exit; every drain of the flat group is that loop with
+/// one driver in the step.
+macro_rules! drain_loop {
+  ($inp:ident, $step:block) => {
+    loop {
+      // Scope the peek borrow: exhaustion ends the drain before the driver is asked for an
+      // expression that is not there.
+      let done = {
+        let peeked = $inp.peek_one()?;
+        peeked.is_none()
+      };
+      if done {
+        break;
+      }
+      $step
+      if $inp
+        .try_expect(|t| matches!(t.data(), ExprTok::Semi))?
+        .is_none()
+      {
+        return Err(BenchError);
+      }
+    }
+  };
+}
+
+/// `fold/`: the flat driver's `folding` adapter, over its default storage — four frames in the
+/// driver, then the heap. It is built once, as [`typed_pratt_drain`] builds its combinator, so a
+/// chain that spills allocates once for the drain and not once for each expression.
+fn flat_fold_drain<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, ExprLexer<'inp>, Ctx>,
+) -> Result<i64, BenchError>
+where
+  Ctx: ParseContext<'inp, ExprLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, ExprLexer<'inp>, Error = BenchError>,
+{
+  let mut driver =
+    flat(TABLE, try_operand).folding(fold_flat_prefix, fold_flat_infix, fold_flat_postfix);
+  let mut acc = 0i64;
+  drain_loop!(inp, {
+    acc = acc.wrapping_add(driver.parse_input(inp)?);
+  });
+  Ok(acc)
+}
+
+/// `fold_kept/`: `fold/`, over a storage the drain keeps instead: a `Vec` with room for the deepest
+/// chain from the start, lent with `with_stack`. It has no inline frames and no first spill, so
+/// what `fold/` reads above it on a chain that holds more than four operators pending is what the
+/// default storage's spill costs.
+fn flat_fold_kept_drain<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, ExprLexer<'inp>, Ctx>,
+) -> Result<i64, BenchError>
+where
+  Ctx: ParseContext<'inp, ExprLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, ExprLexer<'inp>, Error = BenchError>,
+{
+  let mut driver = flat(TABLE, try_operand)
+    .folding(fold_flat_prefix, fold_flat_infix, fold_flat_postfix)
+    .with_stack(Vec::<FoldFrame>::with_capacity(KEPT_FRAMES));
+  let mut acc = 0i64;
+  drain_loop!(inp, {
+    acc = acc.wrapping_add(driver.parse_input(inp)?);
+  });
+  Ok(acc)
+}
+
+/// `collect/`: the flat driver's `parse_into` adapter in its default, `Checked` mode, which runs the
+/// machine of unit values, telling a [`Sum`] each item.
+fn flat_collect_drain<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, ExprLexer<'inp>, Ctx>,
+) -> Result<i64, BenchError>
+where
+  Ctx: ParseContext<'inp, ExprLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, ExprLexer<'inp>, Error = BenchError>,
+{
+  let mut driver = flat(TABLE, try_operand);
+  let mut sum = Sum(0);
+  drain_loop!(inp, {
+    driver.parse_into(inp, &mut sum)?;
+  });
+  Ok(sum.0)
+}
+
+/// The node kind `collect_kind/` wraps each expression in. The fail-fast emitter keeps no tree, so
+/// the value is nothing to the parse; the seam's work is.
+const CST_KIND: u16 = 1;
+
+/// `collect_kind/`: `collect/` with the seam, `with_cst_kind`. Under this file's fail-fast emitter
+/// the two tree events do nothing, so what it adds to `collect/` is what the seam costs without a
+/// sink: crossing the leading trivia before the node opens, which is a peek that stages the
+/// expression's first token, and the two events' calls.
+fn flat_collect_kind_drain<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, ExprLexer<'inp>, Ctx>,
+) -> Result<i64, BenchError>
+where
+  Ctx: ParseContext<'inp, ExprLexer<'inp>>,
+  Ctx::Emitter:
+    Emitter<'inp, ExprLexer<'inp>, Error = BenchError> + CstEmitter<'inp, ExprLexer<'inp>>,
+{
+  let mut driver = flat(TABLE, try_operand).with_cst_kind(CST_KIND);
+  let mut sum = Sum(0);
+  drain_loop!(inp, {
+    driver.parse_into(inp, &mut sum)?;
+  });
+  Ok(sum.0)
+}
+
+/// `collect_bare/`: `collect/` with `bare()`, which gives the machine up.
+fn flat_collect_bare_drain<'inp, Ctx>(
+  inp: &mut InputRef<'inp, '_, ExprLexer<'inp>, Ctx>,
+) -> Result<i64, BenchError>
+where
+  Ctx: ParseContext<'inp, ExprLexer<'inp>>,
+  Ctx::Emitter: Emitter<'inp, ExprLexer<'inp>, Error = BenchError>,
+{
+  let mut driver = flat(TABLE, try_operand).bare();
+  let mut sum = Sum(0);
+  drain_loop!(inp, {
+    driver.parse_into(inp, &mut sum)?;
+  });
+  Ok(sum.0)
+}
+
 // ── Deterministic sources ─────────────────────────────────────────────────────
 
 /// Every fixture targets this size, matching the other bench files, so a full parse dwarfs the
@@ -979,6 +1373,97 @@ fn expected_expression(operands: &[i64], assoc: Assoc) -> i64 {
   }
 }
 
+/// Which driver parses a cell, and so which drain and which accumulator: the harness's switch.
+///
+/// [`parse_once`] is the one place a cell enters a driver, on the criterion path and the
+/// fixed-iteration path alike, and it matches on this. A cell carries its driver, so a cell list
+/// is all either path needs, and the checks that run over a list — [`Cell::check_invariants`] and
+/// [`check_pair`] — run over every driver's alike.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Driver {
+  /// `pratt(..)`, the typed combinator, over this file's own channels: group `pratt/typed`, and
+  /// the ids that group has always had.
+  Typed,
+  /// `flat(..).folding(..)` over its default storage: `fold/`.
+  Fold,
+  /// `flat(..).folding(..)` over a storage the drain keeps: `fold_kept/`.
+  FoldKept,
+  /// `flat(..).parse_into(..)` in `Checked` mode, with a handler that sums: `collect/`.
+  Collect,
+  /// `flat(..).bare().parse_into(..)`, with the same handler: `collect_bare/`.
+  CollectBare,
+  /// `flat(..).with_cst_kind(..).parse_into(..)` in `Checked` mode, with the same handler, under
+  /// the fail-fast emitter: `collect_kind/`. It is `Collect` plus the seam.
+  CollectKind,
+}
+
+impl Driver {
+  /// The prefix of this driver's ids inside group `pratt/flat`. `Typed` has none: its ids are
+  /// `pratt/typed`'s own, and none of them has changed.
+  const fn prefix(self) -> Option<&'static str> {
+    match self {
+      Driver::Typed => None,
+      Driver::Fold => Some("fold"),
+      Driver::FoldKept => Some("fold_kept"),
+      Driver::Collect => Some("collect"),
+      Driver::CollectBare => Some("collect_bare"),
+      Driver::CollectKind => Some("collect_kind"),
+    }
+  }
+
+  /// The id of the cell of shape `shape` — `bare_operand`, `right_chain/8` — under this driver.
+  fn cell_name(self, shape: &str) -> String {
+    match self.prefix() {
+      Some(prefix) => format!("{prefix}/{shape}"),
+      None => shape.to_string(),
+    }
+  }
+
+  /// Whether the drain's accumulator is a sum of what it was told. A sum is the same over a left
+  /// chain and a right chain of one source shape, so it cannot tell the two associativities apart:
+  /// `collect/` resolves nothing, and that is what it is for.
+  const fn sums(self) -> bool {
+    matches!(
+      self,
+      Driver::Collect | Driver::CollectBare | Driver::CollectKind
+    )
+  }
+
+  /// The accumulator the drain of this driver must return over `src`, given the one the folds of
+  /// the generator predicted for it. Neither is produced by a parser.
+  fn expected(self, src: &str, folded: i64) -> i64 {
+    if self.sums() {
+      collect_checksum(src)
+    } else {
+      folded
+    }
+  }
+}
+
+/// What a [`Sum`] must hold after the whole of `src`: its operands' sum, and one for each
+/// operator. Read off the bytes, with no lexer and no parser, so it is independent of every driver
+/// it is compared with.
+fn collect_checksum(src: &str) -> i64 {
+  let mut sum = 0i64;
+  let mut operand: Option<i64> = None;
+  for b in src.bytes() {
+    if b.is_ascii_digit() {
+      operand = Some(operand.unwrap_or(0) * 10 + i64::from(b - b'0'));
+      continue;
+    }
+    if let Some(value) = operand.take() {
+      sum = sum.wrapping_add(value);
+    }
+    if b == b'^' || b == b'+' {
+      sum = sum.wrapping_add(1);
+    }
+  }
+  if let Some(value) = operand {
+    sum = sum.wrapping_add(value);
+  }
+  sum
+}
+
 /// One benchmark cell: the criterion id, the generated source, the accumulator
 /// [`typed_pratt_drain`] **must** return over it, and the shape facts
 /// [`check_invariants`](Cell::check_invariants) holds it to.
@@ -997,11 +1482,13 @@ fn expected_expression(operands: &[i64], assoc: Assoc) -> i64 {
 /// associativity it wrote, in [`expected_expression`]. Deriving it by running the parser would
 /// prove nothing — it would agree with any driver, including a broken one.
 struct Cell {
-  /// The criterion id within the `pratt/typed` group.
+  /// The criterion id within its group: `pratt/typed` for [`Driver::Typed`], `pratt/flat` for the
+  /// rest.
   name: String,
   /// The generated fixture, ~128 KiB.
   src: String,
-  /// The fold checksum the drain must return, computed without the parser.
+  /// The checksum the drain must return, computed without the parser: the fold checksum for the
+  /// drivers that fold, [`collect_checksum`] for the ones that tell a [`Sum`].
   expected: i64,
   /// Operators per expression: `0` for `bare_operand`, `d` for a chain cell.
   depth: usize,
@@ -1010,6 +1497,8 @@ struct Cell {
   expressions: usize,
   /// The associativity the chain was written with; `None` for the operator-free cell.
   assoc: Option<Assoc>,
+  /// The driver whose drain parses this cell.
+  driver: Driver,
 }
 
 impl Cell {
@@ -1031,7 +1520,7 @@ impl Cell {
   /// The fixture facts the header's *What is and is not comparable* is written on top of,
   /// asserted against the generated bytes.
   ///
-  /// Run from [`cells`], so both the criterion path and the fixed-iteration path get it. Cheap:
+  /// Run from [`family`], so both the criterion path and the fixed-iteration path get it. Cheap:
   /// one linear pass over ~128 KiB per cell, once per process.
   fn check_invariants(&self) {
     let seen = Census::of(&self.src);
@@ -1147,7 +1636,17 @@ fn check_pair(right: &Cell, left: &Cell) {
     right.operators()
   );
 
-  if right.depth >= 2 {
+  if right.driver.sums() {
+    // A driver that tells a sum resolves nothing, so its accumulator is the same over the two
+    // halves of a pair at every depth, and the pair cannot check an associativity. The `fold/`
+    // and `pratt/typed` pairs carry that check.
+    assert_eq!(
+      right.expected, left.expected,
+      "pratt_typed: {} and {} predict different sums over operands and operators that are the \
+       same by construction",
+      right.name, left.name
+    );
+  } else if right.depth >= 2 {
     assert_ne!(
       right.expected, left.expected,
       "pratt_typed: {} and {} predict the same accumulator, so the checksum cannot tell a \
@@ -1231,9 +1730,13 @@ fn chain_source(assoc: Assoc, depth: usize) -> (String, i64, usize) {
 /// exceptions in this file.
 const DEPTHS: [usize; 5] = [1, 2, 8, 32, 64];
 
-/// The cells, in group order: the criterion id, the fixture behind it, and the accumulator it must
-/// produce. One list, used by both the criterion path and the fixed-iteration harness, so the two
-/// cannot drift.
+/// The cells of one driver, in group order: the criterion id, the fixture behind it, and the
+/// accumulator it must produce. One list, used by both the criterion path and the fixed-iteration
+/// harness, so the two cannot drift.
+///
+/// Every driver's family is the same eleven shapes over the same eleven fixtures, byte for byte:
+/// `bare_operand`, and a right and a left chain at each of [`DEPTHS`]. What differs is the id's
+/// prefix, the driver, and, for the drivers that tell a sum, the accumulator.
 ///
 /// The chain cells are emitted **pair-adjacent** — `right_chain/d` immediately followed by
 /// `left_chain/d` — because the pair at one depth is the unit of result here, and criterion prints
@@ -1242,26 +1745,30 @@ const DEPTHS: [usize; 5] = [1, 2, 8, 32, 64];
 /// Every cell is put through [`Cell::check_invariants`] and every pair through [`check_pair`]
 /// before this returns, so no path in this file — criterion or fixed-iteration — can measure a
 /// fixture the header's comparability argument does not describe.
-fn cells() -> Vec<Cell> {
-  let (src, expected, expressions) = bare_operand_source();
+fn family(driver: Driver) -> Vec<Cell> {
+  let (src, folded, expressions) = bare_operand_source();
+  let expected = driver.expected(&src, folded);
   let mut out = vec![Cell {
-    name: "bare_operand".to_string(),
+    name: driver.cell_name("bare_operand"),
     src,
     expected,
     depth: 0,
     expressions,
     assoc: None,
+    driver,
   }];
   for depth in DEPTHS {
     for assoc in [Assoc::Right, Assoc::Left] {
-      let (src, expected, expressions) = chain_source(assoc, depth);
+      let (src, folded, expressions) = chain_source(assoc, depth);
+      let expected = driver.expected(&src, folded);
       out.push(Cell {
-        name: format!("{}/{depth}", assoc.cell_prefix()),
+        name: driver.cell_name(&format!("{}/{depth}", assoc.cell_prefix())),
         src,
         expected,
         depth,
         expressions,
         assoc: Some(assoc),
+        driver,
       });
     }
   }
@@ -1286,6 +1793,14 @@ fn cells() -> Vec<Cell> {
     check_pair(right, left);
   }
 
+  out
+}
+
+/// The cells of group `pratt/typed`: the typed driver's family, with the ids that group has always
+/// had.
+fn cells() -> Vec<Cell> {
+  let out = family(Driver::Typed);
+
   // The deepest right chain is the cell `BENCH_RECURSION_LIMIT` exists for, so it is the one both
   // halves of that constant's justification are run against.
   let deepest = out
@@ -1295,6 +1810,32 @@ fn cells() -> Vec<Cell> {
     .expect("pratt_typed: no right chain was generated");
   check_recursion_budget(deepest);
 
+  out
+}
+
+/// The cells of group `pratt/flat`: the family of `fold/`, then `fold_kept/`'s right chains of
+/// depth 8 and more, then the families of `collect/` and `collect_bare/`, then `collect_kind/`'s
+/// cells of at most one operator.
+///
+/// `fold_kept/` has those three cells and no others. It reads what the default storage's spill
+/// costs, and a chain of at most four operators never spills: `right_chain/{1,2}` hold at most two
+/// pending, and a left chain holds one however long it is. `collect_kind/` has the three cells in
+/// which a cost paid once for each expression is least amortised: `bare_operand`, and the pair at
+/// depth 1. The seam's cost is per expression, so a longer chain only dilutes it.
+fn flat_cells() -> Vec<Cell> {
+  let mut out = family(Driver::Fold);
+  out.extend(
+    family(Driver::FoldKept)
+      .into_iter()
+      .filter(|cell| cell.assoc == Some(Assoc::Right) && cell.depth >= 8),
+  );
+  out.extend(family(Driver::Collect));
+  out.extend(family(Driver::CollectBare));
+  out.extend(
+    family(Driver::CollectKind)
+      .into_iter()
+      .filter(|cell| cell.depth <= 1),
+  );
   out
 }
 
@@ -1454,17 +1995,26 @@ fn bench_parser<'inp>()
 /// **every measured iteration** is checked, warm-up included, on the criterion path and the
 /// fixed-iteration path alike, and there is no configuration in which the bench measures a parse
 /// nobody validated.
-fn parse_once(src: &str, expected: i64) -> i64 {
-  let got = bench_parser()
-    .apply(typed_pratt_drain)
-    .parse_str(black_box(src))
-    .expect(
-      "pratt_typed: a fixture did not parse to the end of its input. Every source this file \
-       generates is well-formed and every expression is `;`-terminated, so this is a driver \
-       regression or a fixture-construction change, not a bad input — see \
-       `typed_pratt_drain` for why a missing or displaced terminator fails rather than ends \
-       the drain.",
-    );
+fn parse_once(driver: Driver, src: &str, expected: i64) -> i64 {
+  let src = black_box(src);
+  // The harness's driver switch: the one place a cell chooses its drain. Every arm is the same
+  // `Parser` over the same context, so what differs between two cells is the drain and nothing
+  // around it.
+  let parsed = match driver {
+    Driver::Typed => bench_parser().apply(typed_pratt_drain).parse_str(src),
+    Driver::Fold => bench_parser().apply(flat_fold_drain).parse_str(src),
+    Driver::FoldKept => bench_parser().apply(flat_fold_kept_drain).parse_str(src),
+    Driver::Collect => bench_parser().apply(flat_collect_drain).parse_str(src),
+    Driver::CollectBare => bench_parser().apply(flat_collect_bare_drain).parse_str(src),
+    Driver::CollectKind => bench_parser().apply(flat_collect_kind_drain).parse_str(src),
+  };
+  let got = parsed.expect(
+    "pratt_typed: a fixture did not parse to the end of its input. Every source this file \
+     generates is well-formed and every expression is `;`-terminated, so this is a driver \
+     regression or a fixture-construction change, not a bad input — see \
+     `typed_pratt_drain` for why a missing or displaced terminator fails rather than ends \
+     the drain, which every drain of `pratt/flat` shares.",
+  );
   if got != expected {
     mismatch(src.len(), expected, got);
   }
@@ -1481,7 +2031,8 @@ fn mismatch(bytes: usize, expected: i64, got: i64) -> ! {
      accumulator: expected {expected}, got {got}. The expectation is computed by the generator \
      from the operands it emitted and the associativity it wrote (`expected_expression`), never \
      by running the parser, so the parse consumed every token while folding differently than the \
-     fixture describes — a skipped fold, a flipped associativity, or a changed fold value. If \
+     fixture describes — a skipped fold, a flipped associativity, or a changed fold value; or, \
+     for a drain that tells a `Sum`, an operand or an operator told twice or not at all. If \
      `fold_infix` was changed on purpose, `expected_fold` is the other half and has to change \
      with it."
   )
@@ -1499,14 +2050,33 @@ fn typed_pratt_bench(c: &mut Criterion) {
   for cell in &cells {
     group.throughput(Throughput::Bytes(cell.src.len() as u64));
     group.bench_function(&cell.name, |b| {
-      b.iter(|| black_box(parse_once(cell.src.as_str(), cell.expected)))
+      b.iter(|| black_box(parse_once(cell.driver, cell.src.as_str(), cell.expected)))
     });
   }
 
   group.finish();
 }
 
-criterion_group!(benches, typed_pratt_bench);
+/// Group `pratt/flat`: the flat driver's cells, in the order [`flat_cells`] lays them down. The
+/// group takes the same knobs as `pratt/typed` and leaves the measurement window unpinned for the
+/// same reason: see the module header.
+fn flat_pratt_bench(c: &mut Criterion) {
+  let cells = flat_cells();
+
+  let mut group = c.benchmark_group("pratt/flat");
+  support::gate_overrides(&mut group);
+
+  for cell in &cells {
+    group.throughput(Throughput::Bytes(cell.src.len() as u64));
+    group.bench_function(&cell.name, |b| {
+      b.iter(|| black_box(parse_once(cell.driver, cell.src.as_str(), cell.expected)))
+    });
+  }
+
+  group.finish();
+}
+
+criterion_group!(benches, typed_pratt_bench, flat_pratt_bench);
 
 // ── The fixed-iteration harness ───────────────────────────────────────────────
 
@@ -1517,19 +2087,19 @@ criterion_group!(benches, typed_pratt_bench);
 /// is the workload with every fixed cost — process startup, fixture construction, the print —
 /// subtracted exactly rather than estimated.
 fn run_fixed(cell: &str, iters: u64) -> Result<(), String> {
+  // Both groups' cells, the typed group's first: an id names one cell in either, and the cell
+  // carries the driver that parses it.
+  let all = || cells().into_iter().chain(flat_cells());
   let Cell {
     name,
     src,
     expected,
+    driver,
     ..
-  } = cells()
-    .into_iter()
+  } = all()
     .find(|candidate| candidate.name == cell)
     .ok_or_else(|| {
-      let known: Vec<String> = cells()
-        .into_iter()
-        .map(|candidate| candidate.name)
-        .collect();
+      let known: Vec<String> = all().map(|candidate| candidate.name).collect();
       format!("unknown cell {cell:?}; known cells: {}", known.join(", "))
     })?;
 
@@ -1541,7 +2111,7 @@ fn run_fixed(cell: &str, iters: u64) -> Result<(), String> {
   for _ in 0..iters {
     checksum = checksum
       .wrapping_mul(31)
-      .wrapping_add(parse_once(src.as_str(), expected));
+      .wrapping_add(parse_once(driver, src.as_str(), expected));
   }
 
   println!(
@@ -1552,7 +2122,8 @@ fn run_fixed(cell: &str, iters: u64) -> Result<(), String> {
 }
 
 /// `TOKORA_PRATT_ITERS` selects the fixed-iteration harness; `TOKORA_PRATT_CELL` picks the cell
-/// (default `bare_operand`). Unset, this is an ordinary criterion bench binary.
+/// (default `bare_operand`), by its id in either group: `right_chain/8`, `fold/right_chain/8`.
+/// Unset, this is an ordinary criterion bench binary.
 fn main() {
   match std::env::var("TOKORA_PRATT_ITERS") {
     Ok(raw) => {
