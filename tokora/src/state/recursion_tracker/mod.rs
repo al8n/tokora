@@ -32,6 +32,18 @@ use crate::state::State;
 pub struct RecursionLimitExceeded(RecursionLimiter);
 
 impl RecursionLimitExceeded {
+  /// What [`check`](RecursionLimiter::check) answers for a tracker of `limitation` standing at
+  /// `depth`: the refusal of a descent that a driver counts rather than enters. `depth` is above
+  /// `limitation` wherever the crate builds one.
+  #[cfg(feature = "pratt")]
+  #[inline(always)]
+  pub(crate) const fn at(depth: usize, limitation: usize) -> Self {
+    Self(RecursionLimiter {
+      max: limitation,
+      current: depth,
+    })
+  }
+
   /// Returns the actual recursion depth that triggered the error.
   ///
   /// # Example
