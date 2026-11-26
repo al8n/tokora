@@ -1339,6 +1339,17 @@ where
     m.state.latch, innermost_latch,
     "{event:?} in {phase:?}: the latch kept is the one the innermost sub-expression has"
   );
+  // The count of latches set is the one the root and the frames hold, read off a copy of the
+  // storage: with the count at zero a pop reads no latch, so a count kept low would go unseen.
+  let mut frames = m.stack.clone();
+  let mut set = usize::from(m.state.root_latch.is_some());
+  while let Some(frame) = frames.pop() {
+    set += usize::from(frame.latch.is_some());
+  }
+  assert_eq!(
+    m.state.latches, set,
+    "{event:?} in {phase:?}: the count of latches set is the frames' and the root's"
+  );
   match (event, &outcome) {
     (Event::Poll, Outcome::Polled(poll)) => {
       assert_eq!(answer_of(poll), phase, "`poll` answers the phase");
