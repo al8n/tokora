@@ -390,26 +390,29 @@
 //!
 //! ## The flat group, as measured (PR 2)
 //!
-//! **Every cell of this section is a placeholder until a run fills it, and none is a
-//! measurement.** The figures come from the `wall clock (advisory)` job's readings
-//! (`wallclock-readings`, the `ns_per_iter` of each id), which times each id on both sides of the
-//! comparison, and from a local `cargo bench -p tokora-benches --bench pratt_typed` for any cell
-//! the job's population cannot separate. Each is a ratio of two cells of one shape, read as the
-//! file's header reads a pair: the median over the rounds that were not contended, with its range.
+//! The figures are from this branch's `perf` run 45744931146, on a GitHub-hosted `ubuntu-latest`
+//! runner (image `ubuntu-26.04`, version 20261116.202.1); the readings do not record the CPU. They
+//! are the `wall clock (advisory)` job's readings (`wallclock-readings`, the `ns_per_iter` of each
+//! id) on the head side, five rounds. Each is a ratio of two cells of one shape, taken round by
+//! round and read as the file's header reads a pair: the median over the rounds that were not
+//! contended, with its range in parentheses. No round was contended under that rule (any cell more
+//! than 10% above its own median across the rounds), so all five are kept. The job cannot say
+//! more than its population: a range that straddles 1.0 is a pair this run does not separate, and
+//! the figures are advisory.
 //!
 //! | shape | `fold/` over `pratt/typed/` | `fold_kept/` over `fold/` | `collect/` over `collect_bare/` | `collect_kind/` over `collect/` |
 //! |---|---|---|---|---|
-//! | `bare_operand` | TBD(wall clock) | | TBD(wall clock) | TBD(wall clock) |
-//! | `left_chain/1` | TBD(wall clock) | | TBD(wall clock) | TBD(wall clock) |
-//! | `right_chain/1` | TBD(wall clock) | | TBD(wall clock) | TBD(wall clock) |
-//! | `left_chain/2` | TBD(wall clock) | | TBD(wall clock) | |
-//! | `right_chain/2` | TBD(wall clock) | | TBD(wall clock) | |
-//! | `left_chain/8` | TBD(wall clock) | | TBD(wall clock) | |
-//! | `right_chain/8` | TBD(wall clock) | TBD(wall clock) | TBD(wall clock) | |
-//! | `left_chain/32` | TBD(wall clock) | | TBD(wall clock) | |
-//! | `right_chain/32` | TBD(wall clock) | TBD(wall clock) | TBD(wall clock) | |
-//! | `left_chain/64` | TBD(wall clock) | | TBD(wall clock) | |
-//! | `right_chain/64` | TBD(wall clock) | TBD(wall clock) | TBD(wall clock) | |
+//! | `bare_operand` | 0.64 (0.63-0.66) | | 1.05 (1.01-1.08) | 1.03 (0.99-1.07) |
+//! | `left_chain/1` | 0.61 (0.60-0.63) | | 1.10 (1.06-1.11) | 1.01 (0.96-1.04) |
+//! | `right_chain/1` | 0.62 (0.61-0.63) | | 1.08 (1.07-1.10) | 1.01 (0.99-1.04) |
+//! | `left_chain/2` | 0.64 (0.64-0.66) | | 1.13 (1.07-1.14) | |
+//! | `right_chain/2` | 0.63 (0.61-0.64) | | 1.11 (1.09-1.13) | |
+//! | `left_chain/8` | 0.68 (0.67-0.72) | | 1.17 (1.14-1.19) | |
+//! | `right_chain/8` | 0.67 (0.65-0.70) | 0.96 (0.92-0.98) | 1.21 (1.19-1.24) | |
+//! | `left_chain/32` | 0.70 (0.68-0.73) | | 1.24 (1.20-1.25) | |
+//! | `right_chain/32` | 0.67 (0.66-0.69) | 0.98 (0.94-1.01) | 1.20 (1.17-1.21) | |
+//! | `left_chain/64` | 0.70 (0.70-0.72) | | 1.26 (1.22-1.31) | |
+//! | `right_chain/64` | 0.66 (0.62-0.67) | 0.99 (0.99-1.05) | 1.21 (1.15-1.23) | |
 //!
 //! The instruction counts of the same comparisons, over one chain of 63 operators and over
 //! expressions of one operator each, are `tokora-icount`'s `pratt_rows.rs`, in its own header.

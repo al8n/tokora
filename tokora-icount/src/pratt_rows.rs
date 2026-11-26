@@ -58,27 +58,28 @@
 //! ## Recorded figures
 //!
 //! Instructions an iteration, from `ci/icount/measure.py`'s head-side reading in the `instruction
-//! counts` job (`icount-readings`, `head.json`, `ir_per_iter`). A source holds 256 operands:
-//! 4 chains of 63 operators, or 128 expressions of one. Every cell below is a placeholder until a
-//! run fills it, and none is a measurement.
+//! counts` job (`icount-readings`, `head.json`, `ir_per_iter`), rounded to a whole instruction. They
+//! are from this branch's `perf` run 45744931146, on a GitHub-hosted `ubuntu-latest` runner (image
+//! `ubuntu-26.04`, version 20261116.202.1); the readings do not record the CPU. A source holds 256
+//! operands: 4 chains of 63 operators, or 128 expressions of one.
 //!
 //! | row | Ir/iteration | against |
 //! |---|---:|---|
-//! | `pratt_typed_left` | TBD(icount: pratt_typed_left) | |
-//! | `pratt_typed_right` | TBD(icount: pratt_typed_right) | |
-//! | `pratt_flat_fold_left` | TBD(icount: pratt_flat_fold_left) | TBD(ratio to pratt_typed_left) |
-//! | `pratt_flat_fold_right` | TBD(icount: pratt_flat_fold_right) | TBD(ratio to pratt_typed_right) |
-//! | `pratt_flat_collect_left` | TBD(icount: pratt_flat_collect_left) | |
-//! | `pratt_flat_collect_right` | TBD(icount: pratt_flat_collect_right) | |
-//! | `pratt_flat_bare_left` | TBD(icount: pratt_flat_bare_left) | TBD(difference from pratt_flat_control_left) |
-//! | `pratt_flat_bare_right` | TBD(icount: pratt_flat_bare_right) | TBD(difference from pratt_flat_control_right) |
-//! | `pratt_flat_bare_shallow` | TBD(icount: pratt_flat_bare_shallow) | TBD(difference from pratt_flat_control_shallow) |
-//! | `pratt_flat_control_left` | TBD(icount: pratt_flat_control_left) | |
-//! | `pratt_flat_control_right` | TBD(icount: pratt_flat_control_right) | |
-//! | `pratt_flat_control_shallow` | TBD(icount: pratt_flat_control_shallow) | |
-//! | `pratt_token_left` | TBD(icount: pratt_token_left) | PR 3's before |
-//! | `pratt_token_right` | TBD(icount: pratt_token_right) | PR 3's before |
-//! | `pratt_token_shallow` | TBD(icount: pratt_token_shallow) | PR 3's before |
+//! | `pratt_typed_left` | 347,119 | |
+//! | `pratt_typed_right` | 352,951 | |
+//! | `pratt_flat_fold_left` | 281,508 | 0.811 of `pratt_typed_left` |
+//! | `pratt_flat_fold_right` | 264,452 | 0.749 of `pratt_typed_right` |
+//! | `pratt_flat_collect_left` | 213,702 | |
+//! | `pratt_flat_collect_right` | 201,376 | |
+//! | `pratt_flat_bare_left` | 166,396 | +50 over `pratt_flat_control_left` |
+//! | `pratt_flat_bare_right` | 166,396 | +50 over `pratt_flat_control_right` |
+//! | `pratt_flat_bare_shallow` | 196,404 | +1,538 over `pratt_flat_control_shallow` |
+//! | `pratt_flat_control_left` | 166,346 | |
+//! | `pratt_flat_control_right` | 166,346 | |
+//! | `pratt_flat_control_shallow` | 194,866 | |
+//! | `pratt_token_left` | 203,059 | PR 3's before |
+//! | `pratt_token_right` | 187,187 | PR 3's before |
+//! | `pratt_token_shallow` | 210,871 | PR 3's before |
 //!
 //! `Checked` less `Bare`, for each operator, is the unit machine's price: the collect rows less the
 //! bare rows, over 252 operators in a chain source.
