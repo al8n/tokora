@@ -121,6 +121,9 @@ use crate::container::Stack;
 ///   machine keeps is overwritten, and where a reduction or a [`retract`](Self::retract) lets go
 ///   of a frame's own latch;
 /// - in its derived `Clone`, `PartialEq` and `Debug`, those traits of `S` and of each parameter.
+///   Its `PartialEq` leaves out the copies it keeps beside its frames: read off the frames, they
+///   would tell two machines apart where a storage that compares coarser than its frames calls
+///   them equal.
 ///
 /// An unwind out of any of them leaves the machine's count and its storage in agreement: a push
 /// raises the count only once the storage has taken the frame, and a pop lowers it as soon as the
@@ -189,7 +192,10 @@ pub struct PrattResolver<
 
 /// Everything of a machine but its storage. It holds no reference, so it moves between native
 /// frames by value when a loop re-seats the machine on a storage of another type.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Its `PartialEq` is written out, over what the machine compared before it kept copies beside its
+/// frames; `Debug` shows the copies too.
+#[derive(Debug, Clone)]
 pub(crate) struct ResolverState<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Post, Power> {
   /// What `poll` answers next, with the value or the reduction that answer holds.
   phase: Phase<V, Post, Power>,
@@ -206,27 +212,56 @@ pub(crate) struct ResolverState<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Pos
   root_latch: Option<Power>,
   /// A copy of the innermost sub-expression's latch, kept so that an offer reads no frame: the
   /// root's latch at the root, and otherwise the one the frame on top holds. Each push, each pop
-  /// and each latch the rule writes keeps it so, so it is a function of the frames and the root's
-  /// latch alone, and the latches themselves stay where they live.
+  /// and each latch the rule writes keeps it so, and the latches themselves stay where they live.
+  /// Equality leaves it out.
   latch: Option<Power>,
   /// How many of the latches the machine holds are set: the root's, and those of the frames below
   /// its count. A push gives its frame no latch, and each latch the rule writes, each pop, a `Done`
-  /// and `reset` keep it exact, so on every state no unwind interrupted it is a function of the
-  /// frames and the root's latch alone, as the copies are. No unwind leaves it below the true
-  /// count: a write is counted with no caller code between the two, and a latch is uncounted only
-  /// once it is out of the machine, its frame popped or the whole machine emptied. So at zero no
-  /// latch is set: a pop reads no latch off the frame left on top, and the rule's `None` writes the
-  /// copy alone.
+  /// and `reset` keep it exact on every state no unwind interrupted. No unwind leaves it below the
+  /// true count: a write is counted with no caller code between the two, and a latch is uncounted
+  /// only once it is out of the machine, its frame popped or the whole machine emptied. So at zero
+  /// no latch is set: a pop reads no latch off the frame left on top, and the rule's `None` writes
+  /// the copy alone. Equality leaves it out.
   latches: usize,
   /// The floor the frame on top gives its operand, kept so that an offer reads no frame: cloned out
   /// of the operator by each push the adapters feed, before the storage is asked, read back off
   /// the frame by each public push once the storage has taken it, and read off the frame each pop
   /// leaves on top. `None` at the root, whose floor is `floor` itself, so that `min_precedence` has
-  /// nothing here to change. It is a function of the frames and the count alone, so two machines
-  /// that hold the same frames keep the same one.
+  /// nothing here to change. Equality leaves it out.
   frame_floor: Option<Floor<Power>>,
   /// The operator payloads of the frames, which only the storage holds.
   _frames: PhantomData<fn() -> (Pre, LeftAssoc, RightAssoc, NeitherAssoc)>,
+}
+
+/// Equal over the phase, the count, the cap, the root's floor and the root's latch, which is what
+/// the machine compared before it kept copies beside its frames. The copies of the innermost floor
+/// and latch, and the count of latches set, are read off the frames, and a `Stack` may compare
+/// coarser than its frames: compared here, they would tell apart two machines that the storage and
+/// everything else call equal.
+impl<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Post, Power> PartialEq
+  for ResolverState<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Post, Power>
+where
+  V: PartialEq,
+  Post: PartialEq,
+  Power: PartialEq,
+{
+  fn eq(&self, other: &Self) -> bool {
+    self.phase == other.phase
+      && self.depth == other.depth
+      && self.max_depth == other.max_depth
+      && self.floor == other.floor
+      && self.root_latch == other.root_latch
+      && self._frames == other._frames
+  }
+}
+
+impl<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Post, Power> Eq
+  for ResolverState<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Post, Power>
+where
+  V: Eq,
+  Post: Eq,
+  Power: Eq,
+{
 }
 
 /// What a pending operator's operand admits: a power above `power`, and `power` itself too unless

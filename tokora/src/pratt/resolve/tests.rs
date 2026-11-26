@@ -1120,6 +1120,64 @@ fn a_storage_that_unwinds_before_it_changes_keeps_the_count_true() {
   assert_eq!(m.poll(), PrattPoll::Term);
 }
 
+/// A storage whose `PartialEq` compares how many frames each holds and nothing else, which
+/// `Stack` allows.
+#[derive(Debug, Default)]
+struct Coarse(ArrayDeque<Frame, U8>);
+
+impl PartialEq for Coarse {
+  fn eq(&self, other: &Self) -> bool {
+    self.0.len() == other.0.len()
+  }
+}
+
+impl Container<Frame> for Coarse {
+  fn push(&mut self, item: Frame) -> Result<(), Frame> {
+    Container::push(&mut self.0, item)
+  }
+
+  fn first(&self) -> Option<&Frame> {
+    self.0.front()
+  }
+
+  fn last(&self) -> Option<&Frame> {
+    self.0.back()
+  }
+
+  fn len(&self) -> usize {
+    self.0.len()
+  }
+
+  fn max_capacity(&self) -> usize {
+    8
+  }
+}
+
+impl Stack<Frame> for Coarse {
+  fn pop(&mut self) -> Option<Frame> {
+    self.0.pop_back()
+  }
+
+  fn last_mut(&mut self) -> Option<&mut Frame> {
+    self.0.back_mut()
+  }
+}
+
+/// Two machines compare as their phase, count, cap, root floor and root latch do, and as their
+/// storages do: the copies kept beside the frames are left out. Over a storage that compares
+/// lengths alone, `~x` and `!x` fed only their prefix operator, at powers 1 and 2, are equal
+/// machines, though the floors they keep for the operator on top differ.
+#[test]
+fn equality_leaves_out_the_copies_kept_beside_the_frames() {
+  let mut tilde: Machine<Coarse> = PrattResolver::with_stack(Coarse::default());
+  tilde.handle_prefix(prefix(0, 1)).unwrap();
+  let mut bang: Machine<Coarse> = PrattResolver::with_stack(Coarse::default());
+  bang.handle_prefix(prefix(1, 2)).unwrap();
+
+  assert_ne!(tilde.state.frame_floor, bang.state.frame_floor);
+  assert_eq!(tilde, bang);
+}
+
 #[test]
 fn into_parts_and_from_parts_give_the_same_machine_back_in_every_phase() {
   for (phase, m) in in_each_phase() {
