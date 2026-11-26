@@ -405,30 +405,32 @@
 //!
 //! ## The flat group, as measured (PR 2)
 //!
-//! The figures are from this branch's `perf` run 45744931146, on a GitHub-hosted `ubuntu-latest`
-//! runner (image `ubuntu-26.04`, version 20261116.202.1); the readings do not record the CPU. They
-//! are the `wall clock (advisory)` job's readings (`wallclock-readings`, the `ns_per_iter` of each
-//! id) on the head side, five rounds. Each is a ratio of two cells of one shape, taken round by
-//! round and read as the file's header reads a pair: the median over the rounds that were not
-//! contended, with its range in parentheses. A round is contended when any head-side id of the
-//! `pratt_typed` target is more than 10% above that id's own five-round median. No round was
-//! contended under that rule, so all five are kept. The job cannot say more than its population:
-//! a range that straddles 1.0 is a pair this run does not separate, and the figures are
-//! advisory.
+//! The figures are from `perf` run 45845254796 on `probe/machine-c4`, which is this branch's last
+//! library commit (`d70ad3f2`) merged with main's aarch64 count leg, so its library is the
+//! branch's. The `wall clock (advisory)` job ran on a GitHub-hosted `ubuntu-latest` runner (image
+//! `ubuntu-26.04`, version 20261122.9.1), x86_64; the readings do not record the CPU. They are that
+//! job's readings (`wallclock-readings`, the `ns_per_iter` of each id) on the head side, five
+//! rounds. Each is a ratio of two cells of one shape, taken round by round and read as the file's
+//! header reads a pair: the median over the rounds that were not contended, with its range in
+//! parentheses. A round is contended when any head-side id of the `pratt_typed` target is more than
+//! 10% above that id's own five-round median. Round 5 was contended under that rule, by the
+//! `collect/`, `collect_bare/` and `collect_kind/` cells of `bare_operand` (12.0%, 12.6% and 11.9%
+//! above their medians), so rounds 1 to 4 are kept. The job cannot say more than its population: a
+//! range that straddles 1.0 is a pair this run does not separate, and the figures are advisory.
 //!
 //! | shape | `fold/` over `pratt/typed/` | `fold_kept/` over `fold/` | `collect/` over `collect_bare/` | `collect_kind/` over `collect/` |
 //! |---|---|---|---|---|
-//! | `bare_operand` | 0.64 (0.63-0.66) | | 1.05 (1.01-1.08) | 1.03 (0.99-1.07) |
-//! | `left_chain/1` | 0.61 (0.60-0.63) | | 1.10 (1.06-1.11) | 1.01 (0.96-1.04) |
-//! | `right_chain/1` | 0.62 (0.61-0.63) | | 1.08 (1.07-1.10) | 1.01 (0.99-1.04) |
-//! | `left_chain/2` | 0.64 (0.64-0.66) | | 1.13 (1.07-1.14) | |
-//! | `right_chain/2` | 0.63 (0.61-0.64) | | 1.11 (1.09-1.13) | |
-//! | `left_chain/8` | 0.68 (0.67-0.72) | | 1.17 (1.14-1.19) | |
-//! | `right_chain/8` | 0.67 (0.65-0.70) | 0.96 (0.92-0.98) | 1.21 (1.19-1.24) | |
-//! | `left_chain/32` | 0.70 (0.68-0.73) | | 1.24 (1.20-1.25) | |
-//! | `right_chain/32` | 0.67 (0.66-0.69) | 0.98 (0.94-1.01) | 1.20 (1.17-1.21) | |
-//! | `left_chain/64` | 0.70 (0.70-0.72) | | 1.26 (1.22-1.31) | |
-//! | `right_chain/64` | 0.66 (0.62-0.67) | 0.99 (0.99-1.05) | 1.21 (1.15-1.23) | |
+//! | `bare_operand` | 0.63 (0.62-0.64) | | 1.09 (1.09-1.10) | 1.01 (1.01-1.01) |
+//! | `left_chain/1` | 0.56 (0.56-0.56) | | 1.10 (1.10-1.12) | 1.03 (1.02-1.03) |
+//! | `right_chain/1` | 0.56 (0.56-0.57) | | 1.10 (1.10-1.11) | 1.03 (1.02-1.03) |
+//! | `left_chain/2` | 0.53 (0.53-0.53) | | 1.16 (1.15-1.17) | |
+//! | `right_chain/2` | 0.52 (0.52-0.53) | | 1.13 (1.13-1.15) | |
+//! | `left_chain/8` | 0.54 (0.54-0.54) | | 1.23 (1.23-1.25) | |
+//! | `right_chain/8` | 0.51 (0.51-0.51) | 0.98 (0.96-0.98) | 1.19 (1.18-1.21) | |
+//! | `left_chain/32` | 0.53 (0.52-0.53) | | 1.27 (1.27-1.28) | |
+//! | `right_chain/32` | 0.48 (0.47-0.48) | 0.99 (0.98-1.00) | 1.22 (1.21-1.23) | |
+//! | `left_chain/64` | 0.53 (0.52-0.53) | | 1.28 (1.28-1.28) | |
+//! | `right_chain/64` | 0.46 (0.46-0.47) | 0.99 (0.99-1.00) | 1.22 (1.22-1.22) | |
 //!
 //! `tokora-icount`'s `pratt_rows.rs` holds instruction counts for two of these comparisons, over
 //! sources of four chains of 63 operators each, and its header has them: `fold/` over
