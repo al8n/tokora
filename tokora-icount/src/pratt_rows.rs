@@ -13,7 +13,7 @@
 //! | `pratt_flat_fold_left`, `pratt_flat_fold_right` | `flat(..).folding(..)` | what evaluating as you parse costs against the typed driver |
 //! | `pratt_flat_collect_left`, `pratt_flat_collect_right` | `flat(..).parse_into(..)` in `Checked` mode, with a handler that sums | what the unit machine costs |
 //! | `pratt_flat_bare_left`, `pratt_flat_bare_right`, `pratt_flat_bare_shallow` | the same with `bare()` | what `Bare` costs |
-//! | `pratt_flat_control_left`, `pratt_flat_control_right`, `pratt_flat_control_shallow` | the first design's loop, written by hand below, with the same handler | what `Bare` must equal |
+//! | `pratt_flat_control_left`, `pratt_flat_control_right`, `pratt_flat_control_shallow` | the first design's loop, written by hand below, with the same handler | what `bare()` is read against; it has no scanner-trip check |
 //! | `pratt_token_left`, `pratt_token_right` | `InputRef::pratt` | the token-level driver's instrument (#366) |
 //! | `pratt_token_shallow` | `InputRef::pratt`, over many expressions of one operator each | its per-expression costs |
 //!
@@ -22,8 +22,9 @@
 //! Every row reads `PTok`'s `PrattToken` implementation, and a source is one of three: a
 //! left-associative chain, a right-associative chain, and many expressions of one operator each.
 //! `pratt_fixture.rs` has them, with the accumulators a driver must produce over each. A row
-//! compares its driver's result with the accumulator before it counts anything, so a driver that
-//! skips a fold, or an operator, fails the run rather than reading faster.
+//! compares its driver's result with the accumulator on every iteration, before it folds the
+//! result into the run's checksum, so a driver that skips a fold, or an operator, fails the run
+//! rather than reading faster.
 //!
 //! ## Why the shallow source is there
 //!
@@ -41,15 +42,18 @@
 //! parser first, the head read with `try_expect_map_or_stop` and classified by the table, the
 //! operator committed by the read that classified it, and one bit noted for which error a missing
 //! operand is. It tells the same `Sum` handler the same items. `pratt_flat_bare_*` reads
-//! `Flat::bare`, which is meant to compile to that loop, so each bare row is meant to read its
-//! control's instruction count, and the difference of the two is the number to look at.
+//! `Flat::bare`, which is meant to compile to that loop with the scanner-trip check added, so each
+//! bare row is meant to read its control's instruction count plus that check, and the difference of
+//! the two is the number to look at.
 //!
 //! What the control leaves out is the scanner-trip verdicts the library's loop takes where an
-//! expression ends or refuses: their witness is crate-private, so the harness cannot call it. The
-//! shallow row reads that, once for each expression. It does take the descent-trip baseline at
-//! every term, which is public.
+//! expression ends or refuses: their witness is crate-private, so the harness cannot call it. That
+//! omission accounts for the recorded +50 on each four-expression chain source and +1,538 on the
+//! 128-expression shallow source, which ends 32 times as many expressions. The control does take
+//! the descent-trip baseline at every term, which is public.
 //!
-//! A difference that a step of the mode explains is repaired in that step. A residue that no step
+//! A difference that a step of the mode explains is repaired in that step, or named where the
+//! harness cannot reach it, as the scanner-trip check above is. A residue that no step
 //! explains is not chased: two loops written apart can differ by a few instructions through
 //! register allocation alone, and the crate has measured one extracted function moving three rows
 //! by 0.5% to 2.4% that way (`tokora/src/combinator/many/macros.rs`). It goes to the owner, with a
@@ -81,8 +85,9 @@
 //! | `pratt_token_right` | 187,187 | PR 3's before |
 //! | `pratt_token_shallow` | 210,871 | PR 3's before |
 //!
-//! `Checked` less `Bare`, for each operator, is the unit machine's price: the collect rows less the
-//! bare rows, over 252 operators in a chain source.
+//! `Checked` less `Bare` is the unit machine's price: the collect rows less the bare rows, which
+//! over the 252 operators of a chain source is its price for each operator, with the four
+//! expressions' own set-up and reset left in.
 //!
 //! `tokora-benches`'s `pratt_typed.rs` times related comparisons, and its header has them: fold
 //! over typed, and checked over bare. Its typed cells run handwritten channels where
