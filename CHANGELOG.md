@@ -320,6 +320,18 @@ copy, and `unused_must_use` reports it. **The remedy is UFCS**:
   your own: see
   [above](#unreleased-source-breaking-additions-that-can-change-behaviour-with-no-diagnostic-at-the-call-site).
 
+### Performance
+
+- **A delimited many-builder's opener test only classifies.** All four delimited many-builders
+  (`repeated`, `repeated_while`, `separated_by_*`, `separated_by_*_while`) tested the opening
+  delimiter with a predicate that, on a wrong opener, cloned the token and its span and built the
+  expected-open `UnexpectedToken` inside itself, so the predicate carried that work on every call,
+  the calls that find the opener among them. It now only classifies. A wrong opener is reported
+  after it, from the front of the stream, where the decline leaves the token in every cache
+  capacity, by a cold path that clones the token once. The report is the same value, emitted at
+  the same point and suppressed by the same key, and a missing opener at the end of input is the
+  same error. Internal: no public item changes.
+
 ## 0.13.2 (2026-11-15)
 
 <a id="0.13.2-source-breaking-additions-that-can-change-behaviour-with-no-diagnostic-at-the-call-site"></a>

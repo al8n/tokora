@@ -1055,6 +1055,36 @@ where
     Ok(())
   }
 
+  /// Reports the unconsumed token at the front of the stream as `make` words it, through
+  /// [`emit_unexpected_front`](Self::emit_unexpected_front). `Ok(false)`: the stream holds no
+  /// token, and nothing was reported.
+  ///
+  /// For a delimited driver whose opener predicate declined a token and copied nothing out of it.
+  /// A decline leaves the token at the front in every cache capacity, in the parked slot when the
+  /// cache refuses it, so this clones it from there once, for `make`, and lexes nothing. The
+  /// watermark is keyed on the end of the report's span, which is what the drivers published
+  /// when their predicate built the report.
+  // Cold: a wrong opener is an error path, and this keeps the clone and the report out of the
+  // drivers' frames.
+  #[cfg(feature = "many")]
+  #[cold]
+  #[inline(never)]
+  pub(crate) fn report_wrong_opener<F>(
+    &mut self,
+    make: F,
+  ) -> Result<bool, <Ctx::Emitter as Emitter<'inp, L, Lang>>::Error>
+  where
+    F: FnOnce(Spanned<L::Token, L::Span>) -> crate::error::UnexpectedTokenOf<'inp, L, Lang>,
+  {
+    let Some(front) = self.front() else {
+      return Ok(false);
+    };
+    let report = make(front.token.cloned());
+    let front_end = report.span_ref().end_ref().clone();
+    self.emit_unexpected_front(report, front_end)?;
+    Ok(true)
+  }
+
   /// Whether the emitter currently holds a live unexpected-token report naming the front token
   /// ending at `end`.
   ///
