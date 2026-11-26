@@ -2711,6 +2711,200 @@ where
     }
   }
 
+  /// Runs `f` as a **look-ahead**: speculation that is always taken back, and whose lexing is
+  /// reported apart from the rest of the parse.
+  ///
+  /// `f` parses through the input exactly as it would inside [`attempt`](Self::attempt). When it
+  /// returns, the input is put back as it stood when this was called, and `f`'s value is
+  /// returned. Put back means the position, the lexer state, the regime, the emissions, the
+  /// dedup watermark, the front-report watermark, the poison boundary, **the tokens the cache
+  /// held and the token parked in front of them**. Nothing `f` consumed is kept.
+  ///
+  /// # What it costs, and where the cost is reported
+  ///
+  /// Every item `f` lexes is charged to the [token budget](Self::token_budget) when it is
+  /// lexed, like any other, so the durable ceiling refuses a look-ahead's work exactly as it
+  /// refuses any other work that would exceed it. What a look-ahead adds is a second reading:
+  /// [`TokenBudgetTally::look_ahead_spent`](crate::input::TokenBudgetTally::look_ahead_spent)
+  /// counts the items charged while a look-ahead was open. `spent() - look_ahead_spent()` is then
+  /// what the parse spent everywhere else, and a look-ahead leaves that difference where it found
+  /// it.
+  ///
+  /// The difference is for a caller that bounds its own rescans against the work it kept — a
+  /// recovery allowance — and must not let work it chose to give back count against it. The count
+  /// moves when the look-ahead settles, so read the difference outside every look-ahead: inside
+  /// `f` it still includes what `f` has lexed so far.
+  ///
+  /// # Only this method excludes
+  ///
+  /// A declined [`attempt`](Self::attempt), [`try_attempt`](Self::try_attempt) or
+  /// [`attempt_parse`](Self::attempt_parse), and a rolled-back [`Transaction`], all stay in
+  /// `spent() - look_ahead_spent()`. A site opts into the exclusion by calling this.
+  ///
+  /// # The cache window comes back
+  ///
+  /// A declined attempt that consumed a token the cache held drops it. The next read then lexes
+  /// it again, with every lexer error between the committed position and that token. A look-ahead
+  /// restores the cache it was entered with, and a parked front token, after the rollback. The
+  /// read after a look-ahead therefore lexes what it would have lexed had the look-ahead never
+  /// run, and that is what makes the difference exact for everything that follows the look-ahead,
+  /// not only for what it lexed itself. The exceptions:
+  ///
+  /// - **A budget `f` met.** `f`'s items were charged, so the committed path reaches the ceiling
+  ///   sooner: the restored window is served without a lex, as it would have been, and the next
+  ///   lex is refused where, without the look-ahead, the parse would have gone further first.
+  /// - **A withheld head, on a non-final [`Partial`](crate::input::Partial) input.** A head the
+  ///   frontier rules withheld from `f` is remembered, and the committed read that starts at the
+  ///   same offset is answered from that memo without a lex. That is at most one produce event for
+  ///   each withheld-head verdict a look-ahead reaches before the committed path does, in the
+  ///   permissive direction.
+  /// - **Attempt-relative trip readers.** A trip inside `f` is counted, and nothing lowers the
+  ///   count, so a reader that compares a trip counter against a baseline taken before the
+  ///   look-ahead sees it, exactly as it sees a trip inside a declined attempt.
+  /// - **A cache whose `Clone` is not a copy of the queue**, below.
+  /// - **An unwind out of the look-ahead's own rollback**, under *If `f` panics*.
+  /// - **A saturated `spent`**, which only an unlimited budget reaches: there the difference stops
+  ///   moving.
+  ///
+  /// The window is copied when the look-ahead begins, through `Ctx::Cache: Clone` and
+  /// `L::Token: Clone`. The copy must be a copy of the queue, which is the `Clone` law of the
+  /// [cache contract](crate::cache::Cache), and every cache this crate ships keeps it. With a
+  /// cache whose clone shares its storage, or keeps only a prefix of the queue, less comes back:
+  /// the read after the look-ahead lexes again what did not, as it would after an attempt, and
+  /// that lexing is charged to the difference rather than lost.
+  ///
+  /// # Nesting
+  ///
+  /// A look-ahead inside a look-ahead is counted once, by the outermost. When a look-ahead
+  /// settles, it puts the difference back to the value it had at its start, a value that already
+  /// discounts whatever an inner look-ahead excluded. An attempt inside a look-ahead is excluded
+  /// with it. A look-ahead inside an attempt stays excluded, whatever the attempt then decides.
+  ///
+  /// # If `f` panics
+  ///
+  /// The rollback, the window and the exclusion settle on an unwind out of `f` exactly as on a
+  /// return: the guard rolls the input back, and then the window and the count are installed. A
+  /// host that catches it holds an input that reads as if the look-ahead had returned.
+  ///
+  /// The rollback itself runs caller code before it restores anything: `Source::len`, offset
+  /// comparisons, `Emitter::release`, and the destructors of what it evicts. If that unwinds,
+  /// nothing is installed and nothing is excluded. The input is as [`attempt`](Self::attempt)
+  /// leaves it on the same edge, and what the look-ahead lexed stays in the difference.
+  ///
+  /// # What it does not take back
+  ///
+  /// The durable cells, because no rollback takes them back:
+  /// - the budget's `spent` and its one-shot probe;
+  /// - the scanner and resource trip counters;
+  /// - the regime id source;
+  /// - a partial input's withheld-head memo.
+  ///
+  /// Nor a session point opened before the look-ahead that `f` commits. `attempt` behaves the same
+  /// way. In allocator builds, rolling back to such a point inside `f` is refused at the restore,
+  /// because the look-ahead's base is pinned above it.
+  ///
+  /// A terminal stop that `f` meets is counted where every terminal stop is counted, and its
+  /// boundary and its diagnostic are taken back with the rest; the committed path meets it again
+  /// when it gets there. `f`'s value is returned as it is, an
+  /// [`Incomplete`](crate::error::Incomplete) included: a look-ahead swallows nothing. On a
+  /// non-final partial input, propagate that `Incomplete` rather than read it as "no evidence": it
+  /// says the look-ahead ran out of buffer, and a decision taken on it is taken on a truncated one.
+  ///
+  /// # Panics
+  ///
+  /// In debug builds, when the copy of the cache taken at the start holds a different number of
+  /// entries than the queue, or a different front: a `Ctx::Cache` whose `Clone` breaks its law.
+  /// Nothing is registered at that point, so the input is untouched.
+  ///
+  /// # Fuzz coverage
+  ///
+  /// In the fuzz alphabet as `Op::LookAhead`, whose body consumes and then peeks; see
+  /// `OP_SURFACE_CENSUS` in `src/fuzz/ops.rs`.
+  #[must_use = "a look-ahead keeps nothing: its value is all it returns"]
+  pub fn look_ahead<F, R>(&mut self, f: F) -> R
+  where
+    F: FnOnce(&mut Self) -> R,
+    L::Token: Clone,
+    Ctx::Cache: Clone,
+  {
+    trace_event!(self, "look_ahead");
+    // CAPTURE_WINDOW — the window is copied FIRST, while nothing is registered. Both clones are
+    // caller code, and an unwind out of either strands nothing: the guard that takes the pin, the
+    // lineage entry and the emitter mark does not exist yet.
+    let cache = self.cache().clone();
+    let parked = if Self::can_park() {
+      self.pending.clone()
+    } else {
+      None
+    };
+    debug_assert!(
+      cache.len() == self.cache().len() && cache.front_span() == self.cache().front_span(),
+      "a `Cache` whose `Clone` did not copy the queue: the copy holds {} entries from {:?}, the \
+       queue {} from {:?}. `Clone` must copy the queue; see `Cache`",
+      cache.len(),
+      cache.front_span(),
+      self.cache().len(),
+      self.cache().front_span(),
+    );
+    // `look_ahead_spent <= spent` always holds; saturating anyway, as the settle is.
+    let kept = self
+      .token_budget
+      .spent()
+      .saturating_sub(self.token_budget.look_ahead_spent());
+    let mut settle = LookAheadSettle {
+      input: self,
+      window: Some((cache, parked)),
+      kept,
+      armed: false,
+    };
+    // `attempt`'s own guard: the begin point saved and pinned. Declared after `settle`, so an
+    // unwind drops it first, and its rolling-back `Drop` runs before the settle installs anything.
+    let mut txn = settle.input.guard_with::<Rollback>();
+    // Armed: an unwind out of `f` from here is rolled back by the guard's `Drop`, and the window
+    // then describes the input again.
+    settle.armed = true;
+    let value = f(&mut txn);
+    // Disarmed across the explicit rollback. Its first phase runs caller code before anything is
+    // restored, and an unwind there leaves the input on `f`'s branch, where `attempt` leaves it on
+    // the same edge. The window installed over that branch would serve the head twice.
+    settle.armed = false;
+    txn.rollback_abandoning_points();
+    settle.armed = true;
+    value
+  }
+
+  /// SETTLE_CENSUS / FRONT_CENSUS — a look-ahead's settle: the window it was entered with goes
+  /// back in, and what it lexed is excluded.
+  ///
+  /// Reached only once the look-ahead's rollback has returned, so every other fact is back at its
+  /// entry value, `cache_pushes` included, and the window installed here is the one those facts
+  /// describe. Installing it pushes nothing and lexes nothing. The three fact writes have no caller
+  /// code between them, and what they displace dies at the one drop site below, with the settle
+  /// whole.
+  ///
+  /// A copied parked token re-enters the slot under [`park`](Self::park)'s rule: it is not the
+  /// token the slot just handed out, so it takes a new id. After the rollback the slot is empty.
+  #[inline(always)]
+  fn install_look_ahead(
+    &mut self,
+    cache: Ctx::Cache,
+    parked: Option<CachedTokenOf<'inp, L>>,
+    kept: usize,
+  ) {
+    let displaced_cache = core::mem::replace(self.cache, cache);
+    let displaced_park = match parked {
+      Some(tok) => {
+        self.session.lineage.record_park();
+        core::mem::replace(self.pending, Some(tok))
+      }
+      None => None,
+    };
+    self.token_budget.settle_look_ahead(kept);
+    // The one drop site, with the settle whole: the displaced cache's `Drop`, and its entries',
+    // are caller code.
+    drop((displaced_cache, displaced_park));
+  }
+
   /// Closure-scoped span capture — the imperative twin of
   /// [`spanned`](crate::ParseInput::spanned), for hand-sequenced productions.
   ///
@@ -4850,6 +5044,54 @@ where
     // The one write-back: `Resume.at` observes the loop's final position on every exit path.
     *at_slot = lex_at;
     result
+  }
+}
+
+/// The settle a [`look_ahead`](InputRef::look_ahead) owes, held across its closure: the window it
+/// was entered with, the difference it puts back, and whether installing that window is correct.
+///
+/// A guard rather than a statement after the rollback, because the closure is caller code and may
+/// unwind. `look_ahead` declares it before the attempt guard, so on an unwind out of the closure
+/// the attempt guard's rolling-back `Drop` runs first and this one installs after it.
+struct LookAheadSettle<'s, 'inp, 'closure, L, Ctx, Lang: ?Sized, Cmpl>
+where
+  L: Lexer<'inp>,
+  L::State: Clone,
+  Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
+{
+  input: &'s mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
+  /// The cache and the parked token as the look-ahead found them. `Some` until the settle takes
+  /// them; dropped with the guard when it does not.
+  window: Option<(Ctx::Cache, Option<CachedTokenOf<'inp, L>>)>,
+  /// `spent() - look_ahead_spent()` when the look-ahead began, the value the settle restores.
+  kept: usize,
+  /// Whether the input stands where the window belongs, or will once the attempt guard's
+  /// rolling-back `Drop` has run. False until the guard exists, false across the explicit
+  /// rollback, and true again once that rollback returns. When it is false the settle installs
+  /// nothing, which leaves the input as `attempt` leaves it on the same edge.
+  armed: bool,
+}
+
+impl<'inp, L, Ctx, Lang: ?Sized, Cmpl> Drop for LookAheadSettle<'_, 'inp, '_, L, Ctx, Lang, Cmpl>
+where
+  L: Lexer<'inp>,
+  L::State: Clone,
+  Ctx: ParseContext<'inp, L, Lang>,
+  Cmpl: Completeness,
+{
+  /// Installs the window and the exclusion when the guard is armed, and does nothing otherwise.
+  ///
+  /// Outlined for `Transaction`'s reason: a destructor is emitted at every unwind edge of its
+  /// owner. It asserts nothing, because it may run while unwinding.
+  #[inline(never)]
+  fn drop(&mut self) {
+    if !self.armed {
+      return;
+    }
+    if let Some((cache, parked)) = self.window.take() {
+      self.input.install_look_ahead(cache, parked, self.kept);
+    }
   }
 }
 

@@ -281,6 +281,14 @@ pub struct TokenBudgetTally {
   /// is an argument about the cell, and therefore covers this flag verbatim. A separate cell would
   /// have needed its own copy of all four, and a copy is a thing that can drift.
   probed_at_limit: bool,
+  /// How many of `spent`'s items were charged while a look-ahead was open. See
+  /// [`look_ahead_spent`](Self::look_ahead_spent).
+  ///
+  /// It rides here for `probed_at_limit`'s reason. Its subject is `spent`, which no rollback
+  /// refunds, so it must not be restored either: as a `Checkpoint` field, an enclosing declined
+  /// attempt would put it back while `spent` kept the charge, and the exclusion would vanish. Its
+  /// one writer is [`settle_look_ahead`](Self::settle_look_ahead).
+  look_ahead_spent: usize,
 }
 
 impl TokenBudgetTally {
@@ -295,6 +303,7 @@ impl TokenBudgetTally {
       budget,
       spent: 0,
       probed_at_limit: false,
+      look_ahead_spent: 0,
     }
   }
 
@@ -310,6 +319,49 @@ impl TokenBudgetTally {
   #[inline(always)]
   pub const fn spent(&self) -> usize {
     self.spent
+  }
+
+  /// How many of [`spent`](Self::spent)'s items were charged while a
+  /// [look-ahead](crate::InputRef::look_ahead) was open.
+  ///
+  /// Never more than `spent()`, so `spent() - look_ahead_spent()` cannot underflow. That
+  /// difference is the parse's spend outside every look-ahead: its own reads, and its committed
+  /// and declined attempts alike. A look-ahead leaves it where it found it.
+  ///
+  /// The count moves when a look-ahead **settles**, not while it lexes. Read from inside a
+  /// look-ahead's closure, it still has the value it had when that look-ahead began, so the
+  /// difference reads high by what the closure has lexed so far. Read it outside every
+  /// look-ahead.
+  ///
+  /// Durable for the reasons `spent` is, since it rides in the same cell:
+  /// - it is not a [`Checkpoint`](super::Checkpoint) field;
+  /// - a state re-key does not reach it;
+  /// - nothing lowers it;
+  /// - it has one writer, a look-ahead's settle.
+  ///
+  /// A rollback after a look-ahead therefore keeps both the charge and its exclusion, and the
+  /// difference stays exact however the parse backtracks later. It is monotone, and nested
+  /// look-aheads are counted once.
+  ///
+  /// It is per `Input`, like `spent`: a [`PartialSession`](super::PartialSession) redrive starts
+  /// both at zero.
+  #[inline(always)]
+  pub const fn look_ahead_spent(&self) -> usize {
+    self.look_ahead_spent
+  }
+
+  /// Settles a look-ahead: puts `spent() - look_ahead_spent()` back to `kept`, the value it had
+  /// when that look-ahead began.
+  ///
+  /// An assignment, not an addition, and that is what counts nested look-aheads once: an inner
+  /// look-ahead's raise is part of the spend the outer one excludes as a whole. Inside a
+  /// look-ahead the difference never falls below the outer `kept`, so the assignment never lowers
+  /// the count; the `max` makes "nothing lowers it" a property of this body rather than of that
+  /// argument. `saturating_sub` keeps it total if `spent` saturated. It asserts nothing, because
+  /// the settle that calls it may run while unwinding.
+  #[inline(always)]
+  pub(crate) fn settle_look_ahead(&mut self, kept: usize) {
+    self.look_ahead_spent = self.look_ahead_spent.max(self.spent.saturating_sub(kept));
   }
 
   /// Whether the ceiling has been met, so that an item the lexer would hand back now is refused.
