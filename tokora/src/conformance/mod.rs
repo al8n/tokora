@@ -385,8 +385,8 @@
 //! kit has no way to fabricate a value of.
 //!
 //! **`Clone`, for a cache that has it.** The contract's `Clone` law — a clone is a copy of the
-//! queue — binds only a cache that implements `Clone`, which is what
-//! [`InputRef::look_ahead`](crate::InputRef::look_ahead) requires of one. So it has its own entry,
+//! queue — binds only a cache that implements `Clone`, which is what a
+//! [look-ahead](crate::InputRef::look_ahead) requires of one. So it has its own entry,
 //! [`run_clone`](CacheHarness::run_clone), bounded on `Clone`, and `run` asks nothing of a cache
 //! but `Cache`. At every residency from empty to full it clones a filled cache and drains the
 //! clone, comparing every entry, the length and `remaining`, and it checks the original is as it
