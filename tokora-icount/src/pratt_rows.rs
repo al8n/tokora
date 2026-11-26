@@ -83,6 +83,11 @@
 //!
 //! `Checked` less `Bare`, for each operator, is the unit machine's price: the collect rows less the
 //! bare rows, over 252 operators in a chain source.
+//!
+//! `tokora-benches`'s `pratt_typed.rs` times related comparisons, and its header has them: fold
+//! over typed, and checked over bare. Its typed cells run handwritten channels where
+//! `pratt_typed_*` above runs the table's, and it times `fold_kept` and `collect_kind` workloads
+//! that have no row here.
 
 use std::hint::black_box;
 

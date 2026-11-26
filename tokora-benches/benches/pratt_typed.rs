@@ -235,8 +235,9 @@
 //! * `fold/right_chain/{8,32,64}` against `fold_kept/right_chain/{8,32,64}`: what the default
 //!   storage's spill past four frames costs. `/8` is there because four is the default's bound.
 //! * `collect/` less `collect_bare/` is the unit machine's price for each operator, and
-//!   `collect_bare/` is read against the control `tokora-icount` writes by hand
-//!   (`pratt_flat_control_*`), which it must equal.
+//!   `collect_bare/` is timed against no control. The control `tokora-icount` writes by hand
+//!   (`pratt_flat_control_*`), which `bare()` must equal, has instruction-count rows only, and
+//!   those are read against `pratt_flat_bare_*`, not against this group's cells.
 //! * `collect_kind/` less `collect/`, at the same shape, is what the seam costs without a sink:
 //!   the leading-trivia peek and the two events.
 //!
@@ -415,8 +416,14 @@
 //! | `left_chain/64` | 0.70 (0.70-0.72) | | 1.26 (1.22-1.31) | |
 //! | `right_chain/64` | 0.66 (0.62-0.67) | 0.99 (0.99-1.05) | 1.21 (1.15-1.23) | |
 //!
-//! The instruction counts of the same comparisons, over one chain of 63 operators and over
-//! expressions of one operator each, are `tokora-icount`'s `pratt_rows.rs`, in its own header.
+//! `tokora-icount`'s `pratt_rows.rs` holds instruction counts for two of these comparisons, over
+//! sources of four chains of 63 operators each, and its header has them: `fold/` over
+//! `pratt/typed/` as `pratt_flat_fold_*` over `pratt_typed_*`, and `collect/` over `collect_bare/`
+//! as `pratt_flat_collect_*` over `pratt_flat_bare_*`. They are related, not the same, readings.
+//! Its typed baseline is the table-driven `pratt()` over `PrattTable::lhs` and `rhs`, where
+//! `pratt/typed/` here is timed over the handwritten channels `parse_lhs` and `parse_rhs`. The
+//! `fold_kept/` over `fold/` and `collect_kind/` over `collect/` columns are timed only: that
+//! file has no workload for either.
 //!
 //! [`Pratt`]: tokora::pratt::Pratt
 //! [pratt]: tokora::pratt::pratt
