@@ -277,10 +277,25 @@ jobs:
   # them their inlining without touching a file under `combinator/many/`. A filter narrower than
   # the code a gate protects is the defect this repository has hit six times (#181, #195, #200,
   # #208, #217, #220), and it would exempt exactly the regressions that are hardest to attribute.
+  #
+  # ── TWO ARCHITECTURES, ONE UBUNTU RELEASE ──────────────────────────────────────────────────
+  #
+  # The job is a matrix over `ubuntu-26.04` (x86_64) and `ubuntu-26.04-arm` (aarch64). Both legs
+  # pin the SAME Ubuntu release, so the two differ in architecture and not in distribution,
+  # valgrind package or toolchain packaging; `ubuntu-latest` would drift off that on its own
+  # schedule. Each leg compares its own two sides on its own runner: a count is only comparable
+  # with another taken on the same architecture, so the legs never read each other's numbers.
+  # `fail-fast: false` keeps one architecture's failure from cancelling the other's reading, and
+  # the readings artifact is named per leg because `upload-artifact` rejects a duplicate name
+  # within a run.
   icount:
-    name: instruction counts
-    runs-on: ubuntu-latest
+    name: instruction counts (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-26.04, ubuntu-26.04-arm]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -300,9 +315,9 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: ${{ runner.os }}-icount-${{ hashFiles('**/Cargo.toml') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-icount-${{ hashFiles('**/Cargo.toml') }}
           restore-keys: |
-            ${{ runner.os }}-icount-
+            ${{ runner.os }}-${{ runner.arch }}-icount-
       - name: Install Rust
         run: rustup update stable --no-self-update && rustup default stable
       - name: Install valgrind
@@ -318,7 +333,7 @@ jobs:
         with:
           # The head side's file is the per-axis baseline #259 starts from, so it is kept
           # whether the job passed or failed.
-          name: icount-readings
+          name: icount-readings-${{ matrix.os }}
           path: ${{ runner.temp }}/icount/*.json
           if-no-files-found: warn
 
