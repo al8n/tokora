@@ -866,7 +866,7 @@ it tells a [`PrattHandler`](crate::pratt::PrattHandler) each item in written ord
 nothing, and a later pass gives the expression its tree. [`folding`](crate::pratt::Flat::folding)
 to evaluate as you parse: the reductions arrive in precedence order, and a fold's `Err` ends the
 parse at its operator. Driving the machine yourself does what `folding` does, for an operator a
-table cannot classify.
+table cannot classify. [Chapter 5](super::ch05_pratt) has what each costs, measured.
 
 ```text
 flat(table: PrattTable<Expr, Power>, operand) -> Flat<…>

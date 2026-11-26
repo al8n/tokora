@@ -1,4 +1,5 @@
-//! Runs one repetition workload a given number of times, and prints a checksum.
+//! Runs one workload a given number of times, and prints a checksum. A workload is a repetition
+//! engine (`workloads.rs`) or a Pratt driver (`pratt_rows.rs`).
 //!
 //! It counts nothing. Everything that counts instructions is outside the compiled artefact,
 //! in valgrind — `ci/icount/measure.py` runs this binary under `--tool=callgrind` at two
@@ -29,6 +30,8 @@
 
 mod compat;
 mod fixture;
+mod pratt_fixture;
+mod pratt_rows;
 mod workloads;
 
 use std::process::ExitCode;
@@ -37,13 +40,13 @@ fn main() -> ExitCode {
   let args: Vec<String> = std::env::args().skip(1).collect();
   match args.as_slice() {
     [flag] if flag == "--list" => {
-      for name in workloads::NAMES {
+      for name in workloads::NAMES.iter().chain(pratt_rows::NAMES) {
         println!("{name}");
       }
       ExitCode::SUCCESS
     }
     [name, iters] => match iters.parse::<u64>() {
-      Ok(iters) => match workloads::run(name, iters) {
+      Ok(iters) => match workloads::run(name, iters).or_else(|| pratt_rows::run(name, iters)) {
         // The checksum is printed rather than discarded so that a run which parsed nothing is
         // distinguishable from one that parsed everything. `ci/icount/measure.py` requires the
         // two runs to report checksums in the ratio their iteration counts are in, which is a
@@ -54,10 +57,12 @@ fn main() -> ExitCode {
         }
         None => {
           eprintln!("tokora-icount: no workload named `{name}`");
-          eprintln!(
-            "tokora-icount: known workloads: {}",
-            workloads::NAMES.join(", ")
-          );
+          let known: Vec<&str> = workloads::NAMES
+            .iter()
+            .chain(pratt_rows::NAMES)
+            .copied()
+            .collect();
+          eprintln!("tokora-icount: known workloads: {}", known.join(", "));
           ExitCode::FAILURE
         }
       },

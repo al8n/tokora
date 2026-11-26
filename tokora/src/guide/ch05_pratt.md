@@ -362,6 +362,16 @@ It has two adapters, and the rule for choosing between them is the one thing to 
 - **Driving the machine yourself** does what `folding` does, for an operator a table cannot
   classify.
 
+Measured, over one table and one source, `folding` takes TBD(icount: pratt_flat_fold_left over
+pratt_typed_left) of the instructions the typed driver takes on a left-associative chain of 63
+operators, and TBD(icount: pratt_flat_fold_right over pratt_typed_right) on a right-associative
+one. In time, the same comparison over `tokora-benches`' `pratt/flat` cells reads
+TBD(wall clock: fold/ over pratt/typed/). `parse_into` with
+[`bare`](crate::pratt::Flat::bare) takes TBD(icount: pratt_flat_bare over pratt_flat_control) of the
+instructions of the first design's loop, written out by hand over the same reads. The figures are
+for the lexer state those cells carry, 64 bytes, which a checkpoint and a staged token clone, and
+they move with it.
+
 A calculator over `i64` on `folding`, whose infix fold checks its arithmetic, refuses an overflow
 at its operator:
 
