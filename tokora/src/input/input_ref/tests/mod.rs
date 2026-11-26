@@ -9382,6 +9382,94 @@ fn the_two_completeness_routes_are_pinned_apart_on_an_interrupted_eof_settle() {
   );
 }
 
+/// **`skip_while`'s end-of-input settle after a resume past an error tail.** The complete-input
+/// route commits the resumed lexer's span when it meets the end of input. A lexer resumed past a
+/// run of lexer errors, at the end of the source, must report that end, so that lexing nothing
+/// leaves the settle where lexing the run would have left it.
+///
+/// `1??`: consume `1`, then a two-token peek lexes both `?` and the end of input, and the input
+/// keeps an end-of-input memo of the run. The skip that follows resumes past the run, lexes
+/// nothing, and settles at `(3, 3)` with the input exhausted. The control is the same skip with no
+/// peek in front of it, which lexes the run itself and settles at the same place.
+///
+/// Falsifying output before the memo: the peeked row spends 2 as well. The skip resumed at the end
+/// of `1` and lexed both `?` again.
+#[test]
+fn skip_while_settles_at_the_end_of_input_after_a_resume_past_an_error_tail() {
+  // `(the settled span, the cursor, what the skip spent, exhausted)`.
+  fn settle(peek_first: bool) -> ((usize, usize), usize, usize, bool) {
+    use hybrid_arraydeque::typenum::U2;
+
+    let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+    let mut input = Input::<ProbeLexer<'_>, ProbeVerboseCtx<'_>, ()>::with_state_and_context(
+      "1??",
+      ProbeLimiter::with_limit(usize::MAX),
+      crate::input::InputContext::new(Verbose::<ProbeErr>::new(), cache),
+    );
+    let mut inp = input.as_ref();
+    assert!(inp.next().unwrap().is_some(), "`1`");
+    if peek_first {
+      let _ = inp.peek::<U2>().unwrap();
+    }
+    let before = inp.token_budget().spent();
+    inp.skip_while(|_| true).unwrap();
+    let span = inp.span();
+    (
+      (span.start, span.end),
+      *inp.cursor().as_inner(),
+      inp.token_budget().spent() - before,
+      inp.is_exhausted(),
+    )
+  }
+
+  assert_eq!(
+    settle(false),
+    ((3, 3), 3, 2, true),
+    "the control: the skip lexes both `?` and settles at the lexer's end"
+  );
+  assert_eq!(
+    settle(true),
+    ((3, 3), 3, 0, true),
+    "after the peek: the same settle, with nothing lexed and nothing charged"
+  );
+}
+
+/// **The end-of-input memo is keyed on the regime, not on the dedup watermark alone.** A re-key
+/// resets the watermark to the committed cursor, and that stands the memo down by itself, so a cell
+/// that only re-keys cannot tell whether the regime is in the key. Here the watermark is put back
+/// over the run's reports after the re-key, which no public route does, and the regime is left as
+/// the only part of the key that differs. The memo must still stand down, and the consume lexes the
+/// run again under the new state.
+///
+/// Falsifying output with the regime out of the key: the consume charges nothing.
+#[test]
+fn the_error_tail_memo_stands_down_on_a_re_key_with_the_watermark_still_covering_it() {
+  use hybrid_arraydeque::typenum::U2;
+
+  let cache = DefaultCache::<'_, ProbeLexer<'_>>::default();
+  let mut input = Input::<ProbeLexer<'_>, ProbeVerboseCtx<'_>, ()>::with_state_and_context(
+    "1??",
+    ProbeLimiter::with_limit(usize::MAX),
+    crate::input::InputContext::new(Verbose::<ProbeErr>::new(), cache),
+  );
+  let mut inp = input.as_ref();
+  assert!(inp.next().unwrap().is_some(), "`1`");
+  let _ = inp.peek::<U2>().unwrap();
+  let covered = *inp.emitted_error_end;
+  assert_eq!(covered, 3, "the peek reported both `?`");
+  // The same state, re-keyed: the run lexes exactly as before, and only the regime's name moves.
+  let _ = inp.state_mut();
+  *inp.emitted_error_end = covered;
+  let before = inp.token_budget().spent();
+  assert!(inp.next().unwrap().is_none(), "the end of input");
+  assert_eq!(
+    inp.token_budget().spent() - before,
+    2,
+    "a resume under a new regime is not answered by a memo the old one wrote: both `?` are \
+     lexed again"
+  );
+}
+
 /// A consume whose committed-token **observer** panics, on a warm cache. `driver` picks which
 /// consume surface. Returns the tokens the input can still reach afterwards.
 fn observer_panic_then_drain(driver: u8) -> (std::vec::Vec<(usize, usize)>, (usize, usize)) {
