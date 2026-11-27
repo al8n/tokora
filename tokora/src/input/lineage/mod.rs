@@ -63,11 +63,13 @@
 //!   whose lifetime *is* the frame it counts.
 //! - **Keyed memos** — a verdict kept under the whole key that decides it: the withheld-head
 //!   memo, which records that lexing from one offset under one regime reaches an item a non-final
-//!   partial input withholds. Its one writer is the input layer's `remember_withheld`, reached from
-//!   the two places such a verdict is reached, and **restore does NOT touch it**. What it records
-//!   is a fact about the deterministic lexer, not about the lineage, so a restore cannot make it
-//!   false: afterwards it either matches the lex being asked about, and is the answer a re-lex
-//!   would give, or it matches nothing. The one lineage fact it rests on — the dedup watermark its
+//!   partial input withholds. It is written by the input layer's `remember_withheld`, reached from
+//!   the two places such a verdict is reached, and by a look-ahead's settle, `install_look_ahead`,
+//!   which puts back the memo the look-ahead copied at entry, or takes out one its closure reached
+//!   over lexer errors. **Restore does NOT touch it**. What it records is a fact about the
+//!   deterministic lexer, not about the lineage, so a restore cannot make it false: afterwards it
+//!   either matches the lex being asked about, and is the answer a re-lex would give, or it
+//!   matches nothing. The one lineage fact it rests on — the dedup watermark its
 //!   run's lexer-error reports raised — is part of its key rather than a reason to restore it.
 //! - **Witness / instrumentation** — cells that do not affect scanning at all, and are therefore
 //!   never restored: the debug-only, process-unique cross-input identity a checkpoint is stamped
@@ -143,7 +145,7 @@
 //! | `token_budget` (the item ceiling) | `Input` (borrowed through `InputRef`) | **monotone session fact** | **nothing** — and here the reason is not that the cell cannot be observed to change, as it is for the two rows around it, but that a budget a rollback refunds is not a budget. An attempt that lexed a thousand items and declined performed a thousand items of scanning; giving the count back would hand an adversary who forces speculation free work without limit. Tested by `InputRef::lex_within_boundary` **before** it invokes the lexer and charged there, one per item a step produced, so the enforcement sits in front of the work rather than behind a stop a rollback can refund; the refusal records that stop through `InputRef::publish_scanner_trip`, staged before the lexer call that decides one is owed. It carries a **second** durable bit, for the same reason: the gate answers "would an item be refused?" and a driver needs "is there an item?", so `InputRef::settle_met_ceiling` runs a one-shot probe wherever the two answers differ and latches it here — outside the rollback set exactly as the counter is, since a flag any of these doors cleared would buy a fresh probe every round. A **third** half rides in the same value: the count of items charged while a look-ahead was open. It is outside the set for the counter's sake rather than its own, because it witnesses part of the spend: restored by a rollback that keeps the charge, it would erase the exclusion while the spend it excluded stayed. Its one writer is `InputRef::install_look_ahead`, the settle of `InputRef::look_ahead`, which raises it and lowers nothing. No lowering writer exists for any of the three halves, and there is no `token_budget_mut`. What it costs is that a re-lex is charged again, so the ceiling bounds produce-events rather than distinct document tokens |
 //! | `resource_trips` (how many budget trips) | `Input` (borrowed through `InputRef`) | **monotone session fact** | **nothing** — it only counts up, and there is no writer that lowers it. A rollback rewinds *input progress*; it cannot un-exceed a budget, so restoring this cell would erase a stop that has already been decided. Sites that need a *per-attempt* answer snapshot it and compare rather than reading it absolutely |
 //! | `scanner_trips` (how many scanner trips) | `Input` (borrowed through `InputRef`) | **monotone session fact** | **nothing** — the same class and the same argument as the cell above, for the other budget. It is the row that makes the `poison_boundary` row *safe*: a trip's **position** is a lineage memo and comes back with a restore, so no comparison of that memo can witness a trip across a rollback — at one level or at ten. The *fact* of the trip is recorded here instead, where nothing reaches it, which is why the recovery gate judges a scanner stop on this and reads the boundary only as the narrower standing-stop reading |
-//! | `withheld` (the withheld-head memo) | `Input` (borrowed through `InputRef`) | **keyed memo** | **nothing** — it records what lexing from one offset under one regime does to this source, and its key carries all of that: the offset, the regime id, the source length and, when the run crossed lexer errors, the dedup watermark their reports raised. A restore cannot make it false, so afterwards it either matches a lex and gives the answer re-lexing would, or matches nothing. It is one slot, though, so a verdict reached inside a look-ahead replaces the committed path's under a regime or an offset the rollback retires; after the look-ahead's own rollback, `InputRef::install_look_ahead` puts back the memo `InputRef::look_ahead` copied at entry, when there was one. Written by `InputRef::remember_withheld` and `InputRef::install_look_ahead`, read by `InputRef::lex_within_boundary` |
+//! | `withheld` (the withheld-head memo) | `Input` (borrowed through `InputRef`) | **keyed memo** | **nothing** — it records what lexing from one offset under one regime does to this source, and its key carries all of that: the offset, the regime id, the source length and, when the run crossed lexer errors, the dedup watermark their reports raised. A restore cannot make it false, so afterwards it either matches a lex and gives the answer re-lexing would, or matches nothing. It is one slot, though, so a verdict reached inside a look-ahead replaces the committed path's under a regime or an offset the rollback retires; after the look-ahead's own rollback, `InputRef::install_look_ahead` puts back the memo `InputRef::look_ahead` copied at entry, when there was one, and when there was none takes out a verdict the look-ahead reached over lexer errors, which would answer for more than the withheld item. Written by `InputRef::remember_withheld` and `InputRef::install_look_ahead`, read by `InputRef::lex_within_boundary` |
 //! | `witness` (input identity) | `Input` | witness | nothing (identity is fixed for the input's life) |
 //! | `depth` (trace nesting) | `Input` | instrumentation | nothing (trace events are out of band) |
 
@@ -271,8 +273,8 @@ pub(crate) fn census<'inp, L, Ctx, Lang, Cmpl>(
     //   withholds — and its key holds all of that: the offset, the regime id, the source length,
     //   and the dedup watermark its run's lexer-error reports raised. After a restore it either
     //   still matches a lex, and gives the answer a re-lex would, or matches nothing. Written by
-    //   `remember_withheld` from the peek fill and the scanner, read by `lex_within_boundary`. Not
-    //   in `Checkpoint`.
+    //   `remember_withheld` from the peek fill and the scanner, and by `install_look_ahead`, a
+    //   look-ahead's settle; read by `lex_within_boundary`. Not in `Checkpoint`.
     withheld: _,
     // — GROUND TRUTH, and the aggregate's anchor: the emission log itself, bound at construction
     //   and owned for the input's whole life. Restore truncates it to the saved mark — the same
@@ -343,8 +345,8 @@ pub(crate) fn census<'inp, L, Ctx, Lang, Cmpl>(
     // — MONOTONE SESSION FACT (borrowed): counted up by `publish_scanner_trip`, never lowered
     //   and never restored. Same class as the `Input` field above it.
     scanner_trips: _,
-    // — KEYED MEMO (borrowed): written by `remember_withheld`, read by `lex_within_boundary`, never
-    //   restored. Same class as the `Input` field above it.
+    // — KEYED MEMO (borrowed): written by `remember_withheld` and by `install_look_ahead`, read by
+    //   `lex_within_boundary`, never restored. Same class as the `Input` field above it.
     withheld: _,
     // — WORLD FACT, as a read-only `Copy` snapshot: no mutator, and the handle's borrow of the
     //   input locks out the seal, so it is CONSTANT for this handle's life.

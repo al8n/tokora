@@ -371,7 +371,8 @@ where
   /// terminal scanner stop, and no handle method exposes a mutable route to the cell.
   pub(super) scanner_trips: &'closure mut u64,
   /// The **withheld-head memo**, borrowed from the owning [`Input`](super::Input) — see that field
-  /// for why a rollback leaves it alone. Written only by `remember_withheld`, read only by
+  /// for why a rollback leaves it alone. Written by `remember_withheld` and by a look-ahead's
+  /// settle, [`install_look_ahead`](Self::install_look_ahead), and read only by
   /// [`lex_within_boundary`](Self::lex_within_boundary).
   pub(super) withheld: &'closure mut Option<super::WithheldHead<L::Offset>>,
   /// The **session cell**: the input's lineage memos (the live-checkpoint stack, the pin set, and
@@ -2936,8 +2937,11 @@ where
   /// The memo goes back only when the input held one at entry. The parts of its key a rollback can
   /// move, the regime and the dedup watermark, are back at their entry values, and the source and
   /// the finality cannot move while a handle lives, so it answers as it did before `f` ran. With
-  /// none to put back, a verdict `f` reached stays in the slot, which is the withheld-head
-  /// exception [`look_ahead`](Self::look_ahead) documents.
+  /// none to put back, a verdict `f` reached stays only when its run crossed no lexer error: it
+  /// then answers for the withheld item alone, the one item the memo row of
+  /// [`look_ahead`](Self::look_ahead)'s table allows. A run that crossed errors would answer for
+  /// them too, every one an item the read after the look-ahead is charged for without it, so
+  /// that verdict is taken out of the slot.
   #[inline(always)]
   fn install_look_ahead(
     &mut self,
@@ -2958,6 +2962,15 @@ where
     };
     let displaced_memo = match memo {
       Some(memo) => self.withheld.replace(memo),
+      // A verdict `f` reached over lexer errors, `diagnosed`: taken out, and dropped below.
+      None
+        if self
+          .withheld
+          .as_ref()
+          .is_some_and(|learned| learned.diagnosed.is_some()) =>
+      {
+        self.withheld.take()
+      }
       None => None,
     };
     self.token_budget.settle_look_ahead(kept);

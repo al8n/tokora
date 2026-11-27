@@ -1068,8 +1068,10 @@ where
   /// same answer a re-lex would give, or it matches nothing and is not used. The one lineage fact
   /// it depends on, the dedup watermark its run's lexer-error reports raised, is part of its key.
   ///
-  /// Its writers are the two places a withheld verdict is reached: the peek fill and the scanner,
-  /// each through `InputRef::remember_withheld`. Its one reader is the lexing site.
+  /// Its writers are the two places a withheld verdict is reached, the peek fill and the scanner,
+  /// each through `InputRef::remember_withheld`, and a look-ahead's settle, which puts back the
+  /// memo the look-ahead copied at entry or takes out a verdict its closure reached over lexer
+  /// errors. Its one reader is the lexing site.
   withheld: Option<WithheldHead<L::Offset>>,
   /// The **bound emitter** — the one emission log this input's parse writes, owned here for the
   /// input's whole life and paired with it at

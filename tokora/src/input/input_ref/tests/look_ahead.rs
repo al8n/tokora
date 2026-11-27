@@ -1365,6 +1365,77 @@ fn a_re_key_inside_a_look_ahead_keeps_the_withheld_verdict_the_committed_path_pa
   );
 }
 
+// ── T11c: a withheld verdict reached over lexer errors is taken out ───────────────────
+
+/// On a non-final partial input `!!x`, under a fail-fast emitter and no ceiling, two peeks each
+/// stop at a lexer error: the cursor stays at zero, the dedup watermark covers both errors, and
+/// no verdict is on record. A look-ahead that peeks crosses both errors, deduplicated, and reaches
+/// the withheld `x`. That verdict would answer for three items, the two errors and `x`, so the
+/// settle takes it out rather than keep it, and the committed read lexes and charges the three,
+/// as it does without the look-ahead.
+///
+/// Kept, the verdict answered that read without a lex: three items fewer in the difference, one
+/// more for each error, past the one item a verdict over the withheld item alone is allowed.
+#[test]
+fn a_withheld_verdict_a_look_ahead_reached_over_lexer_errors_is_not_kept() {
+  type FatalCtx<'a> = (
+    crate::emitter::Fatal<BombErr>,
+    DefaultCache<'a, LaLexer<'a>>,
+  );
+  type FatalRef<'inp, 'cl> = InputRef<'inp, 'cl, LaLexer<'inp>, FatalCtx<'inp>, (), Partial>;
+  fn partial_fatal(src: &str) -> Input<'_, LaLexer<'_>, FatalCtx<'_>, (), Partial> {
+    Input::with_state_and_context(
+      src,
+      LaState::default(),
+      InputContext::new(
+        crate::emitter::Fatal::<BombErr>::new(),
+        DefaultCache::<'_, LaLexer<'_>>::default(),
+      ),
+    )
+  }
+  /// Two peeks, each stopped by a lexer error the emitter rejects: the second crosses the first
+  /// error deduplicated and stops at the next.
+  fn two_rejected_peeks(inp: &mut FatalRef<'_, '_>) {
+    assert!(matches!(inp.peek_one(), Err(BombErr::Lex)));
+    assert!(matches!(inp.peek_one(), Err(BombErr::Lex)));
+    assert_eq!(inp.token_budget().spent(), 3, "the first error, then both");
+  }
+  const SRC: &str = "!!x";
+
+  let mut control = partial_fatal(SRC);
+  let mut ctl = control.as_ref();
+  two_rejected_peeks(&mut ctl);
+  assert!(matches!(ctl.next(), Err(BombErr::Incomplete)));
+  assert_eq!(
+    ctl.token_budget().spent(),
+    6,
+    "the control's read lexes both errors and the withheld `x`"
+  );
+
+  let mut input = partial_fatal(SRC);
+  let mut inp = input.as_ref();
+  two_rejected_peeks(&mut inp);
+  let withheld = inp.look_ahead(|inp| matches!(inp.peek_one(), Ok(None)));
+  assert!(
+    withheld,
+    "the look-ahead's peek crosses both errors and withholds `x`"
+  );
+  assert_eq!(inp.token_budget().look_ahead_spent(), 3);
+  let lexes = la_lexes();
+  assert!(matches!(inp.next(), Err(BombErr::Incomplete)));
+  assert_eq!(
+    la_lexes(),
+    lexes + 3,
+    "the committed read lexes the three items again"
+  );
+  let budget = inp.token_budget();
+  assert_eq!(
+    budget.spent() - budget.look_ahead_spent(),
+    ctl.token_budget().spent(),
+    "and the difference is the control's"
+  );
+}
+
 // ── T12: a session point opened and abandoned inside ──────────────────────────────────
 
 /// A session point the closure opens and abandons is reconciled by the look-ahead's rollback: no

@@ -434,17 +434,20 @@ fn settle_census_nothing_fallible_once_a_restore_has_begun() {
     "core::mem::replace(self.state",
     // A look-ahead's settle, its writes as `install_look_ahead` spells them: the window back
     // into the cache, the copied token back into the parked slot, the copied withheld-head memo
-    // back into its slot, and the exclusion. A caller destructor between two of them would leave a
-    // host holding half a settle — the window without its exclusion, or the reverse — so they are
-    // fact writes like the rest of this list. The two slots are written in their `Option`-native
-    // spelling, for the reason `self.poison_boundary.replace(` above gives: clippy's
-    // `mem_replace_option_with_some` requires it. The parked slot's identity is written beside its
-    // token, and is listed too: a token back in the slot under an id it does not wear is half a
-    // settle as well.
+    // back into its slot, or a memo the look-ahead reached over lexer errors out of it, and the
+    // exclusion. A caller destructor between two of them would leave a host holding half a
+    // settle — the window without its exclusion, or the reverse — so they are fact writes like the
+    // rest of this list. The two slots are written in their `Option`-native spelling, for the
+    // reason `self.poison_boundary.replace(` above gives: clippy's `mem_replace_option_with_some`
+    // requires it. The parked slot's identity is written beside its token, and is listed too: a
+    // token back in the slot under an id it does not wear is half a settle as well. The memo's
+    // `take` is the arm's value, not a statement, so `.take();` below never matches it, and what
+    // it takes is dropped with the rest after the last write.
     "core::mem::replace(self.cache",
     "lineage.record_repark(",
     "self.pending.replace(",
     "self.withheld.replace(",
+    "self.withheld.take(",
     "token_budget.settle_look_ahead(",
   ];
 
