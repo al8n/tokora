@@ -1222,9 +1222,10 @@ impl Stack<Frame> for Repeating {
 }
 
 /// A storage that hands one frame back twice, with a latch on it, makes the machine let that latch
-/// go twice: a panic that names `Stack`, in every build, and not an overflow of the count of
-/// latches set. `1 == 2` under two prefix operators latches the inner one's frame; its reduction
-/// pops that frame, which the storage keeps, and the outer one's pops it again.
+/// go twice: a panic that names `Stack`, in every build, and never one that does not. `1 == 2`
+/// under two prefix operators latches the inner one's frame; its reduction pops that frame, which
+/// the storage keeps, and the outer one's pops it again, which leaves the count of latches set too
+/// high. The next latch counted, `14 == 3`'s at the root, overflows it.
 #[test]
 #[should_panic(expected = "Stack")]
 fn a_storage_that_hands_a_frame_back_twice_is_a_panic_that_names_stack() {
@@ -1238,6 +1239,9 @@ fn a_storage_that_hands_a_frame_back_twice_is_a_panic_that_names_stack() {
   m.stack.repeat = true;
   reduce_once(&mut m, 13);
   reduce_once(&mut m, 14);
+  m.handle_infix(neither(3, 5)).unwrap();
+  m.handle_operand(3).unwrap();
+  reduce_once(&mut m, 15);
 }
 
 #[test]
