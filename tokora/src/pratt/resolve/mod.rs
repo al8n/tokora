@@ -1357,8 +1357,10 @@ where
   /// it keeps itself, and the first step of every other. The count is lowered as soon as the
   /// storage gives the frame up, and before the frame or a value in it can be dropped.
   ///
-  /// Called with a frame pending, by `reset`'s loop, by `pop_frame`, and by `close_and_reduce`'s
-  /// test of the depth. So the count cannot wrap.
+  /// Called with a frame pending: by `reset`'s loop and `pop_frame`'s callers, which test it, by
+  /// `close_and_reduce` after its test of the depth, and by `reduce_pending`, where the offer's
+  /// `Reduce` holds it, since an offer answers `Reduce` only under a pending operator. So the
+  /// count cannot wrap.
   #[inline]
   fn pop_raw(&mut self) -> PrattFrame<V, Pre, LeftAssoc, RightAssoc, NeitherAssoc, Power> {
     debug_assert!(self.state.depth > 0, "a frame popped with none pending");
