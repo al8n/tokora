@@ -1231,8 +1231,13 @@ where
     };
     // Counted as the write happens, and before the latch it replaced is dropped.
     match (old.is_some(), set) {
-      (false, true) => self.state.latches += 1,
-      (true, false) => self.state.latches -= 1,
+      (false, true) => {
+        self.state.latches = match self.state.latches.checked_add(1) {
+          Some(latches) => latches,
+          None => broken_stack("the frames `last_mut` handed out lost the latches written on them"),
+        };
+      }
+      (true, false) => self.uncount_latch(),
       _ => {}
     }
     self.state.latch = copy;
@@ -1315,8 +1320,20 @@ where
   #[inline]
   fn forget_latch(&mut self, latch: &Option<Power>) {
     if latch.is_some() {
-      self.state.latches -= 1;
+      self.uncount_latch();
     }
+  }
+
+  /// One set latch fewer. With none counted, the storage handed back a frame it had already given
+  /// up, latch and all: a broken `Stack`, named as such in every build, where the subtraction would
+  /// panic in a debug build without naming it and wrap in a release one.
+  #[cold]
+  #[inline(never)]
+  fn uncount_latch(&mut self) {
+    self.state.latches = match self.state.latches.checked_sub(1) {
+      Some(latches) => latches,
+      None => broken_stack("a frame came back with a latch the machine had already let go of"),
+    };
   }
 
   /// The frame on top, popped, and nothing else moved: `reset`'s pop, which lets go of the copies

@@ -1178,6 +1178,68 @@ fn equality_leaves_out_the_copies_kept_beside_the_frames() {
   assert_eq!(tilde, bang);
 }
 
+/// A storage whose `pop`, once armed, hands back the frame on top without removing it, so that the
+/// next `pop` hands the same frame back again.
+#[derive(Default)]
+struct Repeating {
+  frames: ArrayDeque<Frame, U8>,
+  repeat: bool,
+}
+
+impl Container<Frame> for Repeating {
+  fn push(&mut self, item: Frame) -> Result<(), Frame> {
+    Container::push(&mut self.frames, item)
+  }
+
+  fn first(&self) -> Option<&Frame> {
+    self.frames.front()
+  }
+
+  fn last(&self) -> Option<&Frame> {
+    self.frames.back()
+  }
+
+  fn len(&self) -> usize {
+    self.frames.len()
+  }
+
+  fn max_capacity(&self) -> usize {
+    8
+  }
+}
+
+impl Stack<Frame> for Repeating {
+  fn pop(&mut self) -> Option<Frame> {
+    if core::mem::take(&mut self.repeat) {
+      return self.frames.back().cloned();
+    }
+    self.frames.pop_back()
+  }
+
+  fn last_mut(&mut self) -> Option<&mut Frame> {
+    self.frames.back_mut()
+  }
+}
+
+/// A storage that hands one frame back twice, with a latch on it, makes the machine let that latch
+/// go twice: a panic that names `Stack`, in every build, and not an overflow of the count of
+/// latches set. `1 == 2` under two prefix operators latches the inner one's frame; its reduction
+/// pops that frame, which the storage keeps, and the outer one's pops it again.
+#[test]
+#[should_panic(expected = "Stack")]
+fn a_storage_that_hands_a_frame_back_twice_is_a_panic_that_names_stack() {
+  let mut m: Machine<Repeating> = PrattResolver::with_stack(Repeating::default());
+  m.handle_prefix(prefix(0, 1)).unwrap();
+  m.handle_prefix(prefix(1, 1)).unwrap();
+  m.handle_operand(1).unwrap();
+  m.handle_infix(neither(2, 5)).unwrap();
+  m.handle_operand(2).unwrap();
+  reduce_once(&mut m, 12);
+  m.stack.repeat = true;
+  reduce_once(&mut m, 13);
+  reduce_once(&mut m, 14);
+}
+
 #[test]
 fn into_parts_and_from_parts_give_the_same_machine_back_in_every_phase() {
   for (phase, m) in in_each_phase() {
