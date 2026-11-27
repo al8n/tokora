@@ -354,7 +354,11 @@ method by name.
   - The `Cache` contract gains a second clause: the cache's own `Drop` joins the operations that
     must not panic on the restore path. A look-ahead's settle drops the cache it displaces, and the
     settle can run mid-unwind, where a panic aborts the process.
-  - `TokenBudgetTally` holds one more `usize`, so an `Input` is 8 bytes larger on a 64-bit target.
+  - An `Input` is 16 bytes larger on a 64-bit target in a default build. `TokenBudgetTally` holds
+    one more `usize`, the look-ahead count. With the `pratt` feature, which `default` turns on
+    through `combinators`, the input also keeps one more `u64`: the id of the token parked in front
+    of the cache, apart from the park-id source it already kept, so that a look-ahead can put a
+    parked head back under the id it wore. Without `pratt` an `Input` is 8 bytes larger.
   - Either name can take the call of a method of your own: see
     [above](#unreleased-source-breaking-additions-that-can-change-behaviour-with-no-diagnostic-at-the-call-site).
 - **The flat expression driver, `pratt::flat`.** One loop over the precedence machine: it enters
