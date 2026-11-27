@@ -311,6 +311,15 @@ method by name.
   feature on. `error::RecursionLimitReached` stays ungated: it is the general recursion budget's
   error, raised by `InputRef::descend` for any recursive grammar.
 
+- **`fuzz::Op` gains a `LookAhead` variant**, with the `fuzz` feature only. The fuzz alphabet
+  tracks the public input surface one-for-one, so `InputRef::look_ahead` earned an op. `Op` is an
+  exhaustive enum: a downstream `match` over it without a wildcard arm stops compiling, and the fix
+  is a `LookAhead` arm. `Op::COUNT` moves with it, to 37. The variant is inserted in surface order,
+  after `TryAttemptErr`, so the discriminants of the eighteen variants after it shift by one. `Op`
+  carries no `#[repr]` and nothing in the crate casts them, so the values were never a contract;
+  they are recorded because `cargo semver-checks` reports both changes, as `enum_variant_added` and
+  `enum_no_repr_variant_discriminant_changed`.
+
 <a id="unreleased-added"></a>
 
 ### Added
