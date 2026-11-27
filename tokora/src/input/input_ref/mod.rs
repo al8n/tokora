@@ -2778,17 +2778,20 @@ where
   /// - **Attempt-relative trip readers.** A trip inside `f` is counted, and nothing lowers the
   ///   count, so a reader that compares a trip counter against a baseline taken before the
   ///   look-ahead sees it, exactly as it sees a trip inside a declined attempt.
-  /// - **A cache whose `Clone` is not a copy of the queue**, below.
+  /// - **A cache whose `Clone` is not an independent snapshot of the queue**, below.
   /// - **An unwind out of the look-ahead's own rollback**, under *If `f` panics*.
   /// - **A saturated `spent`**, which only an unlimited budget reaches: there the difference stops
   ///   moving.
   ///
   /// The window is copied when the look-ahead begins, through `Ctx::Cache: Clone` and
-  /// `L::Token: Clone`. The copy must be a copy of the queue, which is the `Clone` law of the
-  /// [cache contract](crate::cache::Cache), and every cache this crate ships keeps it. With a
-  /// cache whose clone shares its storage, or keeps only a prefix of the queue, less comes back:
-  /// the read after the look-ahead lexes again what did not, as it would after an attempt, and
-  /// that lexing is charged to the difference rather than lost.
+  /// `L::Token: Clone`. The copy must be an independent snapshot of the queue, which is the
+  /// `Clone` law of the [cache contract](crate::cache::Cache), and every cache this crate ships
+  /// keeps it. With a cache whose clone keeps only a prefix of the queue, less comes back: the
+  /// read after the look-ahead lexes again what did not, as it would after an attempt, and that
+  /// lexing is charged to the difference rather than lost. A clone that shares mutable queue state
+  /// with the queue, a read index say, breaks the law the other way: what `f` consumes moves the
+  /// copy too, the window that comes back can lack the head `f` consumed, and the read after the
+  /// look-ahead skips it.
   ///
   /// # Nesting
   ///

@@ -339,9 +339,14 @@ method by name.
     look-ahead, for a caller that bounds its own rescans against the work it kept; a declined
     `attempt` stays in it.
   - The window is copied through `Ctx::Cache: Clone` and `L::Token: Clone`, bounds on the method
-    alone. The `Cache` contract gains the law the copy relies on, that a clone copies the queue,
-    and every cache this crate ships keeps it. The conformance kit checks it through a new entry,
-    `CacheHarness::run_clone`, since `run` asks nothing of a cache but `Cache`.
+    alone. The `Cache` contract gains the law the copy relies on: a clone is an independent
+    snapshot of the queue, with the same entries in the same order and the same `remaining`, and
+    nothing either handle does afterwards changes what the other holds. Storage may be shared only
+    where it is immutable or copied on write; a clone that shares a read index or other mutable
+    queue state breaks the law, and a look-ahead over it can skip the head it consumed. Every
+    cache this crate ships keeps it. The conformance kit checks it through a new entry,
+    `CacheHarness::run_clone`, which also drains and clears each handle of a clone and checks
+    the other, since `run` asks nothing of a cache but `Cache`.
   - The `Cache` contract gains a second clause: the cache's own `Drop` joins the operations that
     must not panic on the restore path. A look-ahead's settle drops the cache it displaces, and the
     settle can run mid-unwind, where a panic aborts the process.

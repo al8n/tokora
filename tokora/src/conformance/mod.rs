@@ -384,13 +384,15 @@
 //! `with_options` on its own: [`Options`](crate::cache::Cache::Options) is an associated type the
 //! kit has no way to fabricate a value of.
 //!
-//! **`Clone`, for a cache that has it.** The contract's `Clone` law — a clone is a copy of the
-//! queue — binds only a cache that implements `Clone`, which is what a
+//! **`Clone`, for a cache that has it.** The contract's `Clone` law — a clone is an independent
+//! snapshot of the queue — binds only a cache that implements `Clone`, which is what a
 //! [look-ahead](crate::InputRef::look_ahead) requires of one. So it has its own entry,
 //! [`run_clone`](CacheHarness::run_clone), bounded on `Clone`, and `run` asks nothing of a cache
 //! but `Cache`. At every residency from empty to full it clones a filled cache and drains the
 //! clone, comparing every entry, the length and `remaining`, and it checks the original is as it
-//! was. It makes the same two passes `run` makes.
+//! was. Then it checks the two are independent: it drains or clears one handle, then the other,
+//! and the one left alone must still hold every entry in order. It makes the same two passes
+//! `run` makes.
 //!
 //! ## What it deliberately does not check
 //!
