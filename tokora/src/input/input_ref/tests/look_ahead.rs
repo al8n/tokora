@@ -1139,7 +1139,7 @@ fn a_parked_head_a_look_ahead_consumed_is_re_parked() {
   let mut inp = input.as_ref();
   park(&mut inp);
   #[cfg(feature = "pratt")]
-  let parks = inp.session.lineage.parks();
+  let park_id = inp.session.lineage.park_id();
   let spent = inp.token_budget().spent();
   let inside = inp.look_ahead(take);
   assert_eq!(
@@ -1153,9 +1153,9 @@ fn a_parked_head_a_look_ahead_consumed_is_re_parked() {
   );
   #[cfg(feature = "pratt")]
   assert_eq!(
-    inp.session.lineage.parks(),
-    parks,
-    "the copy is the token the slot held, and nothing else entered the slot, so it keeps its id"
+    inp.session.lineage.park_id(),
+    park_id,
+    "the copy is the token the slot held, so it keeps its id"
   );
   assert_eq!(
     inp.token_budget().spent(),
@@ -1176,11 +1176,12 @@ fn a_parked_head_a_look_ahead_consumed_is_re_parked() {
 /// The flat expression driver keeps a staged head's classification while the head's identity
 /// holds, and a parked head's identity is its park id. A look-ahead that only peeks the parked
 /// head gives the copy back under the same id, so the identity read before it still names the
-/// head. A look-ahead that parks another token in between gives the copy a new id, since the
-/// token it parked wore the next one.
+/// head. So does one that consumes the head and parks the token behind it: that token took the
+/// next id, the copy comes back under its own, and the next park takes an id past both, so no two
+/// tokens ever wear one.
 #[cfg(feature = "pratt")]
 #[test]
-fn a_parked_head_keeps_its_identity_across_a_look_ahead_that_parks_nothing_else() {
+fn a_parked_head_keeps_its_identity_across_a_look_ahead() {
   type Ref0<'inp, 'cl> = InputRef<'inp, 'cl, LaLexer<'inp>, (BombEmitter, ()), ()>;
   fn blackhole(src: &str) -> Input<'_, LaLexer<'_>, (BombEmitter, ()), ()> {
     Input::with_state_and_context(
@@ -1201,7 +1202,7 @@ fn a_parked_head_keeps_its_identity_across_a_look_ahead_that_parks_nothing_else(
   let mut input = blackhole("a b c");
   let mut inp = input.as_ref();
   park(&mut inp);
-  let entry = inp.session.lineage.parks();
+  let entry = inp.session.lineage.park_id();
   let staged = inp.staged_entry();
   assert!(staged.is_some(), "the parked head has an identity");
   let peeked = inp.look_ahead(|inp| inp.peek_one().map(|head| head.is_some()));
@@ -1211,7 +1212,7 @@ fn a_parked_head_keeps_its_identity_across_a_look_ahead_that_parks_nothing_else(
   );
   assert!(inp.has_front_parked(), "the head is back in the slot");
   assert_eq!(
-    inp.session.lineage.parks(),
+    inp.session.lineage.park_id(),
     entry,
     "a look-ahead that parked nothing else leaves the id where it was"
   );
@@ -1223,12 +1224,12 @@ fn a_parked_head_keeps_its_identity_across_a_look_ahead_that_parks_nothing_else(
   let mut input = blackhole("a b c");
   let mut inp = input.as_ref();
   park(&mut inp);
-  let entry = inp.session.lineage.parks();
+  let entry = inp.session.lineage.park_id();
   let staged = inp.staged_entry();
   let behind = inp.look_ahead(|inp| {
     let _ = inp.next().unwrap();
     park(inp);
-    inp.session.lineage.parks()
+    inp.session.lineage.park_id()
   });
   assert_eq!(
     behind,
@@ -1236,13 +1237,13 @@ fn a_parked_head_keeps_its_identity_across_a_look_ahead_that_parks_nothing_else(
     "the token behind the head entered the slot under the next id"
   );
   assert_eq!(
-    inp.session.lineage.parks(),
-    entry + 2,
-    "so the copy of the head came back under a new one"
+    inp.session.lineage.park_id(),
+    entry,
+    "the copy of the head came back under the id it wore"
   );
   assert!(
-    inp.staged_entry() != staged,
-    "and the identity read before the look-ahead no longer names the head"
+    inp.staged_entry() == staged,
+    "so the identity read before the look-ahead still names the head"
   );
   let lexes = la_lexes();
   assert_eq!(
@@ -1251,6 +1252,12 @@ fn a_parked_head_keeps_its_identity_across_a_look_ahead_that_parks_nothing_else(
     "the slot holds the head again"
   );
   assert_eq!(la_lexes(), lexes, "and serves it without a lex");
+  park(&mut inp);
+  assert_eq!(
+    inp.session.lineage.park_id(),
+    behind + 1,
+    "the next park takes the id past the one the look-ahead issued, never that one again"
+  );
 }
 
 // ── T11: a withheld head on a partial input ───────────────────────────────────────────

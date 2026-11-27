@@ -526,14 +526,14 @@ where
   /// anyway; the park id is bumped on the cold park path, once for each token that enters the
   /// slot. A [look-ahead](Self::look_ahead) gives both readings back: its settle reinstalls the
   /// window under the push count its rollback restored, and re-parks a copied head under the id
-  /// it wore unless another token entered the slot in between, so a fold that peeks through one
-  /// leaves the head's identity as it found it.
+  /// it wore, whatever entered the slot in between, so a fold that reads through one leaves the
+  /// head's identity as it found it.
   #[cfg(feature = "pratt")]
   #[inline(always)]
   pub(crate) fn staged_entry(&self) -> Option<StagedEntry> {
     if Self::can_park() && self.has_front_parked() {
       // The id saturates at its sentinel, where it stops telling one token from the next.
-      return match self.session.lineage.parks() {
+      return match self.session.lineage.park_id() {
         u64::MAX => None,
         id => Some(StagedEntry::Parked(id)),
       };
@@ -700,8 +700,8 @@ where
   /// A token the slot did not just hand out takes a new id there, and the one it handed out comes
   /// back with its own: one saturating add. The one other place a token enters the slot,
   /// [`install_look_ahead`](Self::install_look_ahead), re-parks a copy of the token the slot held
-  /// when the look-ahead began, under that token's id unless another token entered the slot in
-  /// between: see [`Lineage::record_repark`](super::Lineage::record_repark).
+  /// when the look-ahead began, under that token's id, and leaves the id source past every id
+  /// issued in between: see [`Lineage::record_repark`](super::Lineage::record_repark).
   #[cold]
   #[inline(never)]
   fn park(&mut self, tok: CachedTokenOf<'inp, L>, origin: Origin) {
@@ -2872,7 +2872,7 @@ where
     // token enters the slot in between, so an identity read before the look-ahead still names the
     // token after it.
     #[cfg(feature = "pratt")]
-    let park_id = self.session.lineage.parks();
+    let park_id = self.session.lineage.park_id();
     #[cfg(not(feature = "pratt"))]
     let park_id = 0;
     // The withheld-head memo is one slot. A verdict `f` reaches replaces it, under `f`'s regime and
@@ -2931,8 +2931,9 @@ where
   /// A copied parked token re-enters the slot as the token the slot held when the look-ahead
   /// began, and keeps the id it wore then: an identity read off the slot before the look-ahead,
   /// as the flat expression driver reads one to keep a head's classification, still names it.
-  /// When another token entered the slot during the look-ahead it took a newer id, and the copy
-  /// takes a new one under [`park`](Self::park)'s rule. After the rollback the slot is empty.
+  /// That holds when another token entered the slot during the look-ahead, too. That token took
+  /// the next id from the source, which the re-park leaves alone, so its id stays issued and a
+  /// later park takes a newer one. After the rollback the slot is empty.
   ///
   /// The memo goes back only when the input held one at entry. The parts of its key a rollback can
   /// move, the regime and the dedup watermark, are back at their entry values, and the source and

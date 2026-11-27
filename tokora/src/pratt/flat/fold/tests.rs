@@ -1016,9 +1016,9 @@ mod over_a_prefilled_cache {
   }
 }
 
-/// A head parked under the capacity-0 cache, read around folds that peek it through a look-ahead.
-/// The driver keeps the head's classification by its park id, so the look-ahead must give the
-/// copy it re-parks the id the head wore.
+/// A head parked under the capacity-0 cache, read around folds that peek it, or consume it and
+/// park the token behind it, through a look-ahead. The driver keeps the head's classification by
+/// its park id, so the look-ahead must give the copy it re-parks the id the head wore.
 #[cfg(feature = "std")]
 mod a_parked_head_across_look_aheads {
   use core::cell::Cell;
@@ -1069,6 +1069,20 @@ mod a_parked_head_across_look_aheads {
     Ok(operand)
   }
 
+  /// A prefix fold whose look-ahead consumes the head and declines the token behind it, which
+  /// parks that token in the slot the head left, under the next park id.
+  fn consume_then_decline(
+    input: &mut ParkedIr<'_, '_>,
+    operand: u32,
+    _: Precedenced<Op, u8>,
+  ) -> Result<u32, Fail> {
+    let _ = input.look_ahead(|input| -> Result<bool, Fail> {
+      let _ = input.next()?;
+      Ok(input.try_expect(|_| false)?.is_none())
+    });
+    Ok(operand)
+  }
+
   fn keep(_: &mut ParkedIr<'_, '_>, operand: u32, _: Precedenced<Op, u8>) -> Result<u32, Fail> {
     Ok(operand)
   }
@@ -1099,6 +1113,23 @@ mod a_parked_head_across_look_aheads {
     (result, CLASSIFIED.with(Cell::get))
   }
 
+  /// `folding` over N prefix operators, `1`, `x` and `y` under the capacity-0 cache, with prefix
+  /// folds whose look-aheads each consume the parked `x` and park `y`: its value, and the
+  /// right-hand sides it classified.
+  fn over_parked_behind(n: usize) -> (Result<u32, Fail>, usize) {
+    let src = format!("{}1xy", "-".repeat(n));
+    let mut input = Input::<ByteLexer<'_, true>, (Fatal<Fail>, ()), ()>::with_state_and_context(
+      src.as_str(),
+      (),
+      InputContext::new(Fatal::<Fail>::new(), ()),
+    );
+    CLASSIFIED.with(|classified| classified.set(0));
+    let result = flat(COUNTED, digit)
+      .folding(consume_then_decline, keep_left, keep)
+      .parse_input(&mut input.as_ref());
+    (result, CLASSIFIED.with(Cell::get))
+  }
+
   /// The head `x` is parked, and it is classified once, however many folds peek it. A look-ahead
   /// that gave its copy a new park id on every return had the driver classify the unchanged head
   /// after every fold, N + 1 times.
@@ -1110,6 +1141,23 @@ mod a_parked_head_across_look_aheads {
       assert!(
         calls <= 2,
         "{n} prefix operators, each fold peeking the parked head: {calls} classifications"
+      );
+    }
+  }
+
+  /// The head `x` is parked, and it is classified once, however many folds consume it and park
+  /// `y` in its place inside a look-ahead. `y` takes a new park id in every fold. A settle that
+  /// read that as the head's identity moving gave the copy of `x` one more, and the driver
+  /// classified the unchanged head after every fold, N + 1 times.
+  #[test]
+  fn a_parked_head_is_classified_once_across_folds_that_park_the_token_behind_it() {
+    for n in [16, 64] {
+      let (result, calls) = over_parked_behind(n);
+      assert_eq!(result, Ok(1), "{n}");
+      assert!(
+        calls <= 2,
+        "{n} prefix operators, each fold parking the token behind the head: {calls} \
+         classifications"
       );
     }
   }
