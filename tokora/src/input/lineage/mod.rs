@@ -750,6 +750,35 @@ const _: () = {
       }
     }
 
+    /// [`assert_restore_preserves_pins`](Self::assert_restore_preserves_pins) for
+    /// [`InputRef::rollback_point`](super::InputRef::rollback_point), asked while the point is still
+    /// open: the target is the point's own begin point, and its own pin, which that rollback
+    /// releases, is not counted. Only a pin strictly younger than the target refuses it.
+    ///
+    /// Asked here, a refusal leaves the point open, pinned and settleable. Asked by the restore,
+    /// after the point had left the session stack and lost its pin, the same refusal left its
+    /// lineage entry and its emitter mark with nothing that could settle them.
+    #[inline(always)]
+    pub(crate) fn assert_point_rollback_preserves_pins(&self, target_id: u64) {
+      let Ok(pos) = self.live_ckpts.binary_search(&target_id) else {
+        return;
+      };
+      // The restore pops the target and every younger checkpoint; the target's own pin is the
+      // point's, so only the younger ones can belong to a live guard or attempt.
+      let younger = &self.live_ckpts[pos + 1..];
+      if self
+        .pinned
+        .iter()
+        .rev()
+        .take_while(|p| **p > target_id)
+        .any(|p| younger.binary_search(p).is_ok())
+      {
+        panic!(
+          "restore would invalidate a live transaction guard or attempt (the target predates its begin point)"
+        );
+      }
+    }
+
     /// Hands out the next input-global savepoint sequence number, bumping the counter. Because the
     /// counter lives on the input (not on any one transaction) and is never reset, a
     /// [`SavepointId`](super::SavepointId)'s `seq` is unique for the whole life of the input: an id

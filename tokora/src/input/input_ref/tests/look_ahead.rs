@@ -1306,6 +1306,86 @@ fn a_session_point_abandoned_inside_a_look_ahead_is_reconciled() {
   );
 }
 
+// ── T12b: a point rollback refused inside the scope ───────────────────────────────────
+
+/// A panic's message, whichever of the two payloads `panic!` gave it.
+fn panic_text(payload: &(dyn core::any::Any + Send)) -> std::string::String {
+  payload
+    .downcast_ref::<std::string::String>()
+    .cloned()
+    .or_else(|| payload.downcast_ref::<&str>().map(|s| (*s).to_string()))
+    .unwrap_or_default()
+}
+
+/// The open points, the pins, the live lineage entries and the emitter's live marks.
+fn bookkeeping(inp: &mut LaRef<'_, '_>) -> (usize, usize, usize, usize) {
+  (
+    inp.points(),
+    inp.session.lineage.pinned_len(),
+    inp.session.lineage.live_len(),
+    inp.emitter().live_rows(),
+  )
+}
+
+/// A session point opened before a scope and rolled back from inside it is refused by the pin on
+/// the scope's own begin point. The refusal comes before the point leaves the stack, so a caller
+/// that catches it finds the point open, pinned and registered as before, and rolls it back once
+/// the scope is gone. Both doors run: `attempt`, and a look-ahead.
+#[test]
+fn a_point_rollback_refused_inside_a_scope_leaves_the_point_open_and_settleable() {
+  for look in [false, true] {
+    let door = if look { "look_ahead" } else { "attempt" };
+    let mut input = complete("a b c");
+    let mut inp = input.as_ref();
+    let point = inp.begin_point();
+    assert_eq!(consume(&mut inp, 1), b"a".to_vec());
+    let open = bookkeeping(&mut inp);
+    assert_eq!(open, (1, 1, 1, 1), "{door}: the point's own bookkeeping");
+
+    let refusal = if look {
+      inp
+        .look_ahead(|inp| {
+          std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| inp.rollback_point(point)))
+        })
+        .err()
+    } else {
+      let refusal = Cell::new(None);
+      let declined = inp.attempt(|inp| {
+        refusal.set(
+          std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| inp.rollback_point(point)))
+            .err(),
+        );
+        None::<()>
+      });
+      assert!(declined.is_none(), "{door}: the attempt declines");
+      refusal.into_inner()
+    };
+    let refusal = refusal.unwrap_or_else(|| panic!("{door}: the rollback was not refused"));
+    let message = panic_text(&*refusal);
+    assert!(
+      message.contains("restore would invalidate a live transaction guard or attempt"),
+      "{door}: the refusal is the scope's pin: {message}"
+    );
+
+    assert_eq!(
+      bookkeeping(&mut inp),
+      open,
+      "{door}: the refused point is still open, pinned and registered"
+    );
+    inp.rollback_point(point);
+    assert_eq!(
+      consume(&mut inp, 3),
+      b"abc".to_vec(),
+      "{door}: and its rollback puts `a` back"
+    );
+    assert_eq!(
+      bookkeeping(&mut inp),
+      (0, 0, 0, 0),
+      "{door}: and settles every part of it"
+    );
+  }
+}
+
 // ── T13: inside an enclosing attempt ──────────────────────────────────────────────────
 
 /// A look-ahead inside an attempt leaves the cache and the push count as the attempt found them,

@@ -2820,8 +2820,9 @@ where
   ///   over whatever `f` left there.
   ///
   /// Nor a session point opened before the look-ahead that `f` commits. `attempt` behaves the same
-  /// way. In allocator builds, rolling back to such a point inside `f` is refused at the restore,
-  /// because the look-ahead's base is pinned above it.
+  /// way. In allocator builds, rolling back to such a point inside `f` is refused, because the
+  /// look-ahead's base is pinned above it, and the point stays open: it can be settled once the
+  /// look-ahead has returned.
   ///
   /// A terminal stop that `f` meets is counted where every terminal stop is counted, and its
   /// boundary and its diagnostic are taken back with the rest; the committed path meets it again
@@ -3407,12 +3408,19 @@ where
   ///   the newest-first law does not allow;
   /// - `point` is not open at all — already settled, or abandoned by an enclosing rollback that
   ///   reached below it. A positional settle would silently have taken whatever was newest.
+  ///
+  /// A rollback, `restoring`, is refused a fifth way: when restoring to the point would tear out a
+  /// younger live guard or attempt. That is the pin refusal [`restore`](Self::restore) makes, made
+  /// here first, while the point is still on the stack and pinned. Made only by the restore, after
+  /// the pop and the unpin, it left a point nothing could settle, its lineage entry and emitter
+  /// mark outstanding for the life of the input.
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[inline]
   fn take_point(
     &mut self,
     point: SessionPointId<'closure>,
     verb: &str,
+    restoring: bool,
   ) -> Checkpoint<'inp, 'closure, L> {
     // The input's identity, derived exactly as `begin_point` stamped it. Stable across the
     // handle's reborrows because it addresses the `Input`-owned slot, not this handle's field.
@@ -3438,6 +3446,12 @@ where
       }
       None => panic!("no live session point to {verb}"),
     }
+    if restoring {
+      self
+        .session
+        .lineage
+        .assert_point_rollback_preserves_pins(point.ckp());
+    }
     self
       .session
       .points
@@ -3460,7 +3474,7 @@ where
   #[inline]
   pub fn commit_point(&mut self, point: SessionPointId<'closure>) {
     trace_event!(self, "commit_point");
-    let ckp = self.take_point(point, "commit");
+    let ckp = self.take_point(point, "commit", false);
     // Kept, not restored: unpin the base, then the raw consuming commit keeps the progress and
     // releases the lineage entry.
     self.unpin_checkpoint(ckp.ckp_id);
@@ -3478,13 +3492,19 @@ where
   /// Panics with a message prefixed `no live session point` when nothing is open, and refuses a
   /// `point` that belongs to another input (`foreign session point`), is not the newest open one
   /// (`session point settled out of order`), or is no longer open at all (`stale session point`) —
-  /// see [`SessionPointId`].
+  /// see [`SessionPointId`]. Also refuses, as the checked restore does, a rollback that would tear
+  /// out a guard or an attempt opened after the point (`restore would invalidate a live
+  /// transaction guard or attempt`). Every refusal comes before anything moves, so the point is
+  /// still open afterwards, and a caller that catches the panic can settle it once that scope is
+  /// gone.
   #[cfg(any(feature = "std", feature = "alloc"))]
   #[cfg_attr(docsrs, doc(cfg(any(feature = "std", feature = "alloc"))))]
   #[inline]
   pub fn rollback_point(&mut self, point: SessionPointId<'closure>) {
     trace_event!(self, "rollback_point");
-    let ckp = self.take_point(point, "roll back");
+    // A younger guard or attempt is refused inside `take_point`, before the point leaves the
+    // stack. The restore below makes the same check, but by then the point would be lost.
+    let ckp = self.take_point(point, "roll back", true);
     // Unpin the base FIRST so the checked restore below does not see the point's own begin point
     // as pinned — rolling back to it is legal. A rewind *below* it would already have panicked at
     // that rewind (the pin's detect-at-cause check).
