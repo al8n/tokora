@@ -1015,3 +1015,222 @@ mod over_a_prefilled_cache {
     }
   }
 }
+
+#[cfg(feature = "std")]
+mod a_refused_operator_that_unwinds {
+  use core::cell::Cell;
+  use std::{
+    panic::{AssertUnwindSafe, catch_unwind},
+    thread_local,
+  };
+
+  use hybrid_arraydeque::typenum::U1;
+
+  use super::*;
+
+  thread_local! {
+    /// Whether the next `~` or `#` dropped on this thread unwinds. The drop that unwinds clears it.
+    static ARMED: Cell<bool> = const { Cell::new(false) };
+  }
+
+  /// A token of one byte whose destructor unwinds, once, for a `~` or a `#` while `ARMED` is set.
+  #[derive(Debug, Clone, PartialEq, Eq)]
+  struct Live(u8);
+
+  impl Drop for Live {
+    fn drop(&mut self) {
+      if matches!(self.0, b'~' | b'#') && ARMED.with(|armed| armed.replace(false)) {
+        panic!("a token's destructor unwinds, as asked");
+      }
+    }
+  }
+
+  impl Token<'_> for Live {
+    type Kind = u8;
+    type Error = LexErr;
+
+    const SCAN_LOOKAHEAD: ScanLookahead = ScanLookahead::Unbounded;
+
+    fn kind(&self) -> u8 {
+      self.0
+    }
+
+    fn is_trivia(&self) -> bool {
+      false
+    }
+  }
+
+  /// One `Live` token for each byte.
+  struct LiveLexer<'inp> {
+    src: &'inp str,
+    tok_start: usize,
+    pos: usize,
+    state: (),
+  }
+
+  impl<'inp> Lexer<'inp> for LiveLexer<'inp> {
+    type State = ();
+    type Source = str;
+    type Token = Live;
+    type Span = SimpleSpan;
+    type Offset = usize;
+
+    fn new(src: &'inp str) -> Self {
+      Self::with_state(src, ())
+    }
+
+    fn with_state(src: &'inp str, state: ()) -> Self {
+      Self {
+        src,
+        tok_start: 0,
+        pos: 0,
+        state,
+      }
+    }
+
+    fn check(&self) -> Result<(), LexErr> {
+      Ok(())
+    }
+
+    fn state(&self) -> &Self::State {
+      &self.state
+    }
+
+    fn state_mut(&mut self) -> &mut Self::State {
+      &mut self.state
+    }
+
+    fn into_state(self) -> Self::State {
+      self.state
+    }
+
+    fn source(&self) -> &'inp str {
+      self.src
+    }
+
+    fn span(&self) -> SimpleSpan {
+      SimpleSpan::new(self.tok_start, self.pos)
+    }
+
+    fn slice(&self) -> &'inp str {
+      &self.src[self.tok_start..self.pos]
+    }
+
+    fn lex(&mut self) -> Option<Result<Live, LexErr>> {
+      let byte = *self.src.as_bytes().get(self.pos)?;
+      self.tok_start = self.pos;
+      self.pos += 1;
+      Some(Ok(Live(byte)))
+    }
+
+    fn read_frontier(&self) -> ReadFrontier<usize> {
+      ReadFrontier::SpanEnd
+    }
+
+    fn bump(&mut self, n: &usize) {
+      self.pos += *n;
+      self.tok_start = self.pos;
+    }
+  }
+
+  /// The table's marker.
+  struct LiveExpr;
+
+  const LIVE: PrattTable<LiveExpr, u8> = PrattTable::new();
+
+  /// | byte | left-hand side | right-hand side |
+  /// |---|---|---|
+  /// | `0` to `9` | operand | |
+  /// | `-`, `~` | prefix, 40 | |
+  /// | `+` | | infix, left, 10 |
+  /// | `#` | | infix, left, 20 |
+  impl PrattToken<'_, LiveExpr, u8> for Live {
+    fn try_pratt_lhs(&self) -> Option<PrattLHS<(), (), u8>> {
+      match self.0 {
+        b'0'..=b'9' => Some(PrattLHS::Operand(())),
+        b'-' | b'~' => Some(PrattLHS::Prefix(Precedenced::new((), 40))),
+        _ => None,
+      }
+    }
+
+    fn try_pratt_rhs(&self) -> Option<PrattRHS<(), (), (), (), u8>> {
+      match self.0 {
+        b'+' => infix(PrattInfix::Left(()), 10),
+        b'#' => infix(PrattInfix::Left(()), 20),
+        _ => None,
+      }
+    }
+  }
+
+  type LiveCtx<'inp> = (Fatal<Fail>, DefaultCache<'inp, LiveLexer<'inp>>);
+  type LiveIr<'inp, 'c> = InputRef<'inp, 'c, LiveLexer<'inp>, LiveCtx<'inp>>;
+  type LiveOp = Spanned<Live, SimpleSpan>;
+  type LiveFrame = PrattFrame<u32, LiveOp, LiveOp, LiveOp, LiveOp, u8>;
+
+  /// A digit, as its value.
+  fn live_digit(input: &mut LiveIr<'_, '_>) -> Result<ParseAttempt<u32>, Fail> {
+    Ok(
+      match input.try_expect(|tok| tok.data().0.is_ascii_digit())? {
+        Some(tok) => ParseAttempt::Accept(u32::from(tok.data().0 - b'0')),
+        None => ParseAttempt::Decline,
+      },
+    )
+  }
+
+  fn live_keep(
+    _: &mut LiveIr<'_, '_>,
+    operand: u32,
+    _: Precedenced<LiveOp, u8>,
+  ) -> Result<u32, Fail> {
+    Ok(operand)
+  }
+
+  fn live_keep_left(
+    _: &mut LiveIr<'_, '_>,
+    left: u32,
+    _: u32,
+    _: Precedenced<PrattInfix<LiveOp, LiveOp, LiveOp>, u8>,
+  ) -> Result<u32, Fail> {
+    Ok(left)
+  }
+
+  /// Folds `src` over a storage of one frame, which refuses the second pending operator, with the
+  /// destructor of that operator's token armed to unwind: whether the parse counted the trip of a
+  /// full storage before it unwound.
+  fn counts_the_trip_through_the_unwind(src: &str) -> bool {
+    let mut input = Input::<LiveLexer<'_>, LiveCtx<'_>, ()>::with_state_and_context(
+      src,
+      (),
+      InputContext::new(
+        Fatal::<Fail>::new(),
+        DefaultCache::<'_, LiveLexer<'_>>::default(),
+      ),
+    );
+    let mut inp = input.as_ref();
+    let mut driver = flat(LIVE, live_digit)
+      .folding(live_keep, live_keep_left, live_keep)
+      .with_stack(ArrayDeque::<LiveFrame, U1>::new());
+    let baseline = inp.trip_snapshot();
+    ARMED.with(|armed| armed.set(true));
+    let unwound = catch_unwind(AssertUnwindSafe(|| driver.parse_input(&mut inp))).is_err();
+    let still_armed = ARMED.with(|armed| armed.replace(false));
+    assert!(
+      unwound && !still_armed,
+      "{src}: the refused operator's destructor unwinds"
+    );
+    inp.tripped_during_attempt(baseline)
+  }
+
+  /// A full storage that refuses a pending operator counts its trip before it drops the operator,
+  /// so a token's destructor that unwinds cannot leave the refusal uncounted: for a prefix
+  /// operator, the `~` after a `-`, and for an infix one, the `#` after `1+`.
+  #[test]
+  fn a_refused_operator_whose_destructor_unwinds_leaves_its_trip_counted() {
+    for src in ["-~1;", "1+2#3;"] {
+      assert!(
+        counts_the_trip_through_the_unwind(src),
+        "{src}: the trip of the full storage is counted"
+      );
+    }
+  }
+}

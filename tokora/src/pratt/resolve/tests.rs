@@ -4,8 +4,8 @@
 //! the tables.
 //!
 //! Every cell runs in each of the crate's three tiers but the three that pin one tier's storage.
-//! They name `core` alone, but for the two that catch an unwind, which reach the `std` a test
-//! harness always links through `host`.
+//! They name `core` alone, but for those that catch an unwind or keep a flag for one thread, which
+//! reach the `std` a test harness always links through `host`.
 
 extern crate std as host;
 
@@ -405,6 +405,42 @@ fn the_offer_tests_the_floor_then_the_chain_and_changes_nothing() {
   }
 }
 
+/// The root's floor set on a live machine. At the root it answers the next offer at once. Under
+/// pending operators their own floors answer, and the new floor answers once the reductions are
+/// back at the root: an operator between the old floor and the new one is declined there.
+#[test]
+fn min_precedence_on_a_live_machine_is_the_root_s_floor_from_then_on() {
+  use PrattOffer::{Decline, Reduce, Take};
+
+  // At the root, with a value: the floor moves from 0 to 6.
+  let mut m = machine();
+  m.handle_operand(1).unwrap();
+  assert_offers(&m, 4, [Take, Take, Take]);
+  let m = m.min_precedence(6);
+  assert_offers(&m, 4, [Decline, Decline, Decline]);
+  assert_offers(&m, 6, [Take, Take, Take]);
+
+  // Under two pending operators, `1 + 2 * 3` with `+` at 2 and `*` at 3: the floor moves from 0 to
+  // 6 at a depth of two.
+  let mut m = machine();
+  m.handle_operand(1).unwrap();
+  m.handle_infix(left(0, 2)).unwrap();
+  m.handle_operand(2).unwrap();
+  m.handle_infix(left(1, 3)).unwrap();
+  m.handle_operand(3).unwrap();
+  let mut m = m.min_precedence(6);
+  assert_eq!(m.depth(), 2);
+  assert_offers(&m, 4, [Take, Take, Take]);
+  assert_offers(&m, 3, [Reduce, Reduce, Reduce]);
+  reduce_once(&mut m, 23);
+  assert_offers(&m, 4, [Take, Take, Take]);
+  assert_offers(&m, 2, [Reduce, Reduce, Reduce]);
+  reduce_once(&mut m, 123);
+  assert_eq!(m.depth(), 0);
+  assert_offers(&m, 4, [Decline, Decline, Decline]);
+  assert_offers(&m, 6, [Take, Take, Take]);
+}
+
 /// One reduction for each `poll`, innermost first. Between a reduction and its value `poll` answers
 /// `Reducing` and changes nothing, and `Done` resets: the next answer is `Term`, and the machine is
 /// as new, with the same floor and cap.
@@ -619,6 +655,95 @@ fn the_latch_refuses_a_repeated_non_associative_power_and_nothing_else() {
   assert_eq!(m.offer(&offered(Rhs::Infix(5))), PrattOffer::Reduce);
   reduce_once(&mut m, 12);
   assert_eq!(m.handle_infix(neither(1, 5)), Ok(()));
+}
+
+/// A latch stays with the sub-expression it belongs to, and a push gives its operator's frame none:
+/// pushing `+` after `1 == 2` was reduced leaves the storage as pushing `+` over a fresh value
+/// does, whatever the root's latch.
+#[test]
+fn a_push_after_a_latching_reduction_stores_the_frame_a_fresh_push_stores() {
+  let mut latched = machine();
+  latched.handle_operand(1).unwrap();
+  latched.handle_infix(neither(0, 5)).unwrap();
+  latched.handle_operand(2).unwrap();
+  reduce_once(&mut latched, 0);
+  latched.handle_infix(left(1, 3)).unwrap();
+
+  let mut fresh = machine();
+  fresh.handle_operand(0).unwrap();
+  fresh.handle_infix(left(1, 3)).unwrap();
+
+  assert_eq!(latched.into_stack(), fresh.into_stack());
+}
+
+/// A push whose storage unwinds before it takes the frame leaves the latch where it was. After
+/// `1 == 2` is reduced at the root, the unwind takes the value with it and the sub-expression
+/// starts over, but its latch stands: a repeated `==` is still a chain.
+#[test]
+fn a_push_that_unwinds_leaves_the_latch_where_it_was() {
+  use host::panic::{AssertUnwindSafe, catch_unwind};
+
+  let mut m: Machine<Flaky> = PrattResolver::with_stack(Flaky::default());
+  m.handle_operand(1).unwrap();
+  m.handle_infix(neither(0, 5)).unwrap();
+  m.handle_operand(2).unwrap();
+  reduce_once(&mut m, 12);
+  m.stack.push_unwinds = true;
+  assert!(catch_unwind(AssertUnwindSafe(|| m.handle_infix(left(1, 7)))).is_err());
+  m.handle_operand(12).unwrap();
+  assert_eq!(m.offer(&offered(Rhs::Infix(5))), PrattOffer::Chain);
+}
+
+host::thread_local! {
+  /// Whether a `Brittle` power's `Clone` panics, on this thread.
+  static CLONE_PANICS: Cell<bool> = const { Cell::new(false) };
+}
+
+/// A power whose `Clone` panics while `CLONE_PANICS` is set.
+#[derive(Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+struct Brittle(i8);
+
+impl Clone for Brittle {
+  fn clone(&self) -> Self {
+    assert!(
+      !CLONE_PANICS.with(Cell::get),
+      "a power's `Clone` panics, as asked"
+    );
+    Brittle(self.0)
+  }
+}
+
+impl PrattPower for Brittle {}
+
+/// A push the storage refuses through the public events runs no code of the power's: the floor the
+/// machine keeps is read back off the frame only once the storage has taken it, so a refusal runs
+/// the comparisons alone. Over a storage of one frame, a prefix and an infix operator.
+#[test]
+fn a_public_push_the_storage_refuses_clones_no_power() {
+  type BrittleFrame = PrattFrame<u32, u8, u8, u8, u8, Brittle>;
+  let mut m: PrattResolver<u32, u8, u8, u8, u8, u8, Brittle, ArrayDeque<BrittleFrame, U1>> =
+    PrattResolver::with_stack(ArrayDeque::new());
+  m.handle_prefix(Precedenced::new(0, Brittle(5))).unwrap();
+
+  CLONE_PANICS.with(|armed| armed.set(true));
+  let prefix = m.handle_prefix(Precedenced::new(1, Brittle(5)));
+  CLONE_PANICS.with(|armed| armed.set(false));
+  let refused = prefix.unwrap_err();
+  assert_eq!(refused.why(), PrattRefusal::Full);
+  assert_eq!(refused.into_item(), Precedenced::new(1, Brittle(5)));
+
+  m.handle_operand(1).unwrap();
+  CLONE_PANICS.with(|armed| armed.set(true));
+  let infix = m.handle_infix(Precedenced::new(PrattInfix::Right(2), Brittle(7)));
+  CLONE_PANICS.with(|armed| armed.set(false));
+  let refused = infix.unwrap_err();
+  assert_eq!(refused.why(), PrattRefusal::Full);
+  assert_eq!(
+    refused.into_item(),
+    Precedenced::new(PrattInfix::Right(2), Brittle(7))
+  );
+  assert_eq!(m.depth(), 1);
+  assert_eq!(m.poll(), PrattPoll::Operator);
 }
 
 /// `Adjacent` is a left-associative infix operator at its power: the offer applies the floor to it,
@@ -995,6 +1120,130 @@ fn a_storage_that_unwinds_before_it_changes_keeps_the_count_true() {
   assert_eq!(m.poll(), PrattPoll::Term);
 }
 
+/// A storage whose `PartialEq` compares how many frames each holds and nothing else, which
+/// `Stack` allows.
+#[derive(Debug, Default)]
+struct Coarse(ArrayDeque<Frame, U8>);
+
+impl PartialEq for Coarse {
+  fn eq(&self, other: &Self) -> bool {
+    self.0.len() == other.0.len()
+  }
+}
+
+impl Container<Frame> for Coarse {
+  fn push(&mut self, item: Frame) -> Result<(), Frame> {
+    Container::push(&mut self.0, item)
+  }
+
+  fn first(&self) -> Option<&Frame> {
+    self.0.front()
+  }
+
+  fn last(&self) -> Option<&Frame> {
+    self.0.back()
+  }
+
+  fn len(&self) -> usize {
+    self.0.len()
+  }
+
+  fn max_capacity(&self) -> usize {
+    8
+  }
+}
+
+impl Stack<Frame> for Coarse {
+  fn pop(&mut self) -> Option<Frame> {
+    self.0.pop_back()
+  }
+
+  fn last_mut(&mut self) -> Option<&mut Frame> {
+    self.0.back_mut()
+  }
+}
+
+/// Two machines compare as their phase, count, cap, root floor and root latch do, and as their
+/// storages do: the copies kept beside the frames are left out. Over a storage that compares
+/// lengths alone, `~x` and `!x` fed only their prefix operator, at powers 1 and 2, are equal
+/// machines, though the floors they keep for the operator on top differ.
+#[test]
+fn equality_leaves_out_the_copies_kept_beside_the_frames() {
+  let mut tilde: Machine<Coarse> = PrattResolver::with_stack(Coarse::default());
+  tilde.handle_prefix(prefix(0, 1)).unwrap();
+  let mut bang: Machine<Coarse> = PrattResolver::with_stack(Coarse::default());
+  bang.handle_prefix(prefix(1, 2)).unwrap();
+
+  assert_ne!(tilde.state.frame_floor, bang.state.frame_floor);
+  assert_eq!(tilde, bang);
+}
+
+/// A storage whose `pop`, once armed, hands back the frame on top without removing it, so that the
+/// next `pop` hands the same frame back again.
+#[derive(Default)]
+struct Repeating {
+  frames: ArrayDeque<Frame, U8>,
+  repeat: bool,
+}
+
+impl Container<Frame> for Repeating {
+  fn push(&mut self, item: Frame) -> Result<(), Frame> {
+    Container::push(&mut self.frames, item)
+  }
+
+  fn first(&self) -> Option<&Frame> {
+    self.frames.front()
+  }
+
+  fn last(&self) -> Option<&Frame> {
+    self.frames.back()
+  }
+
+  fn len(&self) -> usize {
+    self.frames.len()
+  }
+
+  fn max_capacity(&self) -> usize {
+    8
+  }
+}
+
+impl Stack<Frame> for Repeating {
+  fn pop(&mut self) -> Option<Frame> {
+    if core::mem::take(&mut self.repeat) {
+      return self.frames.back().cloned();
+    }
+    self.frames.pop_back()
+  }
+
+  fn last_mut(&mut self) -> Option<&mut Frame> {
+    self.frames.back_mut()
+  }
+}
+
+/// A storage that hands one frame back twice, with a latch on it, makes the machine let that latch
+/// go twice: a panic that names `Stack`, in every build, and never one that does not. `1 == 2`
+/// under two prefix operators latches the inner one's frame; its reduction pops that frame, which
+/// the storage keeps, and the outer one's pops it again, which leaves the count of latches set too
+/// high. The next latch counted, `14 == 3`'s at the root, overflows it.
+#[test]
+#[should_panic(expected = "Stack")]
+fn a_storage_that_hands_a_frame_back_twice_is_a_panic_that_names_stack() {
+  let mut m: Machine<Repeating> = PrattResolver::with_stack(Repeating::default());
+  m.handle_prefix(prefix(0, 1)).unwrap();
+  m.handle_prefix(prefix(1, 1)).unwrap();
+  m.handle_operand(1).unwrap();
+  m.handle_infix(neither(2, 5)).unwrap();
+  m.handle_operand(2).unwrap();
+  reduce_once(&mut m, 12);
+  m.stack.repeat = true;
+  reduce_once(&mut m, 13);
+  reduce_once(&mut m, 14);
+  m.handle_infix(neither(3, 5)).unwrap();
+  m.handle_operand(3).unwrap();
+  reduce_once(&mut m, 15);
+}
+
 #[test]
 fn into_parts_and_from_parts_give_the_same_machine_back_in_every_phase() {
   for (phase, m) in in_each_phase() {
@@ -1004,7 +1253,7 @@ fn into_parts_and_from_parts_give_the_same_machine_back_in_every_phase() {
 }
 
 /// A non-associative operator that is a segment's only frame, reduced, latches the frame below: the
-/// one write that crosses a link.
+/// one write that crosses a link. The machine's copy of the innermost latch follows it.
 #[test]
 fn a_latch_set_through_the_link_latches_the_frame_below() {
   let mut root: Segment<'_, Frame, U1> = Segment::root();
@@ -1036,6 +1285,7 @@ fn a_latch_set_through_the_link_latches_the_frame_below() {
   let m = PrattResolver::from_parts(state, segment);
   assert_eq!(m.depth(), 1);
   assert_eq!(m.stack.last().map(|frame| frame.latch), Some(Some(5)));
+  assert_eq!(m.state.latch, Some(5));
   assert_eq!(m.offer(&offered(Rhs::Infix(5))), PrattOffer::Chain);
   assert_eq!(m.offer(&offered(Rhs::Infix(4))), PrattOffer::Take);
 }
@@ -1198,6 +1448,32 @@ where
   let before = m.clone();
   let phase = answer(&before);
   let outcome = apply(m, event);
+  // The floor and the latch an offer reads are copies of the ones the frames hold, read back off
+  // the storage: the drive's own expectations come from the machine's offer, so they cannot catch
+  // a copy kept wrong.
+  assert!(
+    m.floor_is_kept(),
+    "{event:?} in {phase:?}: the floor kept is the frame on top's"
+  );
+  let innermost_latch = match m.top() {
+    None => m.state.root_latch,
+    Some(frame) => frame.latch,
+  };
+  assert_eq!(
+    m.state.latch, innermost_latch,
+    "{event:?} in {phase:?}: the latch kept is the one the innermost sub-expression has"
+  );
+  // The count of latches set is the one the root and the frames hold, read off a copy of the
+  // storage: with the count at zero a pop reads no latch, so a count kept low would go unseen.
+  let mut frames = m.stack.clone();
+  let mut set = usize::from(m.state.root_latch.is_some());
+  while let Some(frame) = frames.pop() {
+    set += usize::from(frame.latch.is_some());
+  }
+  assert_eq!(
+    m.state.latches, set,
+    "{event:?} in {phase:?}: the count of latches set is the frames' and the root's"
+  );
   match (event, &outcome) {
     (Event::Poll, Outcome::Polled(poll)) => {
       assert_eq!(answer_of(poll), phase, "`poll` answers the phase");
@@ -1379,8 +1655,8 @@ struct Drive {
 /// gone: the protocol of a loop that grows by segments, with the reference machine as its oracle.
 fn run<K: ArraySize>(mut m: Machine<&mut Segment<'_, Frame, K>>, drive: &mut Drive) -> Exit {
   loop {
-    // The return test, at every point but between a reduction and its value: the latch that value
-    // leaves is the one write that may cross the link.
+    // The return test, at every point but between a reduction and its value, where the adapters
+    // put it: they return once the value is back.
     if !matches!(m.state.phase, Phase::Reducing(_)) {
       if m.stack.drained() {
         drive.counts.drained += 1;

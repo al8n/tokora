@@ -362,15 +362,16 @@ It has two adapters, and the rule for choosing between them is the one thing to 
 - **Driving the machine yourself** does what `folding` does, for an operator a table cannot
   classify.
 
-Measured, over one table, `folding` takes 0.81 of the instructions the typed driver takes on a
-source of four left-associative chains of 63 operators each, and 0.75 of them on four
-right-associative ones. In time, the full-parse comparison against the handwritten typed channels in
-`tokora-benches`' `pratt/flat` cells, a different typed parser from the instruction counts'
-table-driven one, reads 0.61 to 0.70. Those timed figures are the five-round medians of the eleven
-shapes in one advisory CI run, and they include how each parser reads the next token. These are the
-only ratios this section gives, and each reads below one. The figures are for the 64-byte lexer
-state those cells carry, which a checkpoint and a staged token clone, and no other size is
-measured.
+Measured, over one table, `folding` takes 0.69 of the instructions the typed driver takes on a
+source of four left-associative chains of 63 operators each, and 0.62 of them on four
+right-associative ones; on aarch64 the pair is 0.69 and 0.64. In time, the full-parse comparison
+against the handwritten typed channels in `tokora-benches`' `pratt/flat` cells, a different typed
+parser from the instruction counts' table-driven one, reads 0.49 to 0.59. Those timed figures are
+the medians over four rounds of the eleven shapes in one advisory CI run on x86_64, and they
+include how each parser reads the next token. The fourth round of that run was left out as
+contended. These are the only ratios this section gives, and each reads below one. The figures are
+for the 64-byte lexer state those cells carry, which a checkpoint and a staged token clone, and no
+other size is measured.
 
 A calculator over `i64` on `folding`, whose infix fold checks its arithmetic, refuses an overflow
 at its operator:
