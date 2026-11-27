@@ -1083,11 +1083,8 @@ where
       Phase::Owed(Owed::Close(right)) => self.reduce_top(right, false),
       Phase::Owed(Owed::Finish(right)) => self.reduce_top(right, true),
       Phase::Owed(Owed::Done(value)) => {
-        // `Done` resets: nothing is pending, so no floor is kept, the root's latch, the only one,
-        // its copy and the count are cleared, and the phase is `Term` already.
-        self.state.root_latch = None;
-        self.state.latch = None;
-        self.state.latches = 0;
+        // `Done` resets, and the phase is `Term` already.
+        self.clear_done();
         PrattPoll::Done(value)
       }
       // `poll` calls this in the `Owed` phase alone. Any other phase is put back as it was, and
@@ -1273,12 +1270,28 @@ where
   #[inline]
   fn keep_innermost(&mut self) {
     self.state.frame_floor = self.floor_of_top();
-    // With no latch set, the latch is `None` wherever it lives, and no frame is read for it.
+    self.keep_latch();
+  }
+
+  /// Keeps a copy of the innermost sub-expression's latch, read where it lives. With no latch set,
+  /// the latch is `None` wherever it lives, and no frame is read for it.
+  #[inline(always)]
+  fn keep_latch(&mut self) {
     self.state.latch = if self.state.latches == 0 {
       None
     } else {
       self.innermost_latch()
     };
+  }
+
+  /// What a `Done` clears, `poll`'s and the fast close's alike: nothing is pending, so no floor is
+  /// kept, and the root's latch, the only one, its copy and the count of latches set are cleared,
+  /// the count last, once the latch it counted is gone.
+  #[inline(always)]
+  fn clear_done(&mut self) {
+    self.state.root_latch = None;
+    self.state.latch = None;
+    self.state.latches = 0;
   }
 
   /// The innermost sub-expression's latch, cloned where it lives: the one the frame on top holds,
@@ -1546,11 +1559,8 @@ where
       unreachable!("a close outside the `Operator` phase");
     };
     if self.state.depth == 0 {
-      // `Done` resets, as `poll`'s does: nothing is pending, so no floor is kept, the root's latch,
-      // its copy and the count are cleared, and the phase is `Term` already.
-      self.state.root_latch = None;
-      self.state.latch = None;
-      self.state.latches = 0;
+      // `Done` resets, as `poll`'s does, and the phase is `Term` already.
+      self.clear_done();
       return Closed::Done(right);
     }
     self.reduce_top_frame(right)
@@ -1593,11 +1603,7 @@ where
     match operator {
       FrameOperator::Prefix(operator) => {
         // A prefix reduction leaves the latch as it is: its copy is read where it lives.
-        self.state.latch = if self.state.latches == 0 {
-          None
-        } else {
-          self.innermost_latch()
-        };
+        self.keep_latch();
         Closed::Prefix(PrattPrefixReduction {
           operand: right,
           operator,
