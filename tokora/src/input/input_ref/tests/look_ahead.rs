@@ -1556,6 +1556,80 @@ fn retries_after_a_verdict_a_look_ahead_reached_ahead_of_the_committed_path_are_
   assert_eq!(after, control_after, "and every reading is the control's");
 }
 
+// ── T11f: a refusal inside the look-ahead stays on record ─────────────────────────────
+
+/// T11b's fixture at a ceiling of 3. The committed peek pays for the error and the withheld head,
+/// two items, and its verdict is on record. The look-ahead re-keys and peeks again: it lexes the
+/// error under its own regime, the third item, and is refused the head, which is not charged.
+/// The settle puts the memo back, and the refusal stays on record, as the ceiling row of
+/// `look_ahead`'s table says: `refused_an_item` and `at_scanner_stop` read true as soon as the
+/// look-ahead returns, and the committed read, which leaves the restored window at once, is a
+/// terminal stop where the memo would have answered it.
+///
+/// The control has no look-ahead: its read is answered from the memo, and nothing is refused.
+#[test]
+fn a_refusal_inside_a_look_ahead_stays_on_record_after_it() {
+  fn partial_budgeted(src: &str, max: usize) -> Input<'_, LaLexer<'_>, LaCtx<'_>, (), Partial> {
+    Input::with_state_and_context(
+      src,
+      LaState::default(),
+      context().with_token_budget(TokenBudget::with_limitation(max)),
+    )
+  }
+  const SRC: &str = "?a";
+
+  let mut control = partial_budgeted(SRC, 3);
+  let mut ctl = control.as_ref();
+  assert!(matches!(ctl.peek_one(), Ok(None)));
+  assert_eq!(
+    ctl.token_budget().spent(),
+    2,
+    "the error and the withheld token"
+  );
+  assert!(
+    matches!(ctl.next(), Err(BombErr::Incomplete)),
+    "the control's read is answered from the memo"
+  );
+  assert!(!ctl.token_budget().refused_an_item());
+  assert!(!ctl.at_scanner_stop());
+
+  let mut input = partial_budgeted(SRC, 3);
+  let mut inp = input.as_ref();
+  assert!(matches!(inp.peek_one(), Ok(None)));
+  assert_eq!(inp.token_budget().spent(), 2);
+  let refused = inp.look_ahead(|inp| {
+    inp.set_state(LaState::default());
+    let _ = inp.peek_one();
+    inp.token_budget().refused_an_item()
+  });
+  assert!(
+    refused,
+    "under its own regime the look-ahead's peek is refused the head"
+  );
+  let budget = inp.token_budget();
+  assert_eq!(
+    budget.spent(),
+    3,
+    "the error again, and not the refused head"
+  );
+  assert_eq!(budget.look_ahead_spent(), 1);
+  assert!(
+    budget.refused_an_item(),
+    "the refusal stays on record from the settle on"
+  );
+  assert!(
+    inp.at_scanner_stop(),
+    "and the stop reads before the committed path reads anything"
+  );
+  let lexes = la_lexes();
+  assert!(
+    matches!(inp.next(), Ok(None)),
+    "the read the memo would have answered is a terminal stop"
+  );
+  assert_eq!(la_lexes(), lexes, "and it lexes nothing");
+  assert_eq!(inp.token_budget().spent(), 3);
+}
+
 // ── T12: a session point opened and abandoned inside ──────────────────────────────────
 
 /// A session point the closure opens and abandons is reconciled by the look-ahead's rollback: no
