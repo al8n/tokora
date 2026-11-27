@@ -124,7 +124,7 @@
 //! | `state` (the lexer regime) | `Input` | ground truth | overwrite from the checkpoint |
 //! | `span` (last-consumed) | `Input` | ground truth | overwrite from the checkpoint |
 //! | `cache` (the token cache) | `Input` | ground truth | the input layer rewinds the front against the restored cursor through `Cache::pop_front`/`Cache::clear`, then drops the post-save tail through `Cache::pop_back`, sized by the count below. A look-ahead's own rollback is followed by one more write: `InputRef::install_look_ahead` swaps back in the copy `InputRef::look_ahead` took at entry, which the restored count already describes, so nothing is pushed or lexed |
-//! | `pending` (the parked front token) | `Input` | ground truth | **clear** it — a parked token is not a cache entry and is uncounted, so it is dropped rather than replayed and the region re-lexes it back under the `Lexer` determinism contract. After a look-ahead's own rollback, `InputRef::install_look_ahead` re-parks the copy `InputRef::look_ahead` took at entry, under a new park id |
+//! | `pending` (the parked front token) | `Input` | ground truth | **clear** it — a parked token is not a cache entry and is uncounted, so it is dropped rather than replayed and the region re-lexes it back under the `Lexer` determinism contract. After a look-ahead's own rollback, `InputRef::install_look_ahead` re-parks the copy `InputRef::look_ahead` took at entry, under the park id it wore then unless another token entered the slot in between |
 //! | `emitter` (the emission log) | `Input` (owned; borrowed through `InputRef`) | ground truth | truncate to the saved mark |
 //! | `emitted_error_end` (dedup watermark) | `Input` | lineage memo | pure-copy the saved value |
 //! | `front_reported_end` (front-report watermark) | `Input` | lineage memo | pure-copy the saved value — beside the emitter rewind, so the witness and the report it names move as one |
@@ -137,7 +137,7 @@
 //! | `points` (open session points) | `Session` | lineage memo | settle the suffix below the restored id (the *checked* rewind is refused by the pin first) |
 //! | [`next_ckp_id`](Lineage) | `Lineage` | monotone id source | **nothing** — rewinding would reissue a live id |
 //! | [`savepoint_seq`](Lineage) | `Lineage` | monotone id source | **nothing** — same |
-//! | [`parks`](Lineage) (the parked token's id) | `Lineage` | monotone id source | **nothing** — a rewound count would give a token parked after the restore the id of one parked before it. Bumped by `Lineage::record_park` each time the parked slot takes a token it did not just hand out; present with the `pratt` feature |
+//! | [`parks`](Lineage) (the parked token's id) | `Lineage` | monotone id source | **nothing** — a rewound count would give a token parked after the restore the id of one parked before it. Bumped by `Lineage::record_park` each time the parked slot takes a token it did not just hand out. A look-ahead's re-park goes through `Lineage::record_repark`, which bumps it only when another token entered the slot during the look-ahead: the copy is the token the slot held, and keeps its id; present with the `pratt` feature |
 //! | `finality` (`is_final`) | `Input` (snapshot on `InputRef`) | **world fact** | **nothing** — and it cannot change while a handle lives |
 //! | `recursion` (the descent budget) | `Input` (borrowed through `InputRef`) | **control-stack fact** | **nothing** — a checkpoint does not carry it; the `Descent` guard's drop balances it with the frame it counts |
 //! | `token_budget` (the item ceiling) | `Input` (borrowed through `InputRef`) | **monotone session fact** | **nothing** — and here the reason is not that the cell cannot be observed to change, as it is for the two rows around it, but that a budget a rollback refunds is not a budget. An attempt that lexed a thousand items and declined performed a thousand items of scanning; giving the count back would hand an adversary who forces speculation free work without limit. Tested by `InputRef::lex_within_boundary` **before** it invokes the lexer and charged there, one per item a step produced, so the enforcement sits in front of the work rather than behind a stop a rollback can refund; the refusal records that stop through `InputRef::publish_scanner_trip`, staged before the lexer call that decides one is owed. It carries a **second** durable bit, for the same reason: the gate answers "would an item be refused?" and a driver needs "is there an item?", so `InputRef::settle_met_ceiling` runs a one-shot probe wherever the two answers differ and latches it here — outside the rollback set exactly as the counter is, since a flag any of these doors cleared would buy a fresh probe every round. A **third** half rides in the same value: the count of items charged while a look-ahead was open. It is outside the set for the counter's sake rather than its own, because it witnesses part of the spend: restored by a rollback that keeps the charge, it would erase the exclusion while the spend it excluded stayed. Its one writer is `InputRef::install_look_ahead`, the settle of `InputRef::look_ahead`, which raises it and lowers nothing. No lowering writer exists for any of the three halves, and there is no `token_budget_mut`. What it costs is that a re-lex is charged again, so the ceiling bounds produce-events rather than distinct document tokens |
@@ -528,14 +528,32 @@ impl Lineage {
   }
 
   /// Records a token entering the parked front slot that the slot did not just hand out. The cold
-  /// park path and a look-ahead's re-park reach it, once for each such token, and the count
-  /// saturates rather than wrap.
+  /// park path reaches it, once for each such token, and the count saturates rather than wrap.
   /// Without the `pratt` feature nothing reads the id, and there is nothing to record.
   #[inline(always)]
   pub(crate) fn record_park(&mut self) {
     #[cfg(feature = "pratt")]
     {
       self.parks = self.parks.saturating_add(1);
+    }
+  }
+
+  /// Records a look-ahead's copy of the parked token coming back into the slot. The copy is the
+  /// token the slot held when the look-ahead began, under the id `id`, and it keeps that id while
+  /// no other token has entered the slot since: whatever was read off the id still describes it.
+  /// When another token has, that token took a newer id, which the copy must not wear, so the copy
+  /// takes a new one as [`record_park`](Self::record_park) gives any token entering the slot.
+  #[inline(always)]
+  pub(crate) fn record_repark(&mut self, id: u64) {
+    #[cfg(feature = "pratt")]
+    {
+      if self.parks != id {
+        self.parks = self.parks.saturating_add(1);
+      }
+    }
+    #[cfg(not(feature = "pratt"))]
+    {
+      let _ = id;
     }
   }
 

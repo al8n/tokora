@@ -623,8 +623,8 @@ where
   ///
   /// One rollback puts it back instead: an [`InputRef::look_ahead`]'s. The look-ahead copies the
   /// slot when it begins, and once its own rollback has cleared the slot, its settle re-parks the
-  /// copy, under a new park id, so the read that follows serves the token rather than re-lexing
-  /// it.
+  /// copy, under the park id it wore unless another token entered the slot in between, so the read
+  /// that follows serves the token rather than re-lexing it.
   pending: Option<CachedTokenOf<'inp, L>>,
   /// The completeness finality (`is_final`) storage: the zero-sized `()` for [`Complete`] — so the
   /// complete input has the identical layout it had before this typestate existed — and a `bool`

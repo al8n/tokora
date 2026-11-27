@@ -1015,3 +1015,102 @@ mod over_a_prefilled_cache {
     }
   }
 }
+
+/// A head parked under the capacity-0 cache, read around folds that peek it through a look-ahead.
+/// The driver keeps the head's classification by its park id, so the look-ahead must give the
+/// copy it re-parks the id the head wore.
+#[cfg(feature = "std")]
+mod a_parked_head_across_look_aheads {
+  use core::cell::Cell;
+  use std::{format, thread_local};
+
+  use super::*;
+
+  thread_local! {
+    /// The right-hand sides the counting table has classified on this thread.
+    static CLASSIFIED: Cell<usize> = const { Cell::new(0) };
+  }
+
+  /// The suites' table, under a marker whose right-hand classifier counts its calls.
+  struct Counted;
+
+  const COUNTED: PrattTable<Counted, u8> = PrattTable::new();
+
+  impl PrattToken<'_, Counted, u8> for Tok {
+    fn try_pratt_lhs(&self) -> Option<PrattLHS<(), (), u8>> {
+      <Self as PrattToken<'_, Expr, u8>>::try_pratt_lhs(self)
+    }
+
+    fn try_pratt_rhs(&self) -> Option<PrattRHS<(), (), (), (), u8>> {
+      CLASSIFIED.with(|classified| classified.set(classified.get() + 1));
+      <Self as PrattToken<'_, Expr, u8>>::try_pratt_rhs(self)
+    }
+  }
+
+  type ParkedIr<'inp, 'c> = InputRef<'inp, 'c, ByteLexer<'inp, true>, (Fatal<Fail>, ())>;
+
+  /// A digit, as its value.
+  fn digit(input: &mut ParkedIr<'_, '_>) -> Result<ParseAttempt<u32>, Fail> {
+    Ok(
+      match input.try_expect(|tok| tok.data().0.is_ascii_digit())? {
+        Some(tok) => ParseAttempt::Accept(u32::from(tok.into_data().0 - b'0')),
+        None => ParseAttempt::Decline,
+      },
+    )
+  }
+
+  /// A prefix fold that peeks the head through a look-ahead before it keeps its operand.
+  fn peek_then_keep(
+    input: &mut ParkedIr<'_, '_>,
+    operand: u32,
+    _: Precedenced<Op, u8>,
+  ) -> Result<u32, Fail> {
+    let _ = input.look_ahead(|input| input.peek_one().map(|head| head.is_some()));
+    Ok(operand)
+  }
+
+  fn keep(_: &mut ParkedIr<'_, '_>, operand: u32, _: Precedenced<Op, u8>) -> Result<u32, Fail> {
+    Ok(operand)
+  }
+
+  fn keep_left(
+    _: &mut ParkedIr<'_, '_>,
+    left: u32,
+    _: u32,
+    _: Precedenced<PrattInfix<Op, Op, Op>, u8>,
+  ) -> Result<u32, Fail> {
+    Ok(left)
+  }
+
+  /// `folding` over N prefix operators, `1` and `x` under the capacity-0 cache, with prefix folds
+  /// that each peek the head through a look-ahead: its value, and the right-hand sides it
+  /// classified.
+  fn over_parked(n: usize) -> (Result<u32, Fail>, usize) {
+    let src = format!("{}1x", "-".repeat(n));
+    let mut input = Input::<ByteLexer<'_, true>, (Fatal<Fail>, ()), ()>::with_state_and_context(
+      src.as_str(),
+      (),
+      InputContext::new(Fatal::<Fail>::new(), ()),
+    );
+    CLASSIFIED.with(|classified| classified.set(0));
+    let result = flat(COUNTED, digit)
+      .folding(peek_then_keep, keep_left, keep)
+      .parse_input(&mut input.as_ref());
+    (result, CLASSIFIED.with(Cell::get))
+  }
+
+  /// The head `x` is parked, and it is classified once, however many folds peek it. A look-ahead
+  /// that gave its copy a new park id on every return had the driver classify the unchanged head
+  /// after every fold, N + 1 times.
+  #[test]
+  fn a_parked_head_is_classified_once_across_folds_that_peek_it_through_a_look_ahead() {
+    for n in [16, 64] {
+      let (result, calls) = over_parked(n);
+      assert_eq!(result, Ok(1), "{n}");
+      assert!(
+        calls <= 2,
+        "{n} prefix operators, each fold peeking the parked head: {calls} classifications"
+      );
+    }
+  }
+}

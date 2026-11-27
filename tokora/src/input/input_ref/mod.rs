@@ -522,8 +522,11 @@ where
   /// token enters the slot other than by coming back from it, and a peek reads the slot without
   /// writing it. The flat expression driver reads this around a fold, to keep the classification
   /// of the head it staged. A cache with room pays nothing for it, since the push count is kept
-  /// anyway; the park id is bumped on the cold park path and by a look-ahead's re-park, once for
-  /// each token that enters the slot.
+  /// anyway; the park id is bumped on the cold park path, once for each token that enters the
+  /// slot. A [look-ahead](Self::look_ahead) gives both readings back: its settle reinstalls the
+  /// window under the push count its rollback restored, and re-parks a copied head under the id
+  /// it wore unless another token entered the slot in between, so a fold that peeks through one
+  /// leaves the head's identity as it found it.
   #[cfg(feature = "pratt")]
   #[inline(always)]
   pub(crate) fn staged_entry(&self) -> Option<StagedEntry> {
@@ -695,7 +698,9 @@ where
   ///
   /// A token the slot did not just hand out takes a new id there, and the one it handed out comes
   /// back with its own: one saturating add. The one other place a token enters the slot,
-  /// [`install_look_ahead`](Self::install_look_ahead), re-parks a copy under the same rule.
+  /// [`install_look_ahead`](Self::install_look_ahead), re-parks a copy of the token the slot held
+  /// when the look-ahead began, under that token's id unless another token entered the slot in
+  /// between: see [`Lineage::record_repark`](super::Lineage::record_repark).
   #[cold]
   #[inline(never)]
   fn park(&mut self, tok: CachedTokenOf<'inp, L>, origin: Origin) {
@@ -2861,6 +2866,13 @@ where
     } else {
       None
     };
+    // The id the parked token wears now. The settle puts the copy back under it unless another
+    // token enters the slot in between, so an identity read before the look-ahead still names the
+    // token after it.
+    #[cfg(feature = "pratt")]
+    let park_id = self.session.lineage.parks();
+    #[cfg(not(feature = "pratt"))]
+    let park_id = 0;
     // The withheld-head memo is one slot. A verdict `f` reaches replaces it, under `f`'s regime and
     // from `f`'s offset, and the rollback that puts the regime back cannot make the replacement
     // answer for the verdict the committed path paid for. Only a partial input holds one.
@@ -2885,7 +2897,7 @@ where
       .saturating_sub(self.token_budget.look_ahead_spent());
     let mut settle = LookAheadSettle {
       input: self,
-      window: Some((cache, parked, memo)),
+      window: Some((cache, parked.map(|tok| (tok, park_id)), memo)),
       kept,
       armed: false,
     };
@@ -2910,12 +2922,15 @@ where
   ///
   /// Reached only once the look-ahead's rollback has returned, so every other fact is back at its
   /// entry value, `cache_pushes` included, and the window installed here is the one those facts
-  /// describe. Installing it pushes nothing and lexes nothing. The four fact writes have no caller
-  /// code between them, and what they displace dies at the one drop site below, with the settle
-  /// whole.
+  /// describe. Installing it pushes nothing and lexes nothing. The fact writes, the cache, the
+  /// parked slot and its id, the memo and the exclusion, have no caller code between them, and
+  /// what they displace dies at the one drop site below, with the settle whole.
   ///
-  /// A copied parked token re-enters the slot under [`park`](Self::park)'s rule: it is not the
-  /// token the slot just handed out, so it takes a new id. After the rollback the slot is empty.
+  /// A copied parked token re-enters the slot as the token the slot held when the look-ahead
+  /// began, and keeps the id it wore then: an identity read off the slot before the look-ahead,
+  /// as the flat expression driver reads one to keep a head's classification, still names it.
+  /// When another token entered the slot during the look-ahead it took a newer id, and the copy
+  /// takes a new one under [`park`](Self::park)'s rule. After the rollback the slot is empty.
   ///
   /// The memo goes back only when the input held one at entry. The parts of its key a rollback can
   /// move, the regime and the dedup watermark, are back at their entry values, and the source and
@@ -2926,7 +2941,7 @@ where
   fn install_look_ahead(
     &mut self,
     cache: Ctx::Cache,
-    parked: Option<CachedTokenOf<'inp, L>>,
+    parked: Option<(CachedTokenOf<'inp, L>, u64)>,
     memo: Option<super::WithheldHead<L::Offset>>,
     kept: usize,
   ) {
@@ -2934,8 +2949,8 @@ where
     // `Option::replace` is `mem::replace` with `Some`: it hands back what it displaced instead of
     // dropping it in place, so the slot's old value reaches the drop site below.
     let displaced_park = match parked {
-      Some(tok) => {
-        self.session.lineage.record_park();
+      Some((tok, id)) => {
+        self.session.lineage.record_repark(id);
         self.pending.replace(tok)
       }
       None => None,
@@ -5125,11 +5140,12 @@ where
   Cmpl: Completeness,
 {
   input: &'s mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
-  /// The cache, the parked token and the withheld-head memo as the look-ahead found them. `Some`
-  /// until the settle takes them; dropped with the guard when it does not.
+  /// The cache, the parked token with the park id it wore, and the withheld-head memo, as the
+  /// look-ahead found them. `Some` until the settle takes them; dropped with the guard when it does
+  /// not.
   window: Option<(
     Ctx::Cache,
-    Option<CachedTokenOf<'inp, L>>,
+    Option<(CachedTokenOf<'inp, L>, u64)>,
     Option<super::WithheldHead<L::Offset>>,
   )>,
   /// `spent() - look_ahead_spent()` when the look-ahead began, the value the settle restores.

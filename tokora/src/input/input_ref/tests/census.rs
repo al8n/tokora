@@ -432,14 +432,17 @@ fn settle_census_nothing_fallible_once_a_restore_has_begun() {
     // omission from this list became a blind spot with no other symptom. `set_state` wrote the
     // state and then ran an `L::Offset::clone`, and the rail read clean.
     "core::mem::replace(self.state",
-    // A look-ahead's settle, its four writes as `install_look_ahead` spells them: the window back
+    // A look-ahead's settle, its writes as `install_look_ahead` spells them: the window back
     // into the cache, the copied token back into the parked slot, the copied withheld-head memo
     // back into its slot, and the exclusion. A caller destructor between two of them would leave a
     // host holding half a settle — the window without its exclusion, or the reverse — so they are
     // fact writes like the rest of this list. The two slots are written in their `Option`-native
     // spelling, for the reason `self.poison_boundary.replace(` above gives: clippy's
-    // `mem_replace_option_with_some` requires it.
+    // `mem_replace_option_with_some` requires it. The parked slot's identity is written beside its
+    // token, and is listed too: a token back in the slot under an id it does not wear is half a
+    // settle as well.
     "core::mem::replace(self.cache",
+    "lineage.record_repark(",
     "self.pending.replace(",
     "self.withheld.replace(",
     "token_budget.settle_look_ahead(",
@@ -613,8 +616,9 @@ fn settle_census_nothing_fallible_once_a_restore_has_begun() {
     // already-spent refusal publishes it before it has derived anything.
     "mod.rs::count_scanner_trip",
     // A look-ahead's settle. Its region runs from the cache swap through the exclusion, and
-    // between them are the two slots' `Option::replace` and the park id's `u64` bump; what the
-    // four writes displace is dropped after the last of them.
+    // between them are the two slots' `Option::replace` and `Lineage::record_repark`, a `u64`
+    // comparison and at most one `u64` bump; what the writes displace is dropped after the last of
+    // them.
     "mod.rs::install_look_ahead",
     // `commit_token` is deliberately ABSENT: the body is a clamp followed by a call to
     // `settle_committed_token`, and neither is a fact write, so it holds no window of its own. The

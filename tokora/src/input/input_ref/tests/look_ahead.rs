@@ -1095,7 +1095,8 @@ fn entries_the_context_handed_over_come_back_verbatim() {
 // ── T10: a parked head ────────────────────────────────────────────────────────────────
 
 /// Under a capacity-0 cache the head lives in the parked slot. A look-ahead that consumed it
-/// re-parks the copy it took, under a new park id, and the read after it lexes nothing.
+/// re-parks the copy it took, under the park id it wore, since nothing else entered the slot, and
+/// the read after it lexes nothing.
 #[test]
 fn a_parked_head_a_look_ahead_consumed_is_re_parked() {
   type Ref0<'inp, 'cl> = InputRef<'inp, 'cl, LaLexer<'inp>, (BombEmitter, ()), ()>;
@@ -1153,8 +1154,8 @@ fn a_parked_head_a_look_ahead_consumed_is_re_parked() {
   #[cfg(feature = "pratt")]
   assert_eq!(
     inp.session.lineage.parks(),
-    parks + 1,
-    "the copy entered the slot as a token it had not just handed out, so it took a new id"
+    parks,
+    "the copy is the token the slot held, and nothing else entered the slot, so it keeps its id"
   );
   assert_eq!(
     inp.token_budget().spent(),
@@ -1168,6 +1169,88 @@ fn a_parked_head_a_look_ahead_consumed_is_re_parked() {
     lexes,
     "and the read after it is served from the slot"
   );
+}
+
+// ── T10b: the parked head's identity across a look-ahead ──────────────────────────────
+
+/// The flat expression driver keeps a staged head's classification while the head's identity
+/// holds, and a parked head's identity is its park id. A look-ahead that only peeks the parked
+/// head gives the copy back under the same id, so the identity read before it still names the
+/// head. A look-ahead that parks another token in between gives the copy a new id, since the
+/// token it parked wore the next one.
+#[cfg(feature = "pratt")]
+#[test]
+fn a_parked_head_keeps_its_identity_across_a_look_ahead_that_parks_nothing_else() {
+  type Ref0<'inp, 'cl> = InputRef<'inp, 'cl, LaLexer<'inp>, (BombEmitter, ()), ()>;
+  fn blackhole(src: &str) -> Input<'_, LaLexer<'_>, (BombEmitter, ()), ()> {
+    Input::with_state_and_context(
+      src,
+      LaState::default(),
+      InputContext::new(BombEmitter::default(), ()),
+    )
+  }
+  fn park(inp: &mut Ref0<'_, '_>) {
+    let declined = inp.try_expect(|_| false).unwrap();
+    assert!(declined.is_none());
+    assert!(
+      inp.has_front_parked(),
+      "a capacity-0 cache parks the declined head"
+    );
+  }
+
+  let mut input = blackhole("a b c");
+  let mut inp = input.as_ref();
+  park(&mut inp);
+  let entry = inp.session.lineage.parks();
+  let staged = inp.staged_entry();
+  assert!(staged.is_some(), "the parked head has an identity");
+  let peeked = inp.look_ahead(|inp| inp.peek_one().map(|head| head.is_some()));
+  assert!(
+    matches!(peeked, Ok(true)),
+    "the look-ahead peeked the parked head"
+  );
+  assert!(inp.has_front_parked(), "the head is back in the slot");
+  assert_eq!(
+    inp.session.lineage.parks(),
+    entry,
+    "a look-ahead that parked nothing else leaves the id where it was"
+  );
+  assert!(
+    inp.staged_entry() == staged,
+    "so the identity read before the look-ahead still names the head"
+  );
+
+  let mut input = blackhole("a b c");
+  let mut inp = input.as_ref();
+  park(&mut inp);
+  let entry = inp.session.lineage.parks();
+  let staged = inp.staged_entry();
+  let behind = inp.look_ahead(|inp| {
+    let _ = inp.next().unwrap();
+    park(inp);
+    inp.session.lineage.parks()
+  });
+  assert_eq!(
+    behind,
+    entry + 1,
+    "the token behind the head entered the slot under the next id"
+  );
+  assert_eq!(
+    inp.session.lineage.parks(),
+    entry + 2,
+    "so the copy of the head came back under a new one"
+  );
+  assert!(
+    inp.staged_entry() != staged,
+    "and the identity read before the look-ahead no longer names the head"
+  );
+  let lexes = la_lexes();
+  assert_eq!(
+    inp.next().unwrap().map(|t| t.data.byte),
+    Some(b'a'),
+    "the slot holds the head again"
+  );
+  assert_eq!(la_lexes(), lexes, "and serves it without a lex");
 }
 
 // ── T11: a withheld head on a partial input ───────────────────────────────────────────
