@@ -2770,7 +2770,8 @@ where
   /// restores the cache it was entered with, and a parked front token, after the rollback. The
   /// read after a look-ahead therefore lexes what it would have lexed had the look-ahead never
   /// run, and that is what makes the difference exact for everything that follows the look-ahead,
-  /// not only for what it lexed itself.
+  /// not only for what it lexed itself. The kept rows of the table below are the exceptions, each
+  /// with its bound.
   ///
   /// The window is copied when the look-ahead begins, through `Ctx::Cache: Clone` and
   /// `L::Token: Clone`, and the copy must be an independent snapshot of the queue: the `Clone` law
@@ -2787,31 +2788,30 @@ where
   ///
   /// | State | After the look-ahead | On the reads after it |
   /// |---|---|---|
-  /// | The position and the lexer state | Restored, by the rollback | None |
+  /// | The position: the last-consumed span and the lexer state | Restored, by the rollback | None |
   /// | The regime, the installed state's name | Restored, by the rollback | None |
-  /// | The regime id source | Kept: it only climbs | None: a later re-key takes a name no regime has worn |
-  /// | The cache window and the cache-push count | Restored: the rollback puts the count back, and the settle installs the copy taken at entry | None, for a cache whose `Clone` keeps the law |
-  /// | The parked front token | Restored, by the settle | None |
-  /// | The parked token's id | Restored, by the settle | None: an identity read before the look-ahead names the token after it. Every id `f` issued stays issued, and no later park is given one |
+  /// | The regime id source | Kept: it only climbs | None: a later re-key takes a name no earlier regime has worn, or the exhausted sentinel, which matches no regime |
+  /// | The cache window and the cache-push count | Restored: the rollback puts the count back, and the settle installs the copy taken at entry | None, for a cache whose `Clone` keeps its law |
+  /// | The parked front token and its id | Restored, by the settle, which re-parks the copy taken at entry under the id it wore | None: an identity read before the look-ahead names the token after it. The ids `f` issued stay issued, so no later park is given one |
   /// | The withheld-head memo, held at entry | Restored, by the settle | None |
-  /// | The withheld-head memo, none at entry | Kept, when `f` reached a verdict whose run crossed no lexer error; any other verdict `f` left is taken out | The read that starts where that run began is answered without a lex: one item fewer in `spent` and in the difference, once. A run that crossed no error is the withheld item alone, and the memo holds one verdict |
+  /// | The withheld-head memo, none at entry | Kept, when `f` reached a verdict whose run crossed no lexer error. The settle takes out any other verdict `f` left | At most one item fewer in `spent` and in the difference, once. A run that crossed no error is the withheld item alone, and the read the verdict answers is the one that, without the look-ahead, lexes that item and records the verdict itself |
   /// | The dedup and front-report watermarks, and the poison boundary | Restored, by the rollback | None |
   /// | The emissions | Restored: the rollback rewinds the emitter to its mark | None, within the emitter's rewind contract |
-  /// | `spent`, and the probe latch and refusal bit beside it | Kept: `f`'s items stay charged | The ceiling counts them, so the reads after the look-ahead meet it at most as many items sooner as `f` charged. A ceiling `f` met refuses their first lex past the restored window, which is still served. None of this moves the difference, since a refused item is never charged |
-  /// | `spent() - look_ahead_spent()` | Restored, by the settle, which raises `look_ahead_spent` by what `f` charged | None, apart from the memo row above and the row below |
+  /// | `spent`, and the at-limit probe latch that [`refused_an_item`](crate::input::TokenBudgetTally::refused_an_item) reads | Kept: `f`'s items stay charged, and a probe `f` ran stays latched | Under a ceiling, the reads after the look-ahead meet it as many items sooner as `f` charged, so the difference can end that many items lower than without the look-ahead. A ceiling `f` met is met by their first lex past the restored window, which is still served. With no ceiling, none |
+  /// | `spent() - look_ahead_spent()` | Restored, by the settle, which raises `look_ahead_spent` by what `f` charged | None, apart from the memo and ceiling rows above and the row below |
   /// | `spent` at `usize::MAX` | Kept: it saturates, which only an unlimited budget reaches | It stops counting, and the difference stops with it |
   /// | The scanner and resource trip counters | Kept: they only climb | A reader that compares one against a baseline taken before the look-ahead sees `f`'s trips, as it sees a declined attempt's. None on the difference |
-  /// | Session points opened inside `f`, and the look-ahead's own checkpoint, pin and emitter mark | Restored: the rollback abandons the points, and releases every pin, lineage entry and emitter mark | None |
-  /// | Session points opened before the look-ahead | Restored | None. In allocator builds a rollback to one inside `f` is refused and leaves it open, to be settled after the look-ahead |
-  /// | A session point opened before the look-ahead that `f` commits | Outside | The commit stands, as it does inside `attempt`: the point is not the look-ahead's |
-  /// | The checkpoint and savepoint id sources | Kept: they only climb | None |
-  /// | The recursion depth | Restored, by `f`'s own descent guards | None |
-  /// | The source and its finality | Unchanged: neither can change while a handle lives | None |
-  /// | The cache, under a `Clone` that breaks the law | Outside | A clone that keeps an in-order prefix of the queue restores less: the read after the look-ahead lexes the rest again, as after an attempt, and the difference counts it. Any other breach, a clone that shares a read index among them, is unspecified-but-bounded |
-  /// | Everything, on an unwind out of the look-ahead's own rollback | Outside | Nothing is installed and nothing is excluded: the input is as `attempt` leaves it on the same edge |
-  /// | What an emitter keeps outside its rewind contract | Outside | The emitter's own. The recording CST sink's hole-wrap floor is one: a point opened and abandoned inside the look-ahead, at its guard's mark, leaves it raised past the rollback (tokora issue #385) |
-  /// | The emitter's label stack | Outside | Labels pair by scope, through [`labelled`](crate::combinator::labelled): one `f` enters and leaves entered stays entered, as it would after an attempt |
-  /// | A lexer's own effects outside `L::State`, and trace events | Outside | The `Lexer` determinism contract covers only what a scan reads, and trace events go out of band |
+  /// | Session points opened inside `f`, and the look-ahead's own checkpoint and pin | Restored: the rollback abandons the points, releasing their emitter marks, and pops the look-ahead's checkpoint and pin | None |
+  /// | Session points opened before the look-ahead | Restored: the rollback abandons only the points above its own checkpoint, and refuses a rollback `f` asks for to one of these, which leaves the point open | None. The point can be settled once the look-ahead has returned |
+  /// | A session point opened before the look-ahead that `f` commits | Outside | The commit stands, as it does inside `attempt`: the point is not the look-ahead's to take back |
+  /// | The checkpoint, savepoint and park id sources | Kept: they only climb | None, short of a 64-bit source running out |
+  /// | The recursion depth | Restored, as `f` leaves: its one writer, the [`Descent`](crate::input::Descent) guard, is dropped before `f` returns or unwinds | None. A guard `f` leaks holds its level, Rust's `mem::forget` caveat, which `Descent` documents |
+  /// | The emitter's label stack | Restored, as `f` leaves: [`labelled`](crate::combinator::labelled) pops each label it entered, in a drop guard | None. A label `f` enters by hand and never exits breaks the emitter's pairing contract, and stays, as after an attempt |
+  /// | The source, its finality and the input's identity | Unchanged: none can change while a handle lives | None |
+  /// | The cache, under a `Clone` that breaks its law | Outside | A clone that keeps an in-order prefix of the queue restores less: the read after the look-ahead lexes the rest again, as after an attempt, and the difference counts it. Any other breach, a clone that shares a read index among them, is unspecified-but-bounded |
+  /// | Everything, on an unwind out of the look-ahead's own rollback | Outside | Nothing is installed and nothing is excluded: the input is as `attempt` leaves it on the same edge, and what `f` lexed stays in the difference |
+  /// | What an emitter keeps outside its rewind contract | Outside | It is the emitter's own. The recording CST sink's hole-wrap floor is one case: a session point `f` opens with nothing emitted since the look-ahead began, and leaves open, is abandoned by the rollback and leaves the floor raised, so a later `emit_skipped_region` can stop short of a token it should wrap (tokora issue #385) |
+  /// | A lexer's effects outside its `State`, and the `trace` nesting depth | Outside | The `Lexer` determinism contract keeps the first out of what a scan reads, and the second only indents trace output, which goes out of band |
   ///
   /// # Nesting
   ///
