@@ -156,6 +156,74 @@ fn a_tally_is_built_from_the_ceiling_alone() {
   assert_eq!(again.limitation(), 4, "while the ceiling still crossed");
 }
 
+/// A look-ahead's settle puts the difference back to its entry value, and a nested pair counts the
+/// inner's items once: the outer excludes its whole spend, the inner's included.
+#[test]
+fn a_look_ahead_settle_restores_the_difference_and_counts_a_nested_one_once() {
+  let mut budget = TokenBudgetTally::new(TokenBudget::unlimited());
+  budget.spend();
+  budget.spend();
+  let outer = budget.spent() - budget.look_ahead_spent();
+  budget.spend();
+  let inner = budget.spent() - budget.look_ahead_spent();
+  for _ in 0..3 {
+    budget.spend();
+  }
+  budget.settle_look_ahead(inner);
+  assert_eq!(
+    budget.look_ahead_spent(),
+    3,
+    "the inner excludes its own three"
+  );
+  budget.spend();
+  budget.settle_look_ahead(outer);
+  assert_eq!(
+    budget.look_ahead_spent(),
+    5,
+    "the outer excludes its whole spend once: its own two and the inner's three"
+  );
+  assert_eq!(budget.spent() - budget.look_ahead_spent(), outer);
+}
+
+/// The settle never lowers the count, whatever `kept` it is handed: the `max` makes that a
+/// property of the body.
+#[test]
+fn a_look_ahead_settle_never_lowers_the_count() {
+  let mut budget = TokenBudgetTally::new(TokenBudget::unlimited());
+  for _ in 0..4 {
+    budget.spend();
+  }
+  budget.settle_look_ahead(0);
+  assert_eq!(budget.look_ahead_spent(), 4);
+  budget.settle_look_ahead(4);
+  assert_eq!(
+    budget.look_ahead_spent(),
+    4,
+    "a `kept` that would lower the count leaves it where it is"
+  );
+  budget.settle_look_ahead(usize::MAX);
+  assert_eq!(
+    budget.look_ahead_spent(),
+    4,
+    "and one past `spent` saturates to no change"
+  );
+}
+
+/// At a saturated `spent` the settle still puts the difference back exactly: a look-ahead that
+/// spends past `usize::MAX` is excluded by what it moved the counter, which is all it could move.
+#[test]
+fn a_look_ahead_settle_at_a_saturated_spend_keeps_the_difference() {
+  let mut budget = TokenBudgetTally::new(TokenBudget::unlimited());
+  budget.spent = usize::MAX - 1;
+  let kept = budget.spent() - budget.look_ahead_spent();
+  budget.spend();
+  budget.spend();
+  assert_eq!(budget.spent(), usize::MAX, "the second charge saturated");
+  budget.settle_look_ahead(kept);
+  assert_eq!(budget.spent() - budget.look_ahead_spent(), kept);
+  assert!(budget.look_ahead_spent() <= budget.spent());
+}
+
 /// The configuration type is a number, and equality says so.
 ///
 /// Two budgets are equal exactly when they name the same ceiling. That is only true because the

@@ -67,6 +67,117 @@ red the day this section became `0.9.0`. `ci/changelog_structure.sh` enforces ev
 and will red until they do.
 -->
 
+## 0.13.3 (2026-11-27)
+
+<a id="0.13.3-source-breaking-additions-that-can-change-behaviour-with-no-diagnostic-at-the-call-site"></a>
+
+### Source-breaking additions that can change behaviour with *no diagnostic at the call site*
+
+This release adds two public methods, `InputRef::look_ahead` and
+`TokenBudgetTally::look_ahead_spent`, and the two-sided name-collision probe measures the second
+**silent** in one of its spellings. Disclosed here because a consumer cannot discover it from a
+compiler diagnostic.
+
+#### `TokenBudgetTally::look_ahead_spent` — SILENT on a discarded return
+
+**You are exposed if you call a `look_ahead_spent` of your own on an `input::TokenBudgetTally`, with
+method syntax, and discard what it returns.** This release adds an inherent
+`look_ahead_spent(&self) -> usize` (see [below](#0.13.3-added)). The tally is reached only as a
+shared borrow, through `InputRef::token_budget`, so a method of yours on it takes `&self`. tokora's
+sits at the same step of the receiver walk, where an inherent item is picked before a trait item,
+so it takes the call.
+
+The rows of `ci/name_collision/`, two-sided against the base of this release:
+
+```text
+loud    look_ahead_spent/used         base=witness=1  head=no-compile
+SILENT  look_ahead_spent/discarded    base=witness=1  head=witness=0
+```
+
+On the discarded row both sides compile, **neither emits any diagnostic**, and the two run
+different programs: yours before, tokora's after. The `used` row is `loud` (`E0308` against the
+probe's `-> u8`). The getter returns a plain `usize` and carries no `#[must_use]`, so a discarded
+return is the whole of the silent difference. **The remedy is UFCS**:
+`MyExt::look_ahead_spent(tally)` pins your method by name.
+
+#### `InputRef::look_ahead` — loud by the probe's own arity, so unprobed
+
+**You are exposed if you call a `look_ahead` method of your own, from an extension trait, on an
+`InputRef`.** This release adds an inherent `look_ahead(&mut self, f)`. Called on an `InputRef` it
+is found no later in the receiver walk than a method of yours, so it takes the call, and nothing
+reports that when the two signatures are compatible.
+
+The rows of `ci/name_collision/`, two-sided against the base of this release:
+
+```text
+loud    look_ahead/used         base=witness=1  head=no-compile
+loud    look_ahead/discarded    base=witness=1  head=no-compile
+```
+
+Both rows are `loud` by the probe's own arity (`E0061`: the probe's consumer takes no argument and
+tokora's takes a closure). That verdict is about the probe, not the name: a method of yours with
+tokora's signature is not probed, so read it as unprobed rather than as safe. `look_ahead` is
+`#[must_use]`, so where it takes a call of yours whose value you discard, `unused_must_use` reports
+it unless the closure returns `()`. **The remedy is UFCS**: `MyExt::look_ahead(inp, f)` pins your
+method by name.
+
+<a id="0.13.3-added"></a>
+
+### Added
+
+- **`InputRef::look_ahead` and `TokenBudgetTally::look_ahead_spent`**: speculation that is always
+  taken back, and a reading of the token budget that reports its lexing apart.
+  - `look_ahead(f)` runs `f` as `attempt` would, then puts the input back as it found it and
+    returns `f`'s value. Put back means the position, the lexer state and regime, the emissions,
+    both watermarks and the poison boundary, and also the tokens the cache held, the one parked
+    in front of them, and a partial input's withheld-head memo, exactly as it was, so a verdict
+    `f` reached does not survive it. Its rustdoc tables every piece of input state with what a
+    look-ahead leaves in it, and gives each piece it keeps, the budget's charges and the trip
+    counters among them, its bound.
+    The window is what an `attempt` cannot give back: a declined one that consumed a resident
+    head drops it, and the next read lexes the head again with every lexer error in front of it.
+    After a look-ahead that read lexes what it would have lexed without one.
+  - Every item `f` lexes is still charged to the budget, and the ceiling refuses it like any other.
+    `look_ahead_spent()` counts the items charged while a look-ahead was open, once under nesting,
+    and is durable as `spent` is. `spent() - look_ahead_spent()` is then the spend outside every
+    look-ahead, for a caller that bounds its own rescans against the work it kept; a declined
+    `attempt` stays in it.
+  - The window is copied through `Ctx::Cache: Clone` and `L::Token: Clone`, bounds on the method
+    alone. The `Cache` contract gains the law the copy relies on: a clone is an independent
+    snapshot of the queue, with the same entries in the same order and the same `remaining`, and
+    nothing either handle does afterwards changes what the other holds. Storage may be shared only
+    where it is immutable or copied on write; a clone that shares a read index or other mutable
+    queue state breaks the law, and a look-ahead over it can skip the head it consumed. Every
+    cache this crate ships keeps it. The conformance kit checks it through a new entry,
+    `CacheHarness::run_clone`, since `run` asks nothing of a cache but `Cache`. Through each
+    handle of a clone in turn it drains, clears, pops from the back and pushes to either end, the
+    five queue operations a look-ahead runs on the live cache, and checks the other each time.
+  - The `Cache` contract gains a second clause: the cache's own `Drop` joins the operations that
+    must not panic on the restore path. A look-ahead's settle drops the cache it displaces, and the
+    settle can run mid-unwind, where a panic aborts the process.
+  - An `Input` is 8 bytes larger on a 64-bit target, with or without the `pratt` feature.
+    `TokenBudgetTally` holds one more `usize`, the look-ahead count, which takes it from 24 bytes
+    to 32, and its derived `Debug` output gains a `look_ahead_spent` field. Nothing else in an
+    `Input` changes.
+  - The `fuzz` feature's `Op` alphabet gains no op for `look_ahead` in this release. `Op` is an
+    exhaustive public enum, and a new variant would stop a downstream `match` without a wildcard
+    arm from compiling.
+  - Either name can take the call of a method of your own: see
+    [above](#0.13.3-source-breaking-additions-that-can-change-behaviour-with-no-diagnostic-at-the-call-site).
+
+### Fixed
+
+- **`InputRef::rollback_point` refuses a rollback that would tear out a younger guard or attempt
+  while the point is still open, so a refused point can still be settled.** Asked from inside a
+  `Transaction` guard's scope or an `attempt`'s closure to roll back to a session point opened
+  before that guard or attempt, `rollback_point` took the point off the stack and released its
+  pin, and only then did the checked restore refuse, with `restore would invalidate a live
+  transaction guard or attempt`. A host that caught the panic held a point nothing could settle:
+  `commit_point` and `rollback_point` refused it as stale, and its lineage entry and emitter mark
+  stayed registered. The same refusal now comes first, before anything moves. The point is still
+  open and pinned afterwards, and once the guard or attempt has settled it can be rolled back or
+  committed as usual. A look-ahead is such a scope too, and refuses the same rollback the same way.
+
 ## 0.13.2 (2026-11-15)
 
 <a id="0.13.2-source-breaking-additions-that-can-change-behaviour-with-no-diagnostic-at-the-call-site"></a>
