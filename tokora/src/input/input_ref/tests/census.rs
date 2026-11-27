@@ -617,9 +617,9 @@ fn settle_census_nothing_fallible_once_a_restore_has_begun() {
     // already-spent refusal publishes it before it has derived anything.
     "mod.rs::count_scanner_trip",
     // A look-ahead's settle. Its region runs from the cache swap through the exclusion, and
-    // between them are the parked slot's `Option::replace`, the memo slot's `mem::replace` and
-    // `Lineage::record_repark`, one `u64` store; what the writes displace is dropped after the
-    // last of them.
+    // between them are the parked slot's `Option::replace`, the memo slot's `mem::replace` and,
+    // with the `pratt` feature, `Lineage::record_repark`, one `u64` store; what the writes displace
+    // is dropped after the last of them.
     "mod.rs::install_look_ahead",
     // `commit_token` is deliberately ABSENT: the body is a clamp followed by a call to
     // `settle_committed_token`, and neither is a fact write, so it holds no window of its own. The

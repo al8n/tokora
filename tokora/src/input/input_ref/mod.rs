@@ -701,7 +701,8 @@ where
   /// back with its own: one saturating add. The one other place a token enters the slot,
   /// [`install_look_ahead`](Self::install_look_ahead), re-parks a copy of the token the slot held
   /// when the look-ahead began, under that token's id, and leaves the id source past every id
-  /// issued in between: see [`Lineage::record_repark`](super::Lineage::record_repark).
+  /// issued in between: see `Lineage::record_repark`, present with the `pratt` feature, the one
+  /// configuration that reads park ids.
   #[cold]
   #[inline(never)]
   fn park(&mut self, tok: CachedTokenOf<'inp, L>, origin: Origin) {
@@ -2862,18 +2863,18 @@ where
     // caller code, and an unwind out of any of them strands nothing: the guard that takes the pin,
     // the lineage entry and the emitter mark does not exist yet.
     let cache = self.cache().clone();
+    // With the `pratt` feature, the one configuration that reads park ids, the copy carries the id
+    // the parked token wears now. The settle puts the copy back under it, whatever enters the slot
+    // in between, so an identity read before the look-ahead still names the token after it.
     let parked = if Self::can_park() {
-      self.pending.clone()
+      self.pending.clone().map(|token| ParkedCopy {
+        token,
+        #[cfg(feature = "pratt")]
+        id: self.session.lineage.park_id(),
+      })
     } else {
       None
     };
-    // The id the parked token wears now. The settle puts the copy back under it, whatever enters
-    // the slot in between, so an identity read before the look-ahead still names the token after
-    // it.
-    #[cfg(feature = "pratt")]
-    let park_id = self.session.lineage.park_id();
-    #[cfg(not(feature = "pratt"))]
-    let park_id = 0;
     // The withheld-head memo is one slot. A verdict `f` reaches replaces it, under `f`'s regime and
     // from `f`'s offset, and the rollback that puts the regime back cannot make the replacement
     // answer for the verdict the committed path paid for, so the settle puts this copy back,
@@ -2899,7 +2900,7 @@ where
       .saturating_sub(self.token_budget.look_ahead_spent());
     let mut settle = LookAheadSettle {
       input: self,
-      window: Some((cache, parked.map(|tok| (tok, park_id)), memo)),
+      window: Some((cache, parked, memo)),
       kept,
       armed: false,
     };
@@ -2947,7 +2948,7 @@ where
   fn install_look_ahead(
     &mut self,
     cache: Ctx::Cache,
-    parked: Option<(CachedTokenOf<'inp, L>, u64)>,
+    parked: Option<ParkedCopy<'inp, L>>,
     memo: Option<super::WithheldHead<L::Offset>>,
     kept: usize,
   ) {
@@ -2955,9 +2956,10 @@ where
     // `Option::replace` is `mem::replace` with `Some`: it hands back what it displaced instead of
     // dropping it in place, so the slot's old value reaches the drop site below.
     let displaced_park = match parked {
-      Some((tok, id)) => {
-        self.session.lineage.record_repark(id);
-        self.pending.replace(tok)
+      Some(copy) => {
+        #[cfg(feature = "pratt")]
+        self.session.lineage.record_repark(copy.id);
+        self.pending.replace(copy.token)
       }
       None => None,
     };
@@ -5150,12 +5152,11 @@ where
   Cmpl: Completeness,
 {
   input: &'s mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
-  /// The cache, the parked token with the park id it wore, and the withheld-head memo, as the
-  /// look-ahead found them. `Some` until the settle takes them; dropped with the guard when it does
-  /// not.
+  /// The cache, the parked token's copy and the withheld-head memo, as the look-ahead found them.
+  /// `Some` until the settle takes them; dropped with the guard when it does not.
   window: Option<(
     Ctx::Cache,
-    Option<(CachedTokenOf<'inp, L>, u64)>,
+    Option<ParkedCopy<'inp, L>>,
     Option<super::WithheldHead<L::Offset>>,
   )>,
   /// `spent() - look_ahead_spent()` when the look-ahead began, the value the settle restores.
@@ -5190,6 +5191,19 @@ where
         .install_look_ahead(cache, parked, memo, self.kept);
     }
   }
+}
+
+/// A [look-ahead](InputRef::look_ahead)'s copy of the parked front token, as its settle puts it
+/// back. With the `pratt` feature, the one configuration that reads park ids, it carries the id the
+/// token wore, so the copy comes back under it. Without the feature there is no id to carry, and
+/// nothing to write: a positive gate on the field, not a placeholder id behind a negative one.
+struct ParkedCopy<'inp, L>
+where
+  L: Lexer<'inp>,
+{
+  token: CachedTokenOf<'inp, L>,
+  #[cfg(feature = "pratt")]
+  id: u64,
 }
 
 /// The event the shared scanner loop ([`InputRef::scan_with`]) stops on.

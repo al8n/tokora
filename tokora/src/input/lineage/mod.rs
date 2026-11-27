@@ -564,16 +564,13 @@ impl Lineage {
   /// still describes it, whatever entered the slot in between. The source is left alone: a token
   /// parked inside the look-ahead keeps its id issued, so a later park takes a newer one, and no
   /// id short of the sentinel is worn by two tokens.
+  ///
+  /// Present with the `pratt` feature only, like the id it writes: without the feature a
+  /// look-ahead's copy carries no id, and its settle has nothing to record.
+  #[cfg(feature = "pratt")]
   #[inline(always)]
   pub(crate) fn record_repark(&mut self, id: u64) {
-    #[cfg(feature = "pratt")]
-    {
-      self.park_id = id;
-    }
-    #[cfg(not(feature = "pratt"))]
-    {
-      let _ = id;
-    }
+    self.park_id = id;
   }
 
   /// Rewinds the cache-push counter to a checkpoint's saved value on restore.
