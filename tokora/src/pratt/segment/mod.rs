@@ -7,9 +7,11 @@
 //! `pop` takes from its own. Its `last` and `last_mut` reach the frame on top of what is below
 //! when it holds none, which breaks one of `Stack`'s written obligations on purpose: with its own
 //! frames gone it answers `pop` with `None` and `last` with the frame below. Two things cross that
-//! link: the latch a reduction writes on the frame now on top, when that reduction emptied the
-//! segment, and a read of that frame, where the loop feeds an infix operator again on a new, empty
-//! segment and the machine reads the top frame for its offer before it pushes.
+//! link: the latch an infix reduction writes on the frame now on top, when that reduction emptied
+//! the segment, and a read of that frame, when a pop, a reduction's or a `retract`'s, has emptied
+//! the segment, for the floor it gives its operand and the latch it holds, which the machine keeps
+//! a copy of. A debug build reads it too, to check the floor kept, where the loop feeds an
+//! operator again on a new, empty segment.
 //!
 //! The loop that runs a machine over a segment keeps two rules, which the segment cannot keep for
 //! it:

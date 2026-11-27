@@ -95,6 +95,9 @@ impl<Expr: ?Sized, Power, Operand, L, O, Ctx, Lang: ?Sized, Cst, B>
   /// Sets the minimum binding power, inclusive: an infix or postfix operator below it ends the
   /// expression, and is left on the input.
   ///
+  /// The floor is a value, as [`PrattPower`] asks of every power: each parse compares a clone of
+  /// it, which must compare as it does, and its order must not change while a parse runs.
+  ///
   /// The driver is then [`Bounded`], whatever the value, and has no [`bare`](Self::bare).
   #[must_use]
   #[inline]

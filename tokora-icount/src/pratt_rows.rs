@@ -62,28 +62,34 @@
 //! ## Recorded figures
 //!
 //! Instructions an iteration, from `ci/icount/measure.py`'s head-side reading in the `instruction
-//! counts` job (`icount-readings`, `head.json`, `ir_per_iter`), rounded to a whole instruction. They
-//! are from this branch's `perf` run 45744931146, on a GitHub-hosted `ubuntu-latest` runner (image
-//! `ubuntu-26.04`, version 20261116.202.1); the readings do not record the CPU. A source holds 256
-//! operands: 4 chains of 63 operators, or 128 expressions of one.
+//! counts` job (`icount-readings-<image>`, `head.json`, `ir_per_iter`), rounded to a whole
+//! instruction. They are from `perf` run 45940988465 on PR #383's merge ref, which is this branch's
+//! head (`cb23c861`) merged with main (`6c050193`), whose commits since the merge-base leave
+//! `tokora/src` untouched, so its library is the branch's. The x86_64 column is a GitHub-hosted
+//! `ubuntu-latest` runner (image `ubuntu-26.04`, version 20261116.202.1); the aarch64 column is the
+//! `ubuntu-26.04-arm` runner (version 20261116.190.1). The readings do not record the CPU. A source
+//! holds 256 operands: 4 chains of 63 operators, or 128 expressions of one.
 //!
-//! | row | Ir/iteration | against |
-//! |---|---:|---|
-//! | `pratt_typed_left` | 347,119 | |
-//! | `pratt_typed_right` | 352,951 | |
-//! | `pratt_flat_fold_left` | 281,508 | 0.811 of `pratt_typed_left` |
-//! | `pratt_flat_fold_right` | 264,452 | 0.749 of `pratt_typed_right` |
-//! | `pratt_flat_collect_left` | 213,702 | |
-//! | `pratt_flat_collect_right` | 201,376 | |
-//! | `pratt_flat_bare_left` | 166,396 | +50 over `pratt_flat_control_left` |
-//! | `pratt_flat_bare_right` | 166,396 | +50 over `pratt_flat_control_right` |
-//! | `pratt_flat_bare_shallow` | 196,404 | +1,538 over `pratt_flat_control_shallow` |
-//! | `pratt_flat_control_left` | 166,346 | |
-//! | `pratt_flat_control_right` | 166,346 | |
-//! | `pratt_flat_control_shallow` | 194,866 | |
-//! | `pratt_token_left` | 203,059 | PR 3's before |
-//! | `pratt_token_right` | 187,187 | PR 3's before |
-//! | `pratt_token_shallow` | 210,871 | PR 3's before |
+//! | row | x86_64 Ir/iteration | against | aarch64 Ir/iteration | against |
+//! |---|---:|---|---:|---|
+//! | `pratt_typed_left` | 347,119 | | 293,569 | |
+//! | `pratt_typed_right` | 352,951 | | 299,158 | |
+//! | `pratt_flat_fold_left` | 238,998 | 0.689 of `pratt_typed_left` | 202,943 | 0.691 of `pratt_typed_left` |
+//! | `pratt_flat_fold_right` | 220,291 | 0.624 of `pratt_typed_right` | 191,210 | 0.639 of `pratt_typed_right` |
+//! | `pratt_flat_collect_left` | 197,353 | | 169,809 | |
+//! | `pratt_flat_collect_right` | 183,253 | | 156,038 | |
+//! | `pratt_flat_bare_left` | 166,396 | +50 over `pratt_flat_control_left` | 137,523 | -217 under `pratt_flat_control_left` |
+//! | `pratt_flat_bare_right` | 166,396 | +50 over `pratt_flat_control_right` | 138,028 | -217 under `pratt_flat_control_right` |
+//! | `pratt_flat_bare_shallow` | 196,404 | +1,538 over `pratt_flat_control_shallow` | 162,944 | +1,023 over `pratt_flat_control_shallow` |
+//! | `pratt_flat_control_left` | 166,346 | | 137,741 | |
+//! | `pratt_flat_control_right` | 166,346 | | 138,244 | |
+//! | `pratt_flat_control_shallow` | 194,866 | | 161,921 | |
+//! | `pratt_token_left` | 203,059 | PR 3's before | 169,482 | PR 3's before |
+//! | `pratt_token_right` | 187,187 | PR 3's before | 157,583 | PR 3's before |
+//! | `pratt_token_shallow` | 210,871 | PR 3's before | 177,295 | PR 3's before |
+//!
+//! The +50 and +1,538 that the account of the control's omission above covers are the x86_64
+//! differences. The aarch64 differences are as read, and that account does not cover them.
 //!
 //! `Checked` less `Bare` is the unit machine's price: the collect rows less the bare rows, which
 //! over the 252 operators of a chain source is its price for each operator, with the four

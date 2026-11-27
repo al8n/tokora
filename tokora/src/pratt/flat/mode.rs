@@ -8,8 +8,8 @@ use hybrid_arraydeque::typenum::U4;
 use hybrid_arraydeque::typenum::U32;
 
 use super::super::{
-  PrattFrame, PrattInfix, PrattOffer, PrattPending, PrattPoll, PrattPower, PrattRHS, PrattRefusal,
-  PrattResolver, PrattStack, Precedenced, sealed::Sealed,
+  PrattFrame, PrattInfix, PrattOffer, PrattPending, PrattPower, PrattRHS, PrattResolver,
+  PrattStack, Precedenced, resolve::Closed, sealed::Sealed,
 };
 
 /// One pending operator of `Checked`'s machine, which holds unit values.
@@ -171,13 +171,13 @@ impl<Power: PrattPower, B> ModeSteps<Power> for Checked<Power, B> {
   where
     Self: 'a;
 
-  /// Lends the stack to a machine with the driver's floor and cap. `with_stack` empties it first:
-  /// a parse that unwound left its frames there.
+  /// Lends the stack to a machine with the driver's floor and cap, and builds no default floor
+  /// to replace. The machine empties the stack first, before it clones the floor: a parse that
+  /// unwound left its frames there.
   #[inline]
   fn begin(&mut self) -> CheckedRun<'_, Power> {
     CheckedRun {
-      machine: PrattResolver::with_stack(&mut self.stack)
-        .min_precedence(self.floor.clone())
+      machine: PrattResolver::with_stack_and_floor(&mut self.stack, &self.floor)
         .max_depth(self.cap.unwrap_or(usize::MAX)),
     }
   }
@@ -190,58 +190,33 @@ pub struct CheckedRun<'a, Power> {
 }
 
 impl<Power: PrattPower> CheckedRun<'_, Power> {
-  /// Takes the reduction the machine owes, and hands its unit value back: a unit reduction builds
-  /// nothing, and needs no input.
+  /// The bound a refused push met, which is `Full`. The capacity is the lesser of the cap and the
+  /// stack's own, and the stack is never a segment here. So it is the bound that refused: the cap
+  /// where the count reached it, and the stack's where the stack refused below the cap.
   #[inline]
-  fn reduced(&mut self) {
-    match self.machine.poll() {
-      PrattPoll::Reduce(_) => {}
-      PrattPoll::Term | PrattPoll::Operator | PrattPoll::Reducing | PrattPoll::Done(()) => {
-        unreachable!("the flat driver's unit machine owed a reduction, and handed out none")
-      }
-    }
-    if let Err(refused) = self.machine.handle_reduced(()) {
-      unreachable!(
-        "the flat driver's unit machine refused the value of its own reduction: {:?}",
-        refused.why()
-      )
-    }
-  }
-
-  /// The bound a refusal met. Only `Full` is one: any other refusal of an operator the offer took
-  /// is the adapter's own slip, and no fact about the input.
-  #[inline]
-  fn bound(&self, why: PrattRefusal) -> usize {
-    match why {
-      // The capacity is the lesser of the cap and the stack's own, and the stack is never a
-      // segment here. So it is the bound that refused: the cap where the count reached it, and the
-      // stack's where the stack refused below the cap.
-      PrattRefusal::Full => self.machine.capacity(),
-      PrattRefusal::Misplaced
-      | PrattRefusal::Reduce
-      | PrattRefusal::Decline
-      | PrattRefusal::Chain => {
-        unreachable!("the flat driver's unit machine refused an operator its offer took: {why:?}")
-      }
-    }
+  fn bound(&self) -> usize {
+    self.machine.capacity()
   }
 }
 
 impl<Power: PrattPower> RunSteps<Power> for CheckedRun<'_, Power> {
   /// The offer. On `Reduce` the one reduction is performed where the head is classified, and the
-  /// operator is offered again, until the answer changes.
+  /// operator is offered again, until the answer changes. The reduction is handed straight back,
+  /// and a unit reduction builds nothing and needs no input: it is dropped, and the unit is its
+  /// value. `Reduce` is answered only under a pending operator, so the reduction never ends the
+  /// root here.
   #[inline]
   fn admit(&mut self, rhs: &PrattRHS<(), (), (), (), Power>) -> PrattOffer {
     loop {
       match self.machine.offer(rhs) {
-        PrattOffer::Reduce => {
-          if let Err(why) = self.machine.close() {
+        PrattOffer::Reduce => match self.machine.reduce_pending() {
+          Closed::Prefix(_) | Closed::Infix(_) => self.machine.put_reduced(()),
+          Closed::Done(()) => {
             unreachable!(
-              "the flat driver's unit machine refused to close where its offer said reduce: {why:?}"
+              "the flat driver's unit machine ended its root where its offer said reduce"
             )
           }
-          self.reduced();
-        }
+        },
         answer => return answer,
       }
     }
@@ -251,10 +226,10 @@ impl<Power: PrattPower> RunSteps<Power> for CheckedRun<'_, Power> {
   fn prefix(&mut self, power: &Power) -> Result<(), usize> {
     match self
       .machine
-      .handle_prefix(Precedenced::new((), power.clone()))
+      .push_prefix(Precedenced::new((), power.clone()))
     {
       Ok(()) => Ok(()),
-      Err(refused) => Err(self.bound(refused.why())),
+      Err(_) => Err(self.bound()),
     }
   }
 
@@ -262,35 +237,28 @@ impl<Power: PrattPower> RunSteps<Power> for CheckedRun<'_, Power> {
   fn infix(&mut self, associativity: &PrattInfix<(), (), ()>, power: &Power) -> Result<(), usize> {
     match self
       .machine
-      .handle_infix(Precedenced::new(*associativity, power.clone()))
+      .push_infix(Precedenced::new(*associativity, power.clone()))
     {
       Ok(()) => Ok(()),
-      Err(refused) => Err(self.bound(refused.why())),
+      Err(_) => Err(self.bound()),
     }
   }
 
   #[inline]
   fn operand(&mut self) {
-    if let Err(refused) = self.machine.handle_operand(()) {
-      unreachable!(
-        "the flat driver's unit machine refused an operand where it wanted a term: {:?}",
-        refused.why()
-      )
-    }
+    self.machine.put_operand(());
   }
 
+  /// The postfix reduction is handed straight back. A unit reduction builds nothing, so it is
+  /// dropped, and the unit is its value.
   #[inline]
   fn postfix(&mut self, power: &Power) {
-    if let Err(refused) = self
-      .machine
-      .handle_postfix(Precedenced::new((), power.clone()))
-    {
-      unreachable!(
-        "the flat driver's unit machine refused a postfix operator its offer took: {:?}",
-        refused.why()
-      )
-    }
-    self.reduced();
+    drop(
+      self
+        .machine
+        .take_postfix(Precedenced::new((), power.clone())),
+    );
+    self.machine.put_reduced(());
   }
 
   /// `retract` hands the waiting operator back, if there is one.
