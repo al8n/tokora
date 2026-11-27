@@ -407,7 +407,7 @@ where
           .into_terminal()
           .into(),
       ),
-      Scan::Eof => {
+      Scan::Eof | Scan::Tail => {
         // E5 belt-and-braces: an exhaustion produced by refusing to cross a
         // pre-latched boundary is terminal, not genuine end of input. (Under
         // Partial non-final, `scan_with` already surfaced Incomplete for every
@@ -513,7 +513,7 @@ where
       // A fresh trip whose diagnostic a recovering emitter accepted. (A fatal emitter
       // never reaches this arm — its rejection propagated out of `scan_with` above.)
       Scan::Tripped => Ok(CloseStatus::Tripped),
-      Scan::Eof => {
+      Scan::Eof | Scan::Tail => {
         // An exhaustion produced by refusing to cross a pre-latched boundary is
         // terminal, not genuine end of input — mirrors `try_expect_or_stop`'s E5.
         if self.reached_boundary(resume.at()) {
@@ -847,7 +847,7 @@ where
           Ok(None)
         }
       },
-      Scan::Tripped | Scan::Eof => Ok(None),
+      Scan::Tripped | Scan::Eof | Scan::Tail => Ok(None),
     }
   }
 
@@ -884,7 +884,7 @@ where
           Ok(None)
         }
       }
-      Scan::Tripped | Scan::Eof => Ok(None),
+      Scan::Tripped | Scan::Eof | Scan::Tail => Ok(None),
     }
   }
 
@@ -924,7 +924,7 @@ where
           Ok(None)
         }
       }
-      Scan::Tripped | Scan::Eof => Ok(None),
+      Scan::Tripped | Scan::Eof | Scan::Tail => Ok(None),
     }
   }
 
@@ -972,7 +972,7 @@ where
           .into_terminal()
           .into(),
       ),
-      Scan::Eof => {
+      Scan::Eof | Scan::Tail => {
         // An exhaustion produced by refusing to cross a pre-latched boundary is terminal,
         // not genuine end of input — mirrors `try_expect_or_stop`'s E5.
         if self.reached_boundary(resume.at()) {

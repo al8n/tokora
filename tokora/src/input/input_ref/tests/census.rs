@@ -48,10 +48,12 @@
 //! once, whichever origin fed it. It is the settle surface's second (and last) member.
 //!
 //! **The span funnel is not a settle.** `set_span_after_consume` is also written by
-//! four non-token paths, and they must **never** grow a settle hook: `settle_fatal`
+//! five non-token paths, and they must **never** grow a settle hook: `settle_fatal`
 //! writes a *rejected lexer error's* span; `SyncTo::on_eof` and the complete-input trivia skip's
-//! own end-of-input arm write the lexer's span at exhaustion; `commit_at` batch-writes a whole
-//! skipped run's frontier (each skipped token already settled via `adopt`). Peeks, declines, `unconsume`/`hold_front`, the
+//! own end-of-input arm write the lexer's span at exhaustion; `settle_error_tail` writes the pair
+//! the end-of-input memo keeps for those two when it answered their end of input; `commit_at`
+//! batch-writes a whole skipped run's frontier (each skipped token already settled via `adopt`).
+//! Peeks, declines, `unconsume`/`hold_front`, the
 //! front fetches (`take_front`, `take_front_if`), the peek fill's back push
 //! (`cache_append`), and the position-write surgeries (`set_state`, restores) touch no
 //! settle at all — a fetch is not a commit, and every caller of one still calls
@@ -880,10 +882,12 @@ fn settle_census_position_pair_writes_through_one_body() {
   let expected: &[(&str, usize, &str)] = &[
     (
       "mod.rs",
-      2,
-      "`commit_at` (a scan's batch frontier write) and `settle_fatal` (a rejected error's span \
-       with the lexer state that reached it). `commit_token` uses `replace_position` instead, \
-       because it must notify the committed-token observer before the replaced pair's drops run",
+      3,
+      "`commit_at` (a scan's batch frontier write), `settle_fatal` (a rejected error's span with \
+       the lexer state that reached it) and `settle_error_tail` (the end-of-input settle of a \
+       scan the end-of-input memo answered, for the two that commit there). `commit_token` uses \
+       `replace_position` instead, because it must notify the committed-token observer before \
+       the replaced pair's drops run",
     ),
     (
       "scan.rs",
@@ -1347,12 +1351,13 @@ fn release_census_every_savepoint_life_end_settles_through_the_funnel() {
   }
 }
 
-/// RELEASE_CENSUS — the scanner's kept snapshots. `skip_until` has seven return exits: five
-/// keep the scan's progress and settle the snapshot through `ScanMode::on_commit`, one
-/// (`on_eof`) spends the mark by rewinding, and one (`on_incomplete`) abandons. The
-/// **unwind edge** is the eighth, and its keeping arm settles through `on_commit` too — one
-/// per disposition, not one per mode, which is the distinction that made `SyncBalanced`'s
-/// interrupted stop take the wrong arm. A new exit must pick a disposition, in the same commit.
+/// RELEASE_CENSUS — the scanner's kept snapshots. `skip_until` has eight return exits: five
+/// keep the scan's progress and settle the snapshot through `ScanMode::on_commit`, two settle
+/// it at the end of input (`on_eof`, and `on_tail` where the end-of-input memo answered), and
+/// one (`on_incomplete`) abandons. The **unwind edge** is the ninth, and its keeping arm settles
+/// through `on_commit` too — one per disposition, not one per mode, which is the distinction
+/// that made `SyncBalanced`'s interrupted stop take the wrong arm. A new exit must pick a
+/// disposition, in the same commit.
 #[test]
 #[cfg_attr(
   miri,
@@ -1372,6 +1377,13 @@ fn release_census_scanner_snapshot_settles_on_every_exit() {
     count(scan, "M::on_eof(") == 1,
     "RELEASE_CENSUS drift: `skip_until` must have exactly one rewinding exit \
      (grep RELEASE_CENSUS)."
+  );
+  // …and one more end-of-input exit, the one the end-of-input memo answers: the same settle, read
+  // off the memo instead of off a lexer that lexed nothing. Every mode defines it.
+  assert!(
+    count(scan, "M::on_tail(") == 1 && count(scan, "fn on_tail(") == 5,
+    "RELEASE_CENSUS drift: `skip_until` must settle a memoised end of input through exactly one \
+     `M::on_tail` exit, and every `ScanMode` must define it (grep RELEASE_CENSUS)."
   );
   // The trait method and its four mode impls (the balanced mode delegates to
   // `SyncThrough`'s, which is the one body that releases).
@@ -1908,6 +1920,34 @@ fn resume_census_one_pairing_site() {
      single lexing site, and both the (state, offset) pairing and the token budget's preflight \
      rest on there being no second one (grep RESUME_CENSUS)."
   );
+  // ERROR_TAIL — the end-of-input memo is read at that one site, and nowhere else, and ABOVE the
+  // budget preflight. Every driver lexes through the site, at its first step and at every step
+  // after it, so a lex that would start where a memoised run of lexer errors starts is answered
+  // there whichever path asks and wherever its run began; and above the preflight, a run the memo
+  // answers is neither charged nor refused. A reader moved into one driver's prologue answers that
+  // driver at its first step only, which is the defect three paths shipped with.
+  let site = code_only(&method_body(m, "lex_within_boundary"));
+  let memo = site
+    .find("self.error_tail_here(")
+    .expect("RESUME_CENSUS drift: the lexing site no longer reads the end-of-input memo");
+  let preflight = site
+    .find("self.token_budget.is_exhausted()")
+    .expect("RESUME_CENSUS drift: the lexing site no longer asks the budget's preflight");
+  assert!(
+    memo < preflight && count(m, "self.error_tail_here(") == 1,
+    "RESUME_CENSUS drift: the end-of-input memo must be read exactly once, at the lexing site, \
+     above the budget preflight (grep RESUME_CENSUS)."
+  );
+  for (name, src) in SOURCES {
+    if *name == "mod.rs" {
+      continue;
+    }
+    assert!(
+      count(src, "error_tail_here(") == 0,
+      "RESUME_CENSUS drift: `{name}` reads the end-of-input memo outside the lexing site \
+       (grep RESUME_CENSUS)."
+    );
+  }
   // And `Lexer::lex` is REACHED at exactly two points, both of them inside the site above: the
   // authorized step, and the cold one-shot probe that tells a met ceiling from an end of input.
   // The two are censused separately from the entry point because they are what the entry point is

@@ -251,6 +251,14 @@ where
   /// from `snapshot`.
   fn on_eof(ir: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>, lexer: L, snapshot: Self::Snapshot);
 
+  /// Settle the input at an end of input the [end-of-input memo](crate::input::ErrorTail) answered:
+  /// the scan's frontier stood where a peek fill had already lexed lexer errors alone to the end,
+  /// and the scan lexed none of them again. The same settle as [`on_eof`](ScanMode::on_eof), with
+  /// no lexer to read the end off: the committing modes commit what the memo keeps for them, the
+  /// pair a replay of the run would have left the lexer at, and the rewinding ones restore from
+  /// `snapshot` exactly as they do there.
+  fn on_tail(ir: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>, snapshot: Self::Snapshot);
+
   /// RELEASE_CENSUS — settle the pre-call snapshot on an exit that **keeps** the scan's
   /// progress (a stop, a trip, a boundary drain, either fatal propagation): the snapshot will
   /// never be restored, so a rewinding mode [`release`](Emitter::release)s the emitter mark it
@@ -720,6 +728,13 @@ where
   }
 
   #[inline(always)]
+  fn on_tail(ir: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>, _snapshot: ()) {
+    // The same commit at the end of input, from the memo: this scan's lexer lexed none of the run,
+    // so the pair is the one a replay of it would have left the lexer at.
+    ir.settle_error_tail();
+  }
+
+  #[inline(always)]
   fn on_commit(_ir: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>, _snapshot: ()) {
     // A committing mode snapshots nothing, so a kept exit has nothing to release.
   }
@@ -797,6 +812,16 @@ where
   }
 
   #[inline(always)]
+  fn on_tail(
+    ir: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>,
+    snapshot: ThroughEntry<L::Span, L::State, L::Offset>,
+  ) {
+    // A no-match run to an end of input the memo answered rewinds exactly as one the lexer
+    // reached: no lexer is read here either.
+    ir.restore_entry(snapshot);
+  }
+
+  #[inline(always)]
   fn on_commit(ir: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>, snapshot: Self::Snapshot) {
     // The scan kept its progress, so the entry snapshot will never be restored: release the
     // emitter mark it captured — the keep-dual of `on_eof`'s rewind. Advisory (a no-op for
@@ -867,6 +892,11 @@ where
   }
 
   #[inline(always)]
+  fn on_tail(ir: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>, snapshot: Self::Snapshot) {
+    <SyncThrough as ScanMode<'inp, L, Ctx, Lang, Cmpl>>::on_tail(ir, snapshot)
+  }
+
+  #[inline(always)]
   fn on_commit(ir: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>, snapshot: Self::Snapshot) {
     // A kept balanced sync releases its entry mark, exactly as `sync_through`'s keep exits.
     <SyncThrough as ScanMode<'inp, L, Ctx, Lang, Cmpl>>::on_commit(ir, snapshot)
@@ -934,6 +964,11 @@ where
     // Everything from the cursor to the end of input matched, and was skipped: keep that progress,
     // at the lexer's end.
     <SyncTo as ScanMode<'inp, L, Ctx, Lang, Cmpl>>::on_eof(ir, lexer, snapshot)
+  }
+
+  #[inline(always)]
+  fn on_tail(ir: &mut InputRef<'inp, '_, L, Ctx, Lang, Cmpl>, snapshot: ()) {
+    <SyncTo as ScanMode<'inp, L, Ctx, Lang, Cmpl>>::on_tail(ir, snapshot)
   }
 
   #[inline(always)]
@@ -1189,6 +1224,16 @@ where
               .into_lexer();
             let snapshot = scope.disarm();
             M::on_eof(scope.ir, lexer, snapshot);
+            scope.settled();
+            scope.keep_entry();
+            return Ok(Scanned::Exhausted);
+          }
+          // The same end of input, met through the end-of-input memo at the scan's live frontier:
+          // the rest is lexer errors a peek already lexed and reported. The exit the arm above
+          // takes, with the mode's settle read off the memo instead of a lexer that lexed nothing.
+          Ok(Scan::Tail) => {
+            let snapshot = scope.disarm();
+            M::on_tail(scope.ir, snapshot);
             scope.settled();
             scope.keep_entry();
             return Ok(Scanned::Exhausted);

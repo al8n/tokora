@@ -358,6 +358,47 @@ pub(crate) struct WithheldHead<O> {
   diagnosed: Option<O>,
 }
 
+/// An **end-of-input memo**: a run of lexer errors a peek fill lexed up to the end of the source,
+/// kept under everything that decides it.
+///
+/// The fill reports each lexer error it meets and lexes on, and only tokens are retained. So a run
+/// of errors behind the newest retained token, up to the end of the source, is lexed and charged
+/// to the token budget with nothing to record that the input ends there: every later read that
+/// reaches the run lexes it again. Its reports are deduplicated, so only the budget saw it, charged
+/// once per read, and at a ceiling the first lex had met, refused.
+///
+/// The lexing site answers from this wherever a lex would start at `from`, whichever path asks and
+/// whether it starts there or reaches it partway through a run, so the run is not lexed or charged
+/// again. The memo holds only while all of its key still matches:
+///
+/// - `from`, the offset the run began at: the end of the newest token retained when it was lexed;
+/// - `regime`, the lexer regime that lexed it. With `from` it names the lexer state, as the regime
+///   generation and an offset do everywhere in this crate, so a state switch stands it down;
+/// - `diagnosed`, the dedup watermark the run's reports raised. A rollback that takes those
+///   reports back takes the memo's standing with them, and the run is lexed and reported again;
+/// - and no poison boundary latched and no refusal on record, so a trip or a refusal is never
+///   answered from it.
+///
+/// The rest is what a scan that settles at the end of input commits in place of the lexer's own
+/// span and state, so that it commits what lexing the run again would have committed: see
+/// `InputRef::error_tail_settlement`.
+///
+/// Written and read only on a [`Complete`] input; a [`Partial`] one never touches it.
+pub(crate) struct ErrorTail<O, Sp, St> {
+  from: O,
+  regime: u64,
+  diagnosed: O,
+  /// How many items the run is, and so what lexing it again would charge.
+  charge: usize,
+  /// The last error's span and the state it left the lexer in: where a replay that meets the
+  /// ceiling at the end of the source settles, since nothing asks its lexer for the end of input.
+  last: (Sp, St),
+  /// The span and the state the lexer reported once it was exhausted behind the run, where a replay
+  /// that asks it for the end of input settles. `None` where the fill met the ceiling at the end of
+  /// the source and asked nothing, which leaves every later replay at the ceiling too.
+  drained: Option<(Sp, St)>,
+}
+
 pub(crate) use input_ref::Session;
 #[cfg(feature = "pratt")]
 pub(crate) use input_ref::StagedEntry;
@@ -1060,6 +1101,19 @@ where
   /// Its writers are the two places a withheld verdict is reached: the peek fill and the scanner,
   /// each through `InputRef::remember_withheld`. Its one reader is the lexing site.
   withheld: Option<WithheldHead<L::Offset>>,
+  /// The **end-of-input memo**: the last run of lexer errors a peek fill lexed up to the end of the
+  /// source, under the key that decides it (see [`ErrorTail`]). `None` until a [`Complete`] fill
+  /// first meets one; a [`Partial`] input never writes or reads it.
+  ///
+  /// Outside the rollback set for the reason [`withheld`](Self::withheld) is: it records what
+  /// lexing from one offset under one regime does to this source, and the one lineage fact it
+  /// depends on, the dedup watermark, is part of its key. Never cleared: the next memo replaces it,
+  /// and a key that no longer matches leaves it unused.
+  ///
+  /// Its one writer is the peek fill, through `InputRef::remember_error_tail`. Its one reader is
+  /// the lexing site, through `InputRef::error_tail_here`, and a scan it answers settles through
+  /// `InputRef::settle_error_tail`.
+  error_tail: Option<ErrorTail<L::Offset, L::Span, L::State>>,
   /// The **bound emitter** — the one emission log this input's parse writes, owned here for the
   /// input's whole life and paired with it at
   /// [`with_state_and_context`](Self::with_state_and_context).
@@ -1252,6 +1306,8 @@ where
       scanner_trips: 0,
       // Nothing withheld yet: only a scan of this input can withhold an item.
       withheld: None,
+      // No error tail yet: only a fill of this input can meet one.
+      error_tail: None,
       emitter,
       lineage: Lineage::new(resident),
       #[cfg(feature = "trace")]
@@ -1417,6 +1473,8 @@ where
       // The withheld-head memo, borrowed so a verdict one handle's peek reached is the one the next
       // handle's consume is answered from.
       withheld: &mut self.withheld,
+      // The end-of-input memo, borrowed for the same reason.
+      error_tail: &mut self.error_tail,
       // The lineage memos, the emitter borrow, and the session-point stack, in one cell (see
       // `input_ref::session`): the stack starts empty and stays unallocated until the first
       // `InputRef::begin_point`, so a reference that never opens a session pays a few zeroed

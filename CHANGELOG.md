@@ -347,6 +347,23 @@ copy, and `unused_must_use` reports it. **The remedy is UFCS**:
   nothing.
   Internal: no public item changes.
 
+### Fixed
+
+- **A run of lexer errors that a peek lexed up to the end of input is lexed, and charged to the
+  token budget, once (#380).** A peek reports each lexer error it meets and lexes on, and it
+  retains only tokens, so every read after it resumed at the newest retained token and lexed the
+  run again. Each read was charged for it again, and where the peek had met the token budget's
+  ceiling the next read was refused instead, so a consume reported a *terminal* end of input over a
+  source that had ended. The input now keeps an end-of-input memo of the run under everything that
+  decides it: the offset the run began at, the lexer state, and the lexer-error reports it raised.
+  The input's one lexing site answers from it, so every read that reaches the run, whether it
+  starts there or lexes up to it, meets the end of input without lexing the run again: the peeks,
+  the consumes, `skip_while`, and the `sync` family's scans alike. A `skip_while` or a `sync_to`
+  that ends there settles where lexing the run again would have, and the rewinding syncs rewind as
+  before. A state switch, or a rollback that takes those reports back, makes the next read lex the
+  run again, and an input a limit has stopped stays stopped. A `Partial` input is unchanged.
+  `InputRef::offset`, `InputRef::lexer` and `InputRef::is_eoi` read as they did.
+
 ## 0.13.2 (2026-11-15)
 
 <a id="0.13.2-source-breaking-additions-that-can-change-behaviour-with-no-diagnostic-at-the-call-site"></a>

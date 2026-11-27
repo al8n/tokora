@@ -25,6 +25,7 @@
 //!    happened, which is what section 6 pins, through both public `with_token_budget` doors.
 
 use core::cell::Cell;
+use hybrid_arraydeque::typenum::U2;
 
 use tokora::{
   InputRef, Lexer, Parse, ParseContext, Parser, ParserContext, ScanLookahead, SimpleSpan, Token,
@@ -1495,5 +1496,362 @@ fn the_witness_is_absolute_and_says_nothing_about_the_window_it_is_read_in() {
     charged_in_window, 0,
     "while the window itself refused nothing and lexed nothing: the accessor is a fact about the \
      input's whole life, and it does not become attempt-relative by being read inside an attempt"
+  );
+}
+
+// ── 7. A run of lexer errors a peek lexed to the end of input is charged once ─────────────────
+//
+// A peek fill reports each lexer error it meets and lexes on, and it retains only tokens. A run of
+// errors behind the newest retained token, up to the end of the source, was therefore lexed again
+// by every later read, which resumed at that token: charged once per read, and refused outright
+// at a ceiling the first lex had already met. Its reports were deduplicated, so only the budget
+// saw it. The input now keeps an end-of-input memo of such a run, keyed so that it answers only
+// where lexing the run again would give the same answer, and the lexing site answers from it
+// wherever a later read reaches the run (#380).
+//
+// The cells are the issue's list: the run charged once, the same at `spent == max`, a rollback
+// and a re-key standing the memo down, a partial input left as it was, and the public readings of
+// position unmoved by it.
+
+/// **The defect, and the witness #380 names.** A two-token peek at `a` over `a??` lexes `a`, both
+/// `?` and the end of input. The consume after it takes `a` from the cache and meets the end of
+/// input, and the run is charged once: three produce-events for three items.
+///
+/// Falsifying output before the memo: `spent` 5 and `scans` 7. The consume resumed at the end of
+/// `a` and lexed both `?` again, charged again, with their reports deduplicated away.
+#[test]
+fn a_peek_over_an_error_tail_then_a_consume_charges_the_tail_once() {
+  fn peek_then_consume<'inp>(
+    inp: &mut InputRef<'inp, '_, Lex<'inp>, Ctx<'inp>>,
+  ) -> Result<(usize, usize), Err_> {
+    assert_eq!(
+      inp.peek::<U2>()?.len(),
+      1,
+      "the window holds `a`: neither `?` is a token"
+    );
+    assert!(inp.next_or_stop()?.is_some(), "`a`, from the cache");
+    assert!(inp.next_or_stop()?.is_none(), "then a genuine end of input");
+    Ok((
+      inp.token_budget().spent(),
+      inp.emitter_ref().diagnostics().len(),
+    ))
+  }
+
+  reset_scans();
+  let (spent, diagnostics) = Parser::with_context(Ctx::new(Verbose::new()))
+    .apply(peek_then_consume)
+    .parse_with_state("a??", TokenLimiter::new())
+    .expect("a collecting emitter never makes this fatal");
+
+  assert_eq!(spent, 3, "`a` and the two `?`, each charged once");
+  assert_eq!(
+    scans(),
+    4,
+    "the peek's three items and its end of input; the consume's end of input is the memo's \
+     answer, with no lexer call"
+  );
+  assert_eq!(diagnostics, 2, "and each `?` reported once");
+}
+
+// Peeks at `a` under a ceiling the run behind it meets, then consumes to the end: `a` from the
+// cache, a trivia skip to its end-of-input settle, and the end of input. Returns what the peek
+// spent, the span the skip settled at, whether anything was refused, and whether the consume met a
+// genuine end of input.
+macro_rules! met_ceiling_driver {
+  ($name:ident, $lexer:ty, $ctx:ty) => {
+    fn $name<'inp>(
+      inp: &mut InputRef<'inp, '_, $lexer, $ctx>,
+    ) -> Result<(usize, SimpleSpan, bool, bool), Err_> {
+      let _ = inp.peek::<U2>()?;
+      let spent = inp.token_budget().spent();
+      assert!(inp.next_or_stop()?.is_some(), "`a`, from the cache");
+      inp.skip_while(|_| true)?;
+      let settled = *inp.span();
+      let ended = matches!(inp.next_or_stop(), Ok(None));
+      Ok((spent, settled, inp.token_budget().refused_an_item(), ended))
+    }
+  };
+}
+
+met_ceiling_driver!(met_ceiling_flood, Lex<'inp>, Ctx<'inp>);
+met_ceiling_driver!(met_ceiling_skip, SkipLexer<'inp>, SkipCtx<'inp>);
+
+/// **At exactly `spent == max`.** A ceiling of 3 is met by the peek itself: `a` and the two `?`.
+/// What follows must still be an end of input. The memo answers the skip at the end of `a`, so
+/// nothing is lexed, charged or refused, and the skip settles where a replay of the run would:
+/// charging the two `?` again meets the ceiling, and where the run ends the source the met-ceiling
+/// settle answers from the source's length, leaving the replay at the last `?`, `(2, 3)`.
+///
+/// Twice: once where the run ends the source, and once where a tail the lexer skips follows it.
+/// There the peek's own probe found the skipped tail and latched nothing, and a replay at the
+/// ceiling would probe the same way, so the skip settles where the lexer stands once exhausted,
+/// past the tail.
+///
+/// Falsifying output before the memo, for both: `(3, SimpleSpan { start: 0, end: 1 }, true,
+/// false)`. The skip resumed at the end of `a`, the ceiling refused the first `?` — an item lexed
+/// and charged once already — and the input stopped terminally over a source that had ended.
+#[test]
+fn an_error_tail_a_peek_charged_to_the_ceiling_ends_the_input_and_is_not_refused() {
+  let ceiling = TokenBudget::with_limitation(3);
+
+  reset_scans();
+  let ends_the_source = Parser::with_context(Ctx::new(Verbose::new()).with_token_budget(ceiling))
+    .apply(met_ceiling_flood)
+    .parse_with_state("a??", TokenLimiter::new())
+    .expect("no error on this path");
+  assert_eq!(
+    ends_the_source,
+    (3, SimpleSpan::new(2, 3), false, true),
+    "the peek spent the ceiling, the skip settled at the last `?` where a replay meets the \
+     ceiling, nothing was refused, and the consume met a genuine end of input"
+  );
+  assert_eq!(
+    scans(),
+    3,
+    "three items, and no probe: every end of input after them was answered by the end of the \
+     source"
+  );
+
+  reset_scans();
+  let skipped_tail = Parser::with_context(SkipCtx::new(Verbose::new()).with_token_budget(ceiling))
+    .apply(met_ceiling_skip)
+    .parse_with_state("a?? ", TokenLimiter::new())
+    .expect("no error on this path");
+  assert_eq!(
+    skipped_tail,
+    (3, SimpleSpan::new(4, 4), false, true),
+    "the same, with the settle past the skipped tail"
+  );
+  assert_eq!(
+    scans(),
+    4,
+    "three items and the peek's one probe, which found only the skipped tail; nothing after it"
+  );
+}
+
+/// Consumes `a`, peeks over the run behind it inside an `attempt` that is kept or declined, then
+/// consumes to the end of input. Returns the reports standing after the attempt, the reports at
+/// the end, and what was spent.
+fn consume_after_an_attempt<'inp>(
+  inp: &mut InputRef<'inp, '_, Lex<'inp>, Ctx<'inp>>,
+  keep: bool,
+) -> Result<(usize, usize, usize), Err_> {
+  assert!(inp.next_or_stop()?.is_some(), "`a`");
+  let kept = inp.attempt(|txn| {
+    let _ = txn.peek::<U2>();
+    keep.then_some(())
+  });
+  assert_eq!(kept.is_some(), keep, "the attempt went the way it was told");
+  let standing = inp.emitter_ref().diagnostics().len();
+  assert!(
+    inp.next_or_stop()?.is_none(),
+    "a genuine end of input either way"
+  );
+  Ok((
+    standing,
+    inp.emitter_ref().diagnostics().len(),
+    inp.token_budget().spent(),
+  ))
+}
+
+fn after_a_kept_attempt<'inp>(
+  inp: &mut InputRef<'inp, '_, Lex<'inp>, Ctx<'inp>>,
+) -> Result<(usize, usize, usize), Err_> {
+  consume_after_an_attempt(inp, true)
+}
+
+fn after_a_declined_attempt<'inp>(
+  inp: &mut InputRef<'inp, '_, Lex<'inp>, Ctx<'inp>>,
+) -> Result<(usize, usize, usize), Err_> {
+  consume_after_an_attempt(inp, false)
+}
+
+/// **A rollback that takes the run's reports back stands the memo down**, and the run is lexed and
+/// reported again. A peek inside an `attempt` lexes the run behind `a`. Declined, the attempt
+/// rewinds the run's reports and the dedup watermark with them, so the consume that follows lexes
+/// the run again and reports both `?` again: what it would have done had the peek never happened.
+///
+/// Kept, the attempt is the control. Its reports stand, so the memo answers and the consume
+/// charges nothing. That half fails before the memo, with `spent` 5. The declined half passes
+/// either way, and it is what fails against a memo that ignored the watermark: `(0, 0, 3)`, both
+/// reports lost for good.
+#[test]
+fn a_rollback_that_takes_the_tail_s_reports_back_lexes_and_reports_it_again() {
+  let kept = Parser::with_context(Ctx::new(Verbose::new()))
+    .apply(after_a_kept_attempt)
+    .parse_with_state("a??", TokenLimiter::new())
+    .expect("a collecting emitter never makes this fatal");
+  assert_eq!(
+    kept,
+    (2, 2, 3),
+    "kept: both reports stand, and the consume met the memo and lexed none of the run"
+  );
+
+  let declined = Parser::with_context(Ctx::new(Verbose::new()))
+    .apply(after_a_declined_attempt)
+    .parse_with_state("a??", TokenLimiter::new())
+    .expect("a collecting emitter never makes this fatal");
+  assert_eq!(
+    declined,
+    (0, 2, 5),
+    "declined: the rollback took both reports back, and the consume lexed the run again, charged \
+     it again and reported both `?` again"
+  );
+}
+
+/// Consumes `a`, peeks over the run behind it, re-keys the lexer state by `set_state` or by
+/// `state_mut`, then consumes to the end of input. Returns the reports and what was spent.
+fn consume_after_a_re_key<'inp>(
+  inp: &mut InputRef<'inp, '_, Lex<'inp>, Ctx<'inp>>,
+  by_set_state: bool,
+) -> Result<(usize, usize), Err_> {
+  assert!(inp.next_or_stop()?.is_some(), "`a`");
+  let _ = inp.peek::<U2>()?;
+  if by_set_state {
+    inp.set_state(TokenLimiter::new());
+  } else {
+    let _ = inp.state_mut();
+  }
+  assert!(inp.next_or_stop()?.is_none(), "a genuine end of input");
+  Ok((
+    inp.emitter_ref().diagnostics().len(),
+    inp.token_budget().spent(),
+  ))
+}
+
+fn after_set_state<'inp>(
+  inp: &mut InputRef<'inp, '_, Lex<'inp>, Ctx<'inp>>,
+) -> Result<(usize, usize), Err_> {
+  consume_after_a_re_key(inp, true)
+}
+
+fn after_state_mut<'inp>(
+  inp: &mut InputRef<'inp, '_, Lex<'inp>, Ctx<'inp>>,
+) -> Result<(usize, usize), Err_> {
+  consume_after_a_re_key(inp, false)
+}
+
+/// **A re-key stands the memo down.** A state switch at the offset the run began at may change how
+/// the run lexes, so the consume after it must lex the run again under the new state. It does, and
+/// because the re-key also resets the dedup watermark to the committed cursor, it reports both `?`
+/// again, as `set_state` documents for speculative diagnostics the old state made.
+///
+/// This passes before the memo as well: it pins that the memo never answers across a re-key.
+/// Which half of the key stands it down is pinned beside the memo, in
+/// `the_error_tail_memo_stands_down_on_a_re_key_with_the_watermark_still_covering_it`.
+#[test]
+fn a_re_key_after_the_peek_lexes_the_tail_again() {
+  let by_set_state = Parser::with_context(Ctx::new(Verbose::new()))
+    .apply(after_set_state)
+    .parse_with_state("a??", TokenLimiter::new())
+    .expect("a collecting emitter never makes this fatal");
+  let by_state_mut = Parser::with_context(Ctx::new(Verbose::new()))
+    .apply(after_state_mut)
+    .parse_with_state("a??", TokenLimiter::new())
+    .expect("a collecting emitter never makes this fatal");
+  assert_eq!(
+    by_set_state,
+    (4, 5),
+    "set_state: the run lexed, charged and reported twice — once by the peek, once after the \
+     re-key"
+  );
+  assert_eq!(by_state_mut, (4, 5), "state_mut: the same");
+}
+
+// Peeks two at the head twice and reports what the two peeks spent.
+macro_rules! two_peeks_driver {
+  ($name:ident, $lexer:ty, $ctx:ty, $cmpl:ty) => {
+    fn $name<'inp>(inp: &mut InputRef<'inp, '_, $lexer, $ctx, (), $cmpl>) -> Result<usize, Err_> {
+      let _ = inp.peek::<U2>()?;
+      let _ = inp.peek::<U2>()?;
+      Ok(inp.token_budget().spent())
+    }
+  };
+}
+
+two_peeks_driver!(
+  two_peeks_complete,
+  Lex<'inp>,
+  Ctx<'inp>,
+  tokora::input::Complete
+);
+two_peeks_driver!(two_peeks_sealed, Lex<'inp>, Ctx<'inp>, Partial);
+two_peeks_driver!(two_peeks_open, SkipLexer<'inp>, SkipCtx<'inp>, Partial);
+
+/// **A partial input is untouched.** The memo is written and read on a complete input alone, so a
+/// [`PartialSession`] lexes the run again on the second peek exactly as before: sealed, where the
+/// frontier rules are off and a complete input would answer from the memo, and open, where a tail
+/// the lexer skips stands between the run and the buffer's end.
+///
+/// The complete input is the control: the memo answers its second peek, which charges nothing.
+/// That row fails before the memo, with 5; the two partial rows pass either way.
+#[test]
+fn a_partial_input_lexes_the_tail_again_as_it_did() {
+  let complete = Parser::with_context(Ctx::new(Verbose::new()))
+    .apply(two_peeks_complete)
+    .parse_with_state("a??", TokenLimiter::new())
+    .expect("no error on this path");
+  assert_eq!(complete, 3, "complete: the second peek charged nothing");
+
+  let mut session = PartialSession::new(TokenLimiter::new(), Budget::Unbounded, RedriveFromBase);
+  let sealed = session
+    .parse(Ctx::new(Verbose::new()), "a??", true, two_peeks_sealed)
+    .expect("no error on this path");
+  assert_eq!(
+    sealed, 5,
+    "sealed partial: the second peek lexed the run again"
+  );
+
+  let mut session = PartialSession::new(TokenLimiter::new(), Budget::Unbounded, RedriveFromBase);
+  let open = session
+    .parse(SkipCtx::new(Verbose::new()), "a?? ", false, two_peeks_open)
+    .expect("no error on this path");
+  assert_eq!(open, 5, "open partial: the same");
+}
+
+/// Every public reading of where the input stands: the offset, the span of the lexer the input
+/// hands out, the end-of-input frontier, and the spend.
+fn readings<'inp>(
+  inp: &InputRef<'inp, '_, Lex<'inp>, Ctx<'inp>>,
+) -> (usize, SimpleSpan, bool, usize) {
+  (
+    *inp.offset(),
+    inp.lexer().span(),
+    inp.is_eoi(),
+    inp.token_budget().spent(),
+  )
+}
+
+fn peek_twice_then_consume<'inp>(
+  inp: &mut InputRef<'inp, '_, Lex<'inp>, Ctx<'inp>>,
+) -> Result<[(usize, SimpleSpan, bool, usize); 3], Err_> {
+  let _ = inp.peek::<U2>()?;
+  let after_the_peek = readings(inp);
+  let _ = inp.peek::<U2>()?;
+  let after_the_second_peek = readings(inp);
+  assert!(inp.next_or_stop()?.is_some(), "`a`, from the cache");
+  assert!(inp.next_or_stop()?.is_none(), "then a genuine end of input");
+  Ok([after_the_peek, after_the_second_peek, readings(inp)])
+}
+
+/// **`offset()` and the resume agree where the memo answers.** The input's lexing site answers
+/// for the run once the memo stands, and nothing public moves with it: `offset` still names the
+/// end of `a`, the lexer `InputRef::lexer` hands out still starts there, and the frontier is not at
+/// the end of input. They read the same after the peek that wrote the memo, after the second peek
+/// the memo answered, and after the consume that met the end of input through it, and the only
+/// reading the memo changes is the spend, which stays at 3.
+///
+/// Falsifying output before the memo: the second reading spends 5 and the third 7, one re-lex of
+/// the run for each read after the first.
+#[test]
+fn offset_and_the_public_lexer_still_agree_where_the_memo_answers_the_tail() {
+  let seen = Parser::with_context(Ctx::new(Verbose::new()))
+    .apply(peek_twice_then_consume)
+    .parse_with_state("a??", TokenLimiter::new())
+    .expect("no error on this path");
+  let at_the_end_of_a = (1, SimpleSpan::new(1, 1), false, 3);
+  assert_eq!(
+    seen, [at_the_end_of_a; 3],
+    "offset, the public lexer, the frontier and the spend, after each of the three reads"
   );
 }

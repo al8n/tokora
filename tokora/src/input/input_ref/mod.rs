@@ -372,6 +372,10 @@ where
   /// for why a rollback leaves it alone. Written only by `remember_withheld`, read only by
   /// [`lex_within_boundary`](Self::lex_within_boundary).
   pub(super) withheld: &'closure mut Option<super::WithheldHead<L::Offset>>,
+  /// The **end-of-input memo**, borrowed from the owning [`Input`](super::Input) — see that field
+  /// for why a rollback leaves it alone. Written only by `remember_error_tail`, read only by
+  /// [`lex_within_boundary`](Self::lex_within_boundary), and settled from by `settle_error_tail`.
+  pub(super) error_tail: &'closure mut Option<super::ErrorTail<L::Offset, L::Span, L::State>>,
   /// The **session cell**: the input's lineage memos (the live-checkpoint stack, the pin set, and
   /// the cache-push/checkpoint-id/savepoint counters), the handle's **emitter borrow** (the
   /// ground-truth emission log, reached through [`emitter`](Self::emitter)), and the live
@@ -1519,6 +1523,22 @@ where
   /// spent the budget on it, and the consume that followed lexed it a second time, or met the
   /// spent budget and reported a terminal stop. On a [`Complete`](crate::input::Complete) input the
   /// check compiles to nothing.
+  ///
+  /// # An error tail is lexed once
+  ///
+  /// The twin of the section above, for a [`Complete`](crate::input::Complete) input. Where lexing
+  /// would start at an offset a peek fill already lexed through a run of lexer errors to the end of
+  /// input, the [end-of-input memo](super::ErrorTail) answers here: [`LexStep::Tail`], with no
+  /// item, no charge and no refusal. The check sits in the same place as the withheld one, below
+  /// the boundary probe and above the budget preflight. Every driver reaches the lexer through this
+  /// site, so the memo is consulted wherever a lex begins, whether the driver starts at the run or
+  /// reaches it partway through. Without it, every read after the peek lexed the run again, was
+  /// charged for it again, and at a ceiling the peek had met, refused it.
+  ///
+  /// It costs every lexing step on a complete input one test of the memo cell, which is empty
+  /// until a fill meets an error tail; the comparison against the run's start and the rest of the
+  /// key are behind it. On a [`Partial`](crate::input::Partial) input the check compiles to
+  /// nothing.
   #[inline(always)]
   fn lex_within_boundary<Fr>(
     &mut self,
@@ -1536,6 +1556,11 @@ where
     // section above.
     if Cmpl::PARTIAL && self.withheld_here(lex_at) {
       return LexStep::Withheld;
+    }
+    // ERROR_TAIL — the end-of-input memo, in the same place for the same reason: a lex it answers
+    // is neither charged nor refused. See the section above.
+    if !Cmpl::PARTIAL && self.error_tail_here(lex_at) {
+      return LexStep::Tail;
     }
     // PREFLIGHT. Before `Lexer::lex`, not after: see the section above for why the other order
     // bounds nothing. Everything a met ceiling then has to decide is out of line — see
@@ -1823,6 +1848,126 @@ where
       at,
       diagnosed,
     });
+  }
+
+  /// ERROR_TAIL — whether the [end-of-input memo](super::ErrorTail) answers a lex that would start
+  /// at `lex_at`: a peek fill lexed from here through lexer errors alone to the end of input, and
+  /// every other part of the memo's key still holds. The shape of
+  /// [`withheld_here`](Self::withheld_here), and asked at the same site.
+  #[inline(always)]
+  fn error_tail_here(&self, lex_at: &L::Offset) -> bool {
+    match self.error_tail.as_ref() {
+      Some(tail) => tail.from == *lex_at && self.error_tail_stands(tail),
+      None => false,
+    }
+  }
+
+  /// The rest of [`error_tail_here`](Self::error_tail_here)'s key, out of line: it is reached only
+  /// where the run began at this very offset.
+  ///
+  /// A latched boundary and a refusal on record each stand it down, because lexing from here
+  /// would then stop terminally, and the memo says only that the input ends. The per-driver gate
+  /// already stops every entry that has a refusal on record and no boundary latched, so the second
+  /// test holds the memo to that answer at the site itself, for a path the gate does not cover.
+  #[cold]
+  #[inline(never)]
+  fn error_tail_stands(&self, tail: &super::ErrorTail<L::Offset, L::Span, L::State>) -> bool {
+    super::same_regime(tail.regime, *self.regime)
+      && self.poison_boundary.is_none()
+      && !self.token_budget.limit_probe_spent()
+      && *self.emitted_error_end >= tail.diagnosed
+  }
+
+  /// ERROR_TAIL — the span and the state a scan that met the end of input through the memo settles
+  /// at: what lexing the run again would have left it, so the memo changes the charge and not the
+  /// position a settle commits.
+  ///
+  /// A replay of the run charges it, `charge` items, and then asks for the next one. If that charge
+  /// meets the ceiling and the run ends at the end of the source, the met-ceiling settle answers
+  /// from the source's length without asking the lexer, and the replay's lexer still holds the last
+  /// error's span and the state after it. Anywhere else the lexer is asked, by the authorized step
+  /// or by the one-shot probe, and it reports where it stands once exhausted. The memo keeps both,
+  /// and this picks the one the replay would have reached. Where the budget could not fund the
+  /// replay at all, the run is taken as charged, and the answer is the met ceiling's.
+  ///
+  /// Read only right after the lexing site answered from the memo, with nothing in between that
+  /// could change it.
+  #[inline(always)]
+  fn error_tail_settlement(&self) -> (L::Span, L::State)
+  where
+    L::State: Clone,
+  {
+    let tail = self
+      .error_tail
+      .as_ref()
+      .expect("settled only right after the lexing site answered from the memo");
+    let at_the_ceiling =
+      self.token_budget.exhausted_after(tail.charge) && tail.last.0.end_ref().ge(&self.input.len());
+    let (span, state) = match &tail.drained {
+      Some(drained) if !at_the_ceiling => drained,
+      _ => &tail.last,
+    };
+    (span.clone(), state.clone())
+  }
+
+  /// ERROR_TAIL — the end-of-input settle of a scan the memo answered, for the scans that commit at
+  /// the end of input: the complete-input [`skip_while`](Self::skip_while), and the `to`-shaped
+  /// mode of the shared scanner. It commits the pair
+  /// [`error_tail_settlement`](Self::error_tail_settlement) picks, where the lexer's own span and
+  /// state would describe a lexer that lexed nothing. Out of line, like every other step the memo
+  /// takes: it runs once per scan the memo answers.
+  #[cold]
+  #[inline(never)]
+  fn settle_error_tail(&mut self)
+  where
+    L::State: Clone,
+  {
+    let (span, state) = self.error_tail_settlement();
+    self.commit_position(span.into(), state);
+  }
+
+  /// ERROR_TAIL — records that a peek fill, lexing through `resume`, met the end of input behind a
+  /// run of `charge` lexer errors, the last of them `last`: the
+  /// [end-of-input memo](super::ErrorTail).
+  ///
+  /// The fill calls this on its way out, and only on a [`Complete`](crate::input::Complete) input,
+  /// when its loop stopped with no item left to lex — the lexer exhausted, or a met ceiling with
+  /// nothing past it — and at least one lexer error lies behind the newest token it produced, with
+  /// nothing staged. Every token the fill produced is then cached, so [`offset`](Self::offset) is
+  /// the end of the newest retained token, where the run began. A stop at a latched boundary keeps
+  /// nothing, since items may lie past it.
+  ///
+  /// Whether the fill's lexer was asked for an item at the end of the run decides what it can say
+  /// about the end of input. It was asked, by the authorized step or by the one-shot probe, unless
+  /// the ceiling was met at the end of the source: the met-ceiling settle answers that from the
+  /// source's length, and the lexer still holds the last error.
+  ///
+  /// It replaces whatever the cell held. Every operand is caller code and is computed before the
+  /// cell is written, and the memo it displaces is dropped after the write.
+  #[cold]
+  #[inline(never)]
+  fn remember_error_tail(
+    &mut self,
+    resume: &Resume<L, L::Offset>,
+    charge: usize,
+    last: (L::Span, L::State),
+  ) where
+    L::State: Clone,
+  {
+    if self.reached_boundary(resume.at()) {
+      return;
+    }
+    let asked = !(self.token_budget.is_exhausted() && resume.at().ge(&self.input.len()));
+    let drained = asked.then(|| (resume.lexer().span(), resume.lexer().state().clone()));
+    let tail = super::ErrorTail {
+      from: self.offset().clone(),
+      regime: *self.regime,
+      diagnosed: self.emitted_error_end.clone(),
+      charge,
+      last,
+      drained,
+    };
+    drop(self.error_tail.replace(tail));
   }
 
   /// **The per-driver gate**: has this input *already* refused an item, so that this entry is owed
@@ -4381,7 +4526,7 @@ where
         self.commit_token(tok.data(), tok.span_ref(), resume.into_lexer().into_state());
         Ok(Some(tok))
       }
-      Scan::Tripped | Scan::Eof => Ok(None),
+      Scan::Tripped | Scan::Eof | Scan::Tail => Ok(None),
     }
   }
 
@@ -4466,7 +4611,7 @@ where
           .into_terminal()
           .into(),
       ),
-      Scan::Eof => {
+      Scan::Eof | Scan::Tail => {
         // An exhaustion produced by refusing to cross a pre-latched boundary is terminal, not genuine
         // end of input (under `Partial` non-final, `scan_with` already surfaced `Incomplete` for every
         // non-boundary exhaustion, so `Eof` implies boundary there — this makes it explicit in
@@ -4816,6 +4961,10 @@ where
           // The withheld-head memo answered: the exit the `Withheld` arm above takes, at the
           // offset it reported — the source length, which the memo's key has just matched.
           LexStep::Withheld => break 'scan Err(Cmpl::surface_incomplete(self.input.len())),
+          // The end-of-input memo answered: the rest is lexer errors already reported, then the
+          // end of input. Its own outcome, so that a scan which settles there commits what the
+          // memo keeps for it rather than this lexer's span.
+          LexStep::Tail => break 'scan Ok(Scan::Tail),
         }
       }
 
@@ -4872,6 +5021,14 @@ where
   /// The input is exhausted (or the boundary was already reached). The caller
   /// yields its end-of-input outcome.
   Eof,
+  /// The input is exhausted, and the [end-of-input memo](super::ErrorTail) is what said so: the
+  /// scan stood where a peek fill had already lexed lexer errors alone to the end of input, and it
+  /// lexed none of them again (see [`LexStep::Tail`]). Every caller yields the end-of-input outcome
+  /// it yields for [`Eof`](Self::Eof), since no boundary is latched while the memo answers. A
+  /// caller that commits at the end of input commits through
+  /// [`settle_error_tail`](InputRef::settle_error_tail), because its lexer has lexed nothing that
+  /// could say where the run ended.
+  Tail,
 }
 
 /// What one freshly-lexed item *means*, as ranked by [`InputRef::classify`] — the crate's single
@@ -4987,6 +5144,12 @@ where
   /// the source length, which is what the frontier rules report. Built only on a non-final
   /// [`Partial`](crate::input::Partial) input.
   Withheld,
+  /// **Not terminal: lexing would start where a run of lexer errors to the end of input begins**,
+  /// and the [end-of-input memo](super::ErrorTail) still answers for it. The lexer did not run,
+  /// nothing was charged and nothing was refused, and every error in the run is already reported.
+  /// The scanner reports it as [`Scan::Tail`]; the peek fill stops short, exactly as at an end of
+  /// input. Built only on a [`Complete`](crate::input::Complete) input.
+  Tail,
 }
 
 /// Where a scan latches the poison boundary on a limit trip: the **durable frontier**, the offset

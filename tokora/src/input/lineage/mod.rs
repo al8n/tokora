@@ -141,6 +141,7 @@
 //! | `resource_trips` (how many budget trips) | `Input` (borrowed through `InputRef`) | **monotone session fact** | **nothing** — it only counts up, and there is no writer that lowers it. A rollback rewinds *input progress*; it cannot un-exceed a budget, so restoring this cell would erase a stop that has already been decided. Sites that need a *per-attempt* answer snapshot it and compare rather than reading it absolutely |
 //! | `scanner_trips` (how many scanner trips) | `Input` (borrowed through `InputRef`) | **monotone session fact** | **nothing** — the same class and the same argument as the cell above, for the other budget. It is the row that makes the `poison_boundary` row *safe*: a trip's **position** is a lineage memo and comes back with a restore, so no comparison of that memo can witness a trip across a rollback — at one level or at ten. The *fact* of the trip is recorded here instead, where nothing reaches it, which is why the recovery gate judges a scanner stop on this and reads the boundary only as the narrower standing-stop reading |
 //! | `withheld` (the withheld-head memo) | `Input` (borrowed through `InputRef`) | **keyed memo** | **nothing** — it records what lexing from one offset under one regime does to this source, and its key carries all of that: the offset, the regime id, the source length and, when the run crossed lexer errors, the dedup watermark their reports raised. A restore cannot make it false, so afterwards it either matches a lex and gives the answer re-lexing would, or matches nothing. Written by `InputRef::remember_withheld`, read by `InputRef::lex_within_boundary` |
+//! | `error_tail` (the end-of-input memo) | `Input` (borrowed through `InputRef`) | **keyed memo** | **nothing** — the same class and the same argument as the cell above: it records that lexing from one offset under one regime runs through lexer errors alone to the end of this source, and its key carries the offset, the regime id and the dedup watermark the run's reports raised. A restore cannot make it false, so afterwards it either matches a lex and gives the answer re-lexing would, or matches nothing. Written by `InputRef::remember_error_tail`, read by `InputRef::error_tail_here` at the lexing site; a `Partial` input never touches it |
 //! | `witness` (input identity) | `Input` | witness | nothing (identity is fixed for the input's life) |
 //! | `depth` (trace nesting) | `Input` | instrumentation | nothing (trace events are out of band) |
 
@@ -269,6 +270,14 @@ pub(crate) fn census<'inp, L, Ctx, Lang, Cmpl>(
     //   `remember_withheld` from the peek fill and the scanner, read by `lex_within_boundary`. Not
     //   in `Checkpoint`.
     withheld: _,
+    // — KEYED MEMO: restore does NOT touch it, and need not, for the reason the cell above gives.
+    //   It records what lexing from one offset under one regime does on this source — a run of
+    //   lexer errors to the end of the source — and its key holds that: the offset, the regime
+    //   id, and the dedup watermark the run's reports raised. After a restore it either still
+    //   matches a lex, and gives the answer a re-lex would, or matches nothing. Written by
+    //   `remember_error_tail` from the peek fill, read by `error_tail_here` at the lexing site.
+    //   Not in `Checkpoint`, and never written on a `Partial` input.
+    error_tail: _,
     // — GROUND TRUTH, and the aggregate's anchor: the emission log itself, bound at construction
     //   and owned for the input's whole life. Restore truncates it to the saved mark — the same
     //   action as when it was borrowed per handle. What changed is that the two watermarks above
@@ -341,6 +350,9 @@ pub(crate) fn census<'inp, L, Ctx, Lang, Cmpl>(
     // — KEYED MEMO (borrowed): written by `remember_withheld`, read by `lex_within_boundary`, never
     //   restored. Same class as the `Input` field above it.
     withheld: _,
+    // — KEYED MEMO (borrowed): written by `remember_error_tail`, read by
+    //   `error_tail_here`, never restored. Same class as the `Input` field above it.
+    error_tail: _,
     // — WORLD FACT, as a read-only `Copy` snapshot: no mutator, and the handle's borrow of the
     //   input locks out the seal, so it is CONSTANT for this handle's life.
     finality: _,
