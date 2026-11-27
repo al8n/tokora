@@ -63,29 +63,29 @@
 //!
 //! Instructions an iteration, from `ci/icount/measure.py`'s head-side reading in the `instruction
 //! counts` job (`icount-readings-<image>`, `head.json`, `ir_per_iter`), rounded to a whole
-//! instruction. They are from `perf` run 45845254796 on `probe/machine-c4`, which is this branch's
-//! last library commit (`d70ad3f2`) merged with main's aarch64 count leg, so its library is the
-//! branch's. The x86_64 column is a GitHub-hosted `ubuntu-latest` runner (image `ubuntu-26.04`,
-//! version 20261116.202.1); the aarch64 column is the `ubuntu-26.04-arm` runner (version
-//! 20261116.190.1). The readings do not record the CPU. A source holds 256 operands: 4 chains of 63
-//! operators, or 128 expressions of one.
+//! instruction. They are from `perf` run 45940988465 on PR #383's merge ref, which is this branch's
+//! head (`cb23c861`) merged with main (`6c050193`), whose commits since the merge-base leave
+//! `tokora/src` untouched, so its library is the branch's. The x86_64 column is a GitHub-hosted
+//! `ubuntu-latest` runner (image `ubuntu-26.04`, version 20261116.202.1); the aarch64 column is the
+//! `ubuntu-26.04-arm` runner (version 20261116.190.1). The readings do not record the CPU. A source
+//! holds 256 operands: 4 chains of 63 operators, or 128 expressions of one.
 //!
 //! | row | x86_64 Ir/iteration | against | aarch64 Ir/iteration | against |
 //! |---|---:|---|---:|---|
-//! | `pratt_typed_left` | 347,119 | | 293,570 | |
-//! | `pratt_typed_right` | 352,951 | | 299,157 | |
-//! | `pratt_flat_fold_left` | 232,721 | 0.670 of `pratt_typed_left` | 199,622 | 0.680 of `pratt_typed_left` |
-//! | `pratt_flat_fold_right` | 213,797 | 0.606 of `pratt_typed_right` | 184,944 | 0.618 of `pratt_typed_right` |
-//! | `pratt_flat_collect_left` | 191,371 | | 160,043 | |
-//! | `pratt_flat_collect_right` | 183,027 | | 154,206 | |
-//! | `pratt_flat_bare_left` | 166,396 | +50 over `pratt_flat_control_left` | 137,524 | -217 under `pratt_flat_control_left` |
-//! | `pratt_flat_bare_right` | 166,396 | +50 over `pratt_flat_control_right` | 138,027 | -217 under `pratt_flat_control_right` |
+//! | `pratt_typed_left` | 347,119 | | 293,569 | |
+//! | `pratt_typed_right` | 352,951 | | 299,158 | |
+//! | `pratt_flat_fold_left` | 238,998 | 0.689 of `pratt_typed_left` | 202,943 | 0.691 of `pratt_typed_left` |
+//! | `pratt_flat_fold_right` | 220,291 | 0.624 of `pratt_typed_right` | 191,210 | 0.639 of `pratt_typed_right` |
+//! | `pratt_flat_collect_left` | 197,353 | | 169,809 | |
+//! | `pratt_flat_collect_right` | 183,253 | | 156,038 | |
+//! | `pratt_flat_bare_left` | 166,396 | +50 over `pratt_flat_control_left` | 137,523 | -217 under `pratt_flat_control_left` |
+//! | `pratt_flat_bare_right` | 166,396 | +50 over `pratt_flat_control_right` | 138,028 | -217 under `pratt_flat_control_right` |
 //! | `pratt_flat_bare_shallow` | 196,404 | +1,538 over `pratt_flat_control_shallow` | 162,944 | +1,023 over `pratt_flat_control_shallow` |
 //! | `pratt_flat_control_left` | 166,346 | | 137,741 | |
-//! | `pratt_flat_control_right` | 166,346 | | 138,245 | |
+//! | `pratt_flat_control_right` | 166,346 | | 138,244 | |
 //! | `pratt_flat_control_shallow` | 194,866 | | 161,921 | |
-//! | `pratt_token_left` | 203,059 | PR 3's before | 169,483 | PR 3's before |
-//! | `pratt_token_right` | 187,187 | PR 3's before | 157,582 | PR 3's before |
+//! | `pratt_token_left` | 203,059 | PR 3's before | 169,482 | PR 3's before |
+//! | `pratt_token_right` | 187,187 | PR 3's before | 157,583 | PR 3's before |
 //! | `pratt_token_shallow` | 210,871 | PR 3's before | 177,295 | PR 3's before |
 //!
 //! The +50 and +1,538 that the account of the control's omission above covers are the x86_64
