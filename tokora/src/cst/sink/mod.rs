@@ -14,12 +14,12 @@
 //! | — | [`Sink::demotes`] | **latching hint** (an `Event::Demote` was appended at some point) | never restored, never cleared — a rewind may leave it set over a buffer with no `Demote` left, which costs one no-op canonicalization pass at materialization and can never skip a needed one |
 //! | E2 | [`Sink::journal`] | **undo journal** (the Verbose-parallel-maps discipline lifted to events) | rewind pops entries written above the mark, reverse order, restoring each overwritten `forward_parent`; never grows on rewind |
 //! | E3 | [`Sink::ledger`] | **monotone era source + truncation witness** | rewind APPENDS to it (a rewind *is* a truncation) and never removes; rewinding it would false-accept a stale mark |
-//! | E4 | [`Sink::rows`] | **release stack + per-checkpoint depth ledger + inner reading** | push at `checkpoint()` (freezing the depth and the inner emitter's own checkpoint reading), pop at `release()` (kept) and `rewind()` (spent, the popped row's inner reading is the inner's rewind target); depth entries are frozen facts about prefixes, never live counters |
+//! | E4 | [`Sink::rows`] | **release stack + per-checkpoint depth ledger + inner reading** | push at `checkpoint()` (freezing the depth and the inner emitter's own checkpoint reading, and recording the floor a rewind to it restores), pop at `release()` (kept) and `rewind()` (spent, the popped row's inner reading is the inner's rewind target); depth entries are frozen facts about prefixes, never live counters |
 //! | E5 | [`Sink::depth`] | **live open-node depth** — the one value derived from the log that the sink maintains rather than recounts | every append charges the event's own `depth_delta`, through the ONE push helper the DEPTH_CENSUS pins; a truncating rewind **restores** it from the target row's frozen depth (or `0` at the origin), and a non-truncating one leaves it untouched |
 //! | E6 | [`Sink::diag_tail`] | **live start of the pure-`Diag` tail** — the second value maintained rather than recounted, and restored by the identical rule | every append through the ONE push helper sets it to the new length for a non-`Diag` and leaves it for a `Diag`; the hole wrap's splice charges its own half; a truncating rewind **restores** it from the target row's frozen value (or `0` at the origin), and a non-truncating one leaves it untouched |
 //! | E7 | [`Sink::opens`] (debug only) | **open-node chain** (a second append-only log, one entry per depth-increasing event, each carrying a parent link, its depth and a skew-binary skip link) | append + suffix-truncate, the log's own two verbs — a rewind drops the entries whose `start` reached the truncated region and touches no other, so it needs no journal; an entry is written once and never revisited, and a close never reclaims a slot (see [`OpenNode`]) |
 //! | E8 | [`Sink::open_top`] (debug only) | **live chain head** — the third value maintained rather than recounted | the ONE push helper pushes at a `+1` and follows `parent` at a `-1`; a truncating rewind **restores** it from the target row's frozen value (or `None` at the origin), and a non-truncating one leaves it untouched |
-//! | — | [`Sink::floor_mark`] | derived memo (the newest released row's mark) | reset to the surviving top row's mark when a rewind drops below it |
+//! | — | [`Sink::floor_mark`] | derived memo (the newest released row's mark) | a rewind that lands on a row restores the floor that row recorded, so a release inside the abandoned branch, at the row's own mark included, dies with it; a rewind that lands on no row resets it to the surviving top row's mark when it drops below it |
 //! | — | [`Sink::base_inner`] | derived memo (the inner's construction-time reading) | primed at the first advancing touch (provably the construction reading), never restored (the exact no-row target at the origin only) |
 //! | — | [`Sink::degraded`] | **latching poison** (a rewind the sink refused to perform) | set — never cleared — by the one rewind that must degrade instead of report (an unpaired settle detected mid-unwind); a rewind cannot un-refuse an earlier refusal, so it is deliberately outside the rewind timeline |
 //! | — | `inner`, `source`, `profile`, `trivia` | configuration / the wrapped emitter | never touched by rewind (the inner rewinds through its own contract) |
@@ -277,6 +277,15 @@ struct MarkRow {
   /// (A table-keyed inner that allocates per `checkpoint` is not supported.) See the
   /// *Inner-emitter contract* section on [`Sink`].
   inner: u64,
+  /// The hole-wrap floor a rewind to this row restores: [`Sink::floor_mark`] at capture time,
+  /// raised afterwards only by the release of an older row, a commit that stands whatever this
+  /// row's branch decides.
+  ///
+  /// Not a frozen fact about the prefix, as the depth, the `Diag` tail and the chain head are: a
+  /// release adds no event, so the prefix cannot record it. A release inside this row's branch,
+  /// at this row's own mark included, never reaches it, and a rewind to this row therefore takes
+  /// that release back with the branch it was made in.
+  floor: u64,
 }
 
 /// The one rewind a sink can be asked for and be unable to perform: an **unpaired settle**
@@ -686,6 +695,11 @@ where
   /// [`Sink::depth`] became live: the row's frozen depth is now consulted only where it is
   /// spent, at a rewind that lands on it. A floor that carried a `depth` nobody read would be
   /// state to keep exact for no one.
+  ///
+  /// A release raises it, and a rewind gives back only what the rolled-back branch raised: each
+  /// row records the floor a rewind to it restores (see [`MarkRow::floor`]). Keyed on the mark
+  /// alone, as it once was, the restore missed a release at the target's own mark, which is the
+  /// release a session point opened and abandoned inside a guard makes.
   floor_mark: u64,
   /// E3 — the monotone era source and truncation witness backing mark validation.
   ledger: TruncationLedger,
@@ -1877,6 +1891,7 @@ where
       #[cfg(debug_assertions)]
       open_top,
       inner,
+      floor: self.floor_mark,
     });
     mark
   }
@@ -2026,7 +2041,15 @@ where
       } else {
         None
       };
-      if self.floor_mark > mark {
+      // The floor goes back to the one the target row recorded, which keeps every commit that
+      // stands and drops every release made inside the branch, a release at the target's own
+      // mark included. That release is the one a point opened and abandoned inside a guard
+      // makes: it shares the guard's mark, so a floor kept whenever it sat at or below the mark
+      // narrowed every later hole wrap to a branch that no longer existed. A rewind that lands
+      // on no row has no frozen floor to restore, and keeps the reset it always had.
+      if let Some(row) = hit {
+        self.floor_mark = row.floor;
+      } else if self.floor_mark > mark {
         self.floor_mark = rows.last().map_or(0, |row| row.mark);
       }
       hit
@@ -2173,13 +2196,21 @@ where
   /// Hardening either would convert a documented guarantee into a crash. Neither can strand
   /// the mark stack in a shape that outlives the parse, either: a middle `remove` only fires
   /// when the top row's mark differs, so `rows` holds at least two entries and cannot be
-  /// emptied by it, and equal-mark rows are interchangeable (same prefix ⟹ same depth and
-  /// same inner reading, guaranteed by the [`ValueKeyedEmitter`] bound), so which of them is
-  /// removed is unobservable. The residue a dropped-rather-committed raw checkpoint leaves is
-  /// a *stale* row — the mark stack is a superset of the live captures, never a subset, which
-  /// is the conservative direction for any consumer that keys on the oldest live mark. The one
-  /// way a *live* capture loses its row is a double settle, and that surfaces where it should:
-  /// at the later `rewind`, which panics.
+  /// emptied by it, and equal-mark rows agree on every fact about their prefix (same prefix ⟹
+  /// same depth and same inner reading, guaranteed by the [`ValueKeyedEmitter`] bound), so
+  /// which of them is removed is unobservable there. The one field they can differ in is the
+  /// floor a rewind restores, and only one way: the newer row's is never the lower. A release
+  /// at a mark two live rows share removes the newer, so the rewind to that mark that follows
+  /// restores the older floor. That is the exact reading for a point abandoned inside a guard,
+  /// whose release is the newer row's. For the other order, a point opened just before a guard
+  /// at the same mark and committed inside it, the same two calls arrive, and the floor comes
+  /// back to the one in effect before that point opened: a later hole wrap may reach tokens
+  /// settled before it. The calls carry a mark and nothing else, so no rule here can tell the
+  /// two apart. The residue a dropped-rather-committed raw checkpoint leaves is a *stale* row —
+  /// the mark stack is a superset of the live captures, never a subset, which is the
+  /// conservative direction for any consumer that keys on the oldest live mark. The one way a
+  /// *live* capture loses its row is a double settle, and that surfaces where it should: at the
+  /// later `rewind`, which panics.
   fn release(&mut self, checkpoint: u64) {
     let rows = &mut self.rows;
     let row = if rows.last().map(|row| row.mark) == Some(checkpoint) {
@@ -2189,7 +2220,15 @@ where
       rows
         .iter()
         .rposition(|row| row.mark == checkpoint)
-        .map(|pos| rows.remove(pos))
+        .map(|pos| {
+          let row = rows.remove(pos);
+          // The rows above it are younger captures, and this commit stands whatever their
+          // branches decide: a rewind to any of them restores a floor that keeps it.
+          for younger in &mut rows[pos..] {
+            younger.floor = younger.floor.max(row.mark);
+          }
+          row
+        })
     };
     if let Some(row) = row
       && row.mark >= self.floor_mark

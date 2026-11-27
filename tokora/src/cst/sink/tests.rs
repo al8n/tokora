@@ -2169,6 +2169,77 @@ fn hole_wrap_floors_at_the_released_floor_too() {
   );
 }
 
+/// A session point opened inside a scope and left open is abandoned by the scope's rollback,
+/// which releases it at the scope's own mark: nothing was emitted between the two captures. The
+/// release must die with the branch. A hole reported after the scope wraps what it wrapped with
+/// nothing opened inside, here the token consumed before it. Both doors run, `attempt` and a
+/// look-ahead, against a control whose scope opens nothing.
+#[test]
+fn a_point_abandoned_inside_a_rolled_back_scope_leaves_the_floor_where_it_was() {
+  type Ctx<'inp> = (VerboseSink<'inp>, DefaultCache<'inp, MiniLexer<'inp>>);
+
+  // 0: the control, an attempt that opens nothing; 1: an attempt that opens a point and leaves
+  // it open; 2: a look-ahead that does the same.
+  fn events_after(door: u8) -> std::vec::Vec<Event<SimpleSpan>> {
+    let mut input = Input::<'_, MiniLexer<'_>, Ctx<'_>, ()>::with_state_and_context(
+      "ab",
+      (),
+      crate::input::InputContext::new(
+        verbose_sink("ab"),
+        DefaultCache::<'_, MiniLexer<'_>>::default(),
+      ),
+    );
+    let mut inp = input.as_ref();
+    let _ = inp.next().expect("verbose collects").expect("a token");
+    match door {
+      0 => assert!(inp.attempt(|_| None::<()>).is_none()),
+      1 => assert!(
+        inp
+          .attempt(|inp| {
+            let _abandoned = inp.begin_point();
+            None::<()>
+          })
+          .is_none()
+      ),
+      _ => {
+        let _abandoned = inp.look_ahead(|inp| inp.begin_point());
+      }
+    }
+    assert_eq!(
+      inp.points(),
+      0,
+      "door {door}: the scope's rollback abandoned the point"
+    );
+    inp
+      .emit_skipped_region(span(0, 1), 1)
+      .expect("verbose collects");
+    drop(inp);
+    input.emitter().events().to_vec()
+  }
+
+  let control = events_after(0);
+  assert!(
+    control.iter().any(|event| matches!(
+      event,
+      Event::StartNode {
+        kind: K_ERR,
+        forward_parent: None
+      }
+    )),
+    "the control wraps the consumed token in an error node: {control:?}"
+  );
+  assert_eq!(
+    events_after(1),
+    control,
+    "attempt: the abandoned point's release outlived the rollback as a floor"
+  );
+  assert_eq!(
+    events_after(2),
+    control,
+    "look-ahead: the abandoned point's release outlived the rollback as a floor"
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // The &mut threading shape — events flow through the blanket impl
 // ═══════════════════════════════════════════════════════════════════════════════
