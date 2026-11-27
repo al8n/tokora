@@ -288,9 +288,10 @@ where
   ///
   /// Every in-crate scope that hands a whole [`InputRef`] to code it did not write, and nowhere
   /// else: the restoring arms of [`attempt`](InputRef::attempt),
-  /// [`try_attempt`](InputRef::try_attempt) and [`attempt_parse`](InputRef::attempt_parse) (a
-  /// caller-supplied closure), and the typed pratt driver's expression guard and five
-  /// cycle-scoped probe exits (grammar hooks). The test is not "could a point be open here" but
+  /// [`try_attempt`](InputRef::try_attempt) and [`attempt_parse`](InputRef::attempt_parse) and the
+  /// rollback that ends every [`look_ahead`](InputRef::look_ahead) (a caller-supplied closure);
+  /// and the typed pratt driver's expression guard and five cycle-scoped probe exits (grammar
+  /// hooks). The test is not "could a point be open here" but
   /// "**who** would have opened it": in all of these it is someone the scope cannot hold to a
   /// settle discipline, and whose unwind edge through the same guard already reconciles. Scopes
   /// that own their own points — every other rollback in this crate — keep

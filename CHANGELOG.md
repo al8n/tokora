@@ -332,6 +332,9 @@ method by name.
     alone. The `Cache` contract gains the law the copy relies on, that a clone copies the queue,
     and every cache this crate ships keeps it. The conformance kit checks it through a new entry,
     `CacheHarness::run_clone`, since `run` asks nothing of a cache but `Cache`.
+  - The `Cache` contract gains a second clause: the cache's own `Drop` joins the operations that
+    must not panic on the restore path. A look-ahead's settle drops the cache it displaces, and the
+    settle can run mid-unwind, where a panic aborts the process.
   - `TokenBudgetTally` holds one more `usize`, so an `Input` is 8 bytes larger on a 64-bit target.
   - Either name can take the call of a method of your own: see
     [above](#unreleased-source-breaking-additions-that-can-change-behaviour-with-no-diagnostic-at-the-call-site).
