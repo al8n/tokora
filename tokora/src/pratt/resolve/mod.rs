@@ -58,8 +58,10 @@ use crate::container::Stack;
 /// compares. So, with such a `Power`, a clone taken before the call compares equal to the machine
 /// after it whenever everything the machine holds equals both itself and its own clone (`x == x`,
 /// `x.clone() == x`), which `f64::NAN` does not. [`PrattRefused`] carries the item and one
-/// [`PrattRefusal`]. Nothing in the machine panics on a caller's slip; it panics only when its
-/// storage breaks `Stack`'s obligations, with a message that names `Stack`.
+/// [`PrattRefusal`]. Nothing in the machine panics on a caller's slip, but for one a debug build
+/// may panic on: going on after a caught unwind without the [`reset`](Self::reset) that the unwind
+/// contract below asks for. Otherwise it panics only when its storage breaks `Stack`'s
+/// obligations, with a message that names `Stack`.
 ///
 /// # Its storage
 ///
@@ -140,7 +142,8 @@ use crate::container::Stack;
 /// set, may not be put back as they were, so a caller that goes on after an unwind it caught calls
 /// [`reset`](Self::reset), which returns the machine to a known state. Which of that code has run
 /// when an unwind leaves an event, the order one event runs it in, and how the machine compares
-/// with another before that `reset`, are not promised.
+/// with another before that `reset`, are not promised. Until that `reset` an event may answer
+/// wrongly, and in a debug build it may panic, at a check of the floor the machine keeps.
 ///
 /// Both rest on the storage's obligation for an unwind, among those above: a push or a pop that
 /// unwinds leaves the frames as they were.
@@ -1147,7 +1150,8 @@ where
     debug_assert!(
       self.floor_is_kept(),
       "the floor kept for the operator on top is not the one it gives its operand: a defect of \
-       the machine, or a storage that broke the obligations of `tokora::container::Stack`"
+       the machine, a storage that broke the obligations of `tokora::container::Stack`, or a \
+       caller that went on after a caught unwind without `reset`"
     );
     let admits = match &self.state.frame_floor {
       None => *power >= self.state.floor,
