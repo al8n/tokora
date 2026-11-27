@@ -1529,7 +1529,7 @@ where
   /// one comparison against `usize::MAX` on a `usize` already in the handle's cache line, which is
   /// never true, and the charge one saturating increment on the same cell.
   ///
-  /// # A withheld head is lexed once
+  /// # A withheld head is lexed once, outside a look-ahead
   ///
   /// On a non-final [`Partial`](crate::input::Partial) input, an item the frontier rules withheld
   /// is answered here from the [withheld-head memo](super::WithheldHead) when lexing starts where
@@ -1539,6 +1539,13 @@ where
   /// spent the budget on it, and the consume that followed lexed it a second time, or met the
   /// spent budget and reported a terminal stop. On a [`Complete`](crate::input::Complete) input the
   /// check compiles to nothing.
+  ///
+  /// A [look-ahead](Self::look_ahead) is the exception, by design. Its settle puts the memo back
+  /// exactly as it found it, so a verdict its closure reached does not survive it, and the
+  /// committed read that reaches the same head lexes it again: one more lex, and one more charge,
+  /// of a withheld head for each look-ahead that reaches it before the committed path does. Under
+  /// a ceiling that charge counts, as the ceiling row of `look_ahead`'s table says. Once the
+  /// committed path holds its own verdict, a later look-ahead at that head is answered from it.
   #[inline(always)]
   fn lex_within_boundary<Fr>(
     &mut self,

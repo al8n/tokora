@@ -336,6 +336,12 @@ pub(crate) const fn same_regime(a: u64, b: u64) -> bool {
 /// scan that begins lexing where that one began is owed the same answer. This keeps it, and the
 /// lexing site gives it back without lexing the item again or charging for it again.
 ///
+/// Every later scan but those after a [look-ahead](InputRef::look_ahead) that reached the verdict
+/// first. Its settle puts this memo back exactly as it found it, so the committed read that
+/// reaches the same head lexes it again and is charged for it: one more lex of a withheld head
+/// for each look-ahead that reaches it before the committed path does. Under a ceiling that charge
+/// counts, as the ceiling row of `look_ahead`'s table says.
+///
 /// Without it a peek that met a withheld head and the consume after it each lexed and charged the
 /// item. A consume that found the budget spent by the peek then reported a **terminal** stop over
 /// input that only needed more bytes, and a partial session latched shut instead of asking for
