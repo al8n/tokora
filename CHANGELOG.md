@@ -348,8 +348,9 @@ method by name.
     where it is immutable or copied on write; a clone that shares a read index or other mutable
     queue state breaks the law, and a look-ahead over it can skip the head it consumed. Every
     cache this crate ships keeps it. The conformance kit checks it through a new entry,
-    `CacheHarness::run_clone`, which also drains and clears each handle of a clone and checks
-    the other, since `run` asks nothing of a cache but `Cache`.
+    `CacheHarness::run_clone`, since `run` asks nothing of a cache but `Cache`. Through each
+    handle of a clone in turn it drains, clears, pops from the back and pushes to either end, the
+    five queue operations a look-ahead runs on the live cache, and checks the other each time.
   - The `Cache` contract gains a second clause: the cache's own `Drop` joins the operations that
     must not panic on the restore path. A look-ahead's settle drops the cache it displaces, and the
     settle can run mid-unwind, where a panic aborts the process.

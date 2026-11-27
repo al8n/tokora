@@ -2068,6 +2068,181 @@ fn cache_kit_catches_a_clone_that_shares_a_read_index() {
     .run_clone();
 }
 
+/// [`SharedHead`] with the shared index moved to the other end: each handle keeps its own read
+/// index, and every clone shares one end index over entries copied on write. Each handle on its
+/// own is a correct queue, and a drain or a clear through either moves only that handle's read
+/// index, so it passes the drain and clear rounds that refuse `SharedHead`. A `push_back` or a
+/// `pop_back` through either handle moves the other's end too.
+///
+/// The same cache under a look-ahead: the closure's peek pushed a token onto the active cache,
+/// the rollback cleared it, and the settle installed a copy whose end stood past its own entries.
+struct SharedTail<'a, L>
+where
+  L: Lexer<'a>,
+{
+  entries: std::rc::Rc<std::vec::Vec<CachedTokenOf<'a, L>>>,
+  head: usize,
+  tail: std::rc::Rc<Cell<usize>>,
+  cap: usize,
+}
+
+impl<'a, L> SharedTail<'a, L>
+where
+  L: Lexer<'a>,
+{
+  /// An empty queue with room for `cap` entries. Inherent, so the constructors of the `Cache`
+  /// impl below, which is generic over `Lang`, need not name a `Lang` to share it.
+  fn with_cap(cap: usize) -> Self {
+    Self {
+      entries: std::rc::Rc::new(std::vec::Vec::new()),
+      head: 0,
+      tail: std::rc::Rc::new(Cell::new(0)),
+      cap,
+    }
+  }
+
+  /// The length the shared end reports, which a write through the other handle moves.
+  fn reported(&self) -> usize {
+    self.tail.get().saturating_sub(self.head)
+  }
+
+  /// The resident entries: this handle's storage from its own read index to the shared end,
+  /// clamped to the storage it holds.
+  fn resident(&self) -> &[CachedTokenOf<'a, L>] {
+    let tail = self.tail.get().min(self.entries.len());
+    &self.entries[self.head.min(tail)..tail]
+  }
+}
+
+/// The defect: every clone keeps the one end index, so the clone shares mutable queue state.
+impl<'a, L> Clone for SharedTail<'a, L>
+where
+  L: Lexer<'a>,
+{
+  fn clone(&self) -> Self {
+    Self {
+      entries: std::rc::Rc::clone(&self.entries),
+      head: self.head,
+      tail: std::rc::Rc::clone(&self.tail),
+      cap: self.cap,
+    }
+  }
+}
+
+impl<'a, L, Lang: ?Sized> Cache<'a, L, Lang> for SharedTail<'a, L>
+where
+  L: Lexer<'a>,
+  L::Token: Clone,
+{
+  type Options = usize;
+
+  fn new() -> Self {
+    Self::with_cap(4)
+  }
+
+  fn with_options(cap: usize) -> Self {
+    Self::with_cap(cap)
+  }
+
+  fn len(&self) -> usize {
+    self.reported()
+  }
+
+  fn remaining(&self) -> usize {
+    self.cap.saturating_sub(self.reported())
+  }
+
+  fn push_front(
+    &mut self,
+    tok: CachedTokenOf<'a, L>,
+  ) -> Result<CachedTokenRefOf<'_, 'a, L>, CachedTokenOf<'a, L>> {
+    if self.reported() >= self.cap {
+      return Err(tok);
+    }
+    let tail = self.tail.get();
+    let entries = std::rc::Rc::make_mut(&mut self.entries);
+    if self.head > 0 {
+      self.head -= 1;
+      entries[self.head] = tok;
+    } else {
+      entries.truncate(tail);
+      entries.insert(0, tok);
+      self.tail.set(tail + 1);
+    }
+    Ok(self.entries[self.head].as_ref())
+  }
+
+  fn push_back(
+    &mut self,
+    tok: CachedTokenOf<'a, L>,
+  ) -> Result<CachedTokenRefOf<'_, 'a, L>, CachedTokenOf<'a, L>> {
+    if self.reported() >= self.cap {
+      return Err(tok);
+    }
+    let tail = self.tail.get();
+    let entries = std::rc::Rc::make_mut(&mut self.entries);
+    entries.truncate(tail);
+    entries.push(tok);
+    let at = entries.len() - 1;
+    self.tail.set(tail + 1);
+    Ok(self.entries[at].as_ref())
+  }
+
+  fn pop_front(&mut self) -> Option<CachedTokenOf<'a, L>> {
+    let tok = self.resident().first()?.clone();
+    self.head += 1;
+    Some(tok)
+  }
+
+  fn pop_back(&mut self) -> Option<CachedTokenOf<'a, L>> {
+    if self.resident().is_empty() {
+      return None;
+    }
+    let tail = self.tail.get() - 1;
+    self.tail.set(tail);
+    let entries = std::rc::Rc::make_mut(&mut self.entries);
+    entries.truncate(tail + 1);
+    entries.pop()
+  }
+
+  fn clear(&mut self) {
+    self.head = self.tail.get();
+  }
+
+  fn peek<'p, W>(
+    &'p self,
+    buf: &mut hybrid_arraydeque::ArrayDeque<MaybeRefCachedTokenOf<'p, 'a, L>, W::CAPACITY>,
+  ) where
+    W: crate::parse::Window,
+  {
+    let room = buf.remaining_capacity();
+    for tok in self.resident().iter().take(room) {
+      let _ = buf.push_back(Maybe::Ref(tok.as_ref()));
+    }
+  }
+
+  fn front(&self) -> Option<CachedTokenRefOf<'_, 'a, L>> {
+    self.resident().first().map(|tok| tok.as_ref())
+  }
+
+  fn back(&self) -> Option<CachedTokenRefOf<'_, 'a, L>> {
+    self.resident().last().map(|tok| tok.as_ref())
+  }
+}
+
+/// The write end of the `Clone` law's independence half: a clone that shares the original's end
+/// index passes every drain and clear, and loses its back the moment the original is given a
+/// `pop_back`. Refused at the first residency that holds an entry.
+#[test]
+#[should_panic(
+  expected = "clone-law: the clone of a cache holding 1 of 4, after the original was given a pop_back"
+)]
+fn cache_kit_catches_a_clone_that_shares_the_index_of_the_back() {
+  CacheHarness::<CLex<'_>, SharedTail<'_, CLex<'_>>>::new(SRC)
+    .named("shared-tail queue")
+    .run_clone();
+}
+
 /// #186: the kit never drove `Cache::peek`'s OWNED arm — every built-in cache and every fixture
 /// above pushes `Maybe::Ref`. `OWNED_PEEK` is `SOUND` in every other respect, so a pass here
 /// proves the kit's bound/order/purity/`peek_one`/prefill-sweep oracle certifies the owned arm
