@@ -368,7 +368,7 @@ right-associative ones; on aarch64 the pair is 0.69 and 0.64. In time, the full-
 against the handwritten typed channels in `tokora-benches`' `pratt/flat` cells, a different typed
 parser from the instruction counts' table-driven one, reads 0.49 to 0.59. Those timed figures are
 the medians over four rounds of the eleven shapes in one advisory CI run on x86_64, and they
-include how each parser reads the next token. The fifth round of that run was left out as
+include how each parser reads the next token. The fourth round of that run was left out as
 contended. These are the only ratios this section gives, and each reads below one. The figures are
 for the 64-byte lexer state those cells carry, which a checkpoint and a staged token clone, and no
 other size is measured.
