@@ -2793,12 +2793,11 @@ where
   /// | The regime id source | Kept: it only climbs | None: a later re-key takes a name no earlier regime has worn, or the exhausted sentinel, which matches no regime |
   /// | The cache window and the cache-push count | Restored: the rollback puts the count back, and the settle installs the copy taken at entry | None, for a cache whose `Clone` keeps its law |
   /// | The parked front token and its id | Restored, by the settle, which re-parks the copy taken at entry under the id it wore | None: an identity read before the look-ahead names the token after it. The ids `f` issued stay issued, so no later park is given one |
-  /// | The withheld-head memo, held at entry | Restored, by the settle | None |
-  /// | The withheld-head memo, none at entry | Kept, when `f` reached a verdict whose run crossed no lexer error. The settle takes out any other verdict `f` left | At most one item fewer in `spent` and in the difference, once. A run that crossed no error is the withheld item alone, and the read the verdict answers is the one that, without the look-ahead, lexes that item and records the verdict itself |
+  /// | The withheld-head memo | Restored exactly, by the settle, `None` included: a verdict `f` reached does not survive it | None: the committed path records its own verdicts |
   /// | The dedup and front-report watermarks, and the poison boundary | Restored, by the rollback | None |
   /// | The emissions | Restored: the rollback rewinds the emitter to its mark | None, within the emitter's rewind contract |
   /// | `spent`, and the at-limit probe latch that [`refused_an_item`](crate::input::TokenBudgetTally::refused_an_item) reads | Kept: `f`'s items stay charged, and a probe `f` ran stays latched | Under a ceiling, the reads after the look-ahead meet it as many items sooner as `f` charged, so the difference can end that many items lower than without the look-ahead. A ceiling `f` met is met by their first lex past the restored window, which is still served. With no ceiling, none |
-  /// | `spent() - look_ahead_spent()` | Restored, by the settle, which raises `look_ahead_spent` by what `f` charged | None, apart from the memo and ceiling rows above and the row below |
+  /// | `spent() - look_ahead_spent()` | Restored, by the settle, which raises `look_ahead_spent` by what `f` charged | None, apart from the ceiling row above and the row below |
   /// | `spent` at `usize::MAX` | Kept: it saturates, which only an unlimited budget reaches | It stops counting, and the difference stops with it |
   /// | The scanner and resource trip counters | Kept: they only climb | A reader that compares one against a baseline taken before the look-ahead sees `f`'s trips, as it sees a declined attempt's. None on the difference |
   /// | Session points opened inside `f`, and the look-ahead's own checkpoint and pin | Restored: the rollback abandons the points, releasing their emitter marks, and pops the look-ahead's checkpoint and pin | None |
@@ -2877,7 +2876,8 @@ where
     let park_id = 0;
     // The withheld-head memo is one slot. A verdict `f` reaches replaces it, under `f`'s regime and
     // from `f`'s offset, and the rollback that puts the regime back cannot make the replacement
-    // answer for the verdict the committed path paid for. Only a partial input holds one.
+    // answer for the verdict the committed path paid for, so the settle puts this copy back,
+    // `None` included. Only a partial input holds one.
     let memo = if Cmpl::PARTIAL {
       self.withheld.clone()
     } else {
@@ -2935,14 +2935,14 @@ where
   /// the next id from the source, which the re-park leaves alone, so its id stays issued and a
   /// later park takes a newer one. After the rollback the slot is empty.
   ///
-  /// The memo goes back only when the input held one at entry. The parts of its key a rollback can
-  /// move, the regime and the dedup watermark, are back at their entry values, and the source and
-  /// the finality cannot move while a handle lives, so it answers as it did before `f` ran. With
-  /// none to put back, a verdict `f` reached stays only when its run crossed no lexer error: it
-  /// then answers for the withheld item alone, the one item the memo row of
-  /// [`look_ahead`](Self::look_ahead)'s table allows. A run that crossed errors would answer for
-  /// them too, every one an item the read after the look-ahead is charged for without it, so
-  /// that verdict is taken out of the slot.
+  /// The memo goes back exactly as it was at entry, `None` included. The parts of its key a
+  /// rollback can move, the regime and the dedup watermark, are back at their entry values, and
+  /// the source and the finality cannot move while a handle lives, so a memo held at entry answers
+  /// as it did before `f` ran. A verdict `f` reached is always taken out. Kept, it answered from
+  /// wherever `f`'s run began, an offset the committed path need not start at: a committed scan
+  /// that crossed a lexer error to reach that offset was answered there, recorded no verdict of
+  /// its own, and so charged the error again on every retry. Taken out, the committed path
+  /// records its own verdicts, as it does without the look-ahead.
   #[inline(always)]
   fn install_look_ahead(
     &mut self,
@@ -2961,18 +2961,13 @@ where
       }
       None => None,
     };
-    let displaced_memo = match memo {
-      Some(memo) => self.withheld.replace(memo),
-      // A verdict `f` reached over lexer errors, `diagnosed`: taken out, and dropped below.
-      None
-        if self
-          .withheld
-          .as_ref()
-          .is_some_and(|learned| learned.diagnosed.is_some()) =>
-      {
-        self.withheld.take()
-      }
-      None => None,
+    // The memo exactly as it was at entry, `None` included, so any verdict `f` reached is
+    // displaced and dies at the drop site below. A `Complete` input never writes or reads the
+    // slot, and its copy is `None`, so there the write is compiled out.
+    let displaced_memo = if Cmpl::PARTIAL {
+      core::mem::replace(self.withheld, memo)
+    } else {
+      memo
     };
     self.token_budget.settle_look_ahead(kept);
     // The one drop site, with the settle whole: the displaced cache's `Drop`, and its entries',

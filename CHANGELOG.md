@@ -329,9 +329,10 @@ method by name.
   - `look_ahead(f)` runs `f` as `attempt` would, then puts the input back as it found it and
     returns `f`'s value. Put back means the position, the lexer state and regime, the emissions,
     both watermarks and the poison boundary, and also the tokens the cache held, the one parked
-    in front of them, under the id it wore, and a partial input's withheld-head memo, where it held
-    one. Its rustdoc tables every piece of input state with what a look-ahead leaves in it, and
-    gives each piece it keeps, the budget's charges and the trip counters among them, its bound.
+    in front of them, under the id it wore, and a partial input's withheld-head memo, exactly as
+    it was, so a verdict `f` reached does not survive it. Its rustdoc tables every piece of input
+    state with what a look-ahead leaves in it, and gives each piece it keeps, the budget's charges
+    and the trip counters among them, its bound.
     The window is what an `attempt` cannot give back: a declined one that consumed a resident
     head drops it, and the next read lexes the head again with every lexer error in front of it.
     After a look-ahead that read lexes what it would have lexed without one.

@@ -1262,11 +1262,12 @@ fn a_parked_head_keeps_its_identity_across_a_look_ahead() {
 
 // ── T11: a withheld head on a partial input ───────────────────────────────────────────
 
-/// On a non-final partial input the look-ahead reaches the withheld head first, and the memo it
-/// leaves answers the committed read without a lex. That read is the one produce event the
-/// difference is short of the control by: exactly one, in the permissive direction.
+/// On a non-final partial input the look-ahead reaches the withheld head first. The settle puts
+/// the memo back as it found it, `None`, so the committed read lexes the head again and records
+/// its own verdict: `spent` is the control's and the look-ahead's item, and the difference is the
+/// control's.
 #[test]
-fn a_withheld_head_a_look_ahead_reached_is_answered_without_a_charge() {
+fn a_withheld_head_a_look_ahead_reached_is_lexed_again_by_the_committed_read() {
   const SRC: &str = "a b";
   fn partial(src: &str) -> Input<'_, LaLexer<'_>, LaCtx<'_>, (), Partial> {
     Input::with_state_and_context(src, LaState::default(), context())
@@ -1288,16 +1289,16 @@ fn a_withheld_head_a_look_ahead_reached_is_answered_without_a_charge() {
   assert!(matches!(inp.next(), Err(BombErr::Incomplete)));
   assert_eq!(
     la_lexes(),
-    lexes,
-    "the committed read is answered from the memo"
+    lexes + 1,
+    "the look-ahead's verdict did not survive it, so the committed read lexes the head again"
   );
   let budget = inp.token_budget();
-  assert_eq!(budget.spent(), control_spent);
+  assert_eq!(budget.spent(), control_spent + 1);
   assert_eq!(budget.look_ahead_spent(), 1);
   assert_eq!(
     budget.spent() - budget.look_ahead_spent(),
-    control_spent - 1,
-    "the difference is short of the control by the one read the memo answered"
+    control_spent,
+    "and the difference is the control's"
   );
 }
 
@@ -1372,34 +1373,42 @@ fn a_re_key_inside_a_look_ahead_keeps_the_withheld_verdict_the_committed_path_pa
   );
 }
 
-// ── T11c: a withheld verdict reached over lexer errors is taken out ───────────────────
+// ── The fail-fast fixture: a rejected lexer error is the read's `Err` ─────────────────
 
-/// On a non-final partial input `!!x`, under a fail-fast emitter and no ceiling, two peeks each
+type FatalCtx<'a> = (
+  crate::emitter::Fatal<BombErr>,
+  DefaultCache<'a, LaLexer<'a>>,
+);
+type FatalRef<'inp, 'cl> = InputRef<'inp, 'cl, LaLexer<'inp>, FatalCtx<'inp>, (), Partial>;
+
+/// A non-final partial input under the fail-fast emitter and `budget`.
+fn partial_fatal(
+  src: &str,
+  budget: TokenBudget,
+) -> Input<'_, LaLexer<'_>, FatalCtx<'_>, (), Partial> {
+  Input::with_state_and_context(
+    src,
+    LaState::default(),
+    InputContext::new(
+      crate::emitter::Fatal::<BombErr>::new(),
+      DefaultCache::<'_, LaLexer<'_>>::default(),
+    )
+    .with_token_budget(budget),
+  )
+}
+
+// ── T11c: a withheld verdict reached over lexer errors does not survive ───────────────
+
+/// On a non-final partial input `!!x`, under the fail-fast emitter and no ceiling, two peeks each
 /// stop at a lexer error: the cursor stays at zero, the dedup watermark covers both errors, and
 /// no verdict is on record. A look-ahead that peeks crosses both errors, deduplicated, and reaches
-/// the withheld `x`. That verdict would answer for three items, the two errors and `x`, so the
-/// settle takes it out rather than keep it, and the committed read lexes and charges the three,
-/// as it does without the look-ahead.
+/// the withheld `x`. The settle puts the memo back as it found it, `None`, so the committed read
+/// lexes and charges the three items, as it does without the look-ahead.
 ///
 /// Kept, the verdict answered that read without a lex: three items fewer in the difference, one
-/// more for each error, past the one item a verdict over the withheld item alone is allowed.
+/// for each error and one for `x`.
 #[test]
 fn a_withheld_verdict_a_look_ahead_reached_over_lexer_errors_is_not_kept() {
-  type FatalCtx<'a> = (
-    crate::emitter::Fatal<BombErr>,
-    DefaultCache<'a, LaLexer<'a>>,
-  );
-  type FatalRef<'inp, 'cl> = InputRef<'inp, 'cl, LaLexer<'inp>, FatalCtx<'inp>, (), Partial>;
-  fn partial_fatal(src: &str) -> Input<'_, LaLexer<'_>, FatalCtx<'_>, (), Partial> {
-    Input::with_state_and_context(
-      src,
-      LaState::default(),
-      InputContext::new(
-        crate::emitter::Fatal::<BombErr>::new(),
-        DefaultCache::<'_, LaLexer<'_>>::default(),
-      ),
-    )
-  }
   /// Two peeks, each stopped by a lexer error the emitter rejects: the second crosses the first
   /// error deduplicated and stops at the next.
   fn two_rejected_peeks(inp: &mut FatalRef<'_, '_>) {
@@ -1409,7 +1418,7 @@ fn a_withheld_verdict_a_look_ahead_reached_over_lexer_errors_is_not_kept() {
   }
   const SRC: &str = "!!x";
 
-  let mut control = partial_fatal(SRC);
+  let mut control = partial_fatal(SRC, TokenBudget::unlimited());
   let mut ctl = control.as_ref();
   two_rejected_peeks(&mut ctl);
   assert!(matches!(ctl.next(), Err(BombErr::Incomplete)));
@@ -1419,7 +1428,7 @@ fn a_withheld_verdict_a_look_ahead_reached_over_lexer_errors_is_not_kept() {
     "the control's read lexes both errors and the withheld `x`"
   );
 
-  let mut input = partial_fatal(SRC);
+  let mut input = partial_fatal(SRC, TokenBudget::unlimited());
   let mut inp = input.as_ref();
   two_rejected_peeks(&mut inp);
   let withheld = inp.look_ahead(|inp| matches!(inp.peek_one(), Ok(None)));
@@ -1441,6 +1450,110 @@ fn a_withheld_verdict_a_look_ahead_reached_over_lexer_errors_is_not_kept() {
     ctl.token_budget().spent(),
     "and the difference is the control's"
   );
+}
+
+// ── T11d: a verdict reached ahead of where the committed path starts ──────────────────
+
+/// The look-ahead of T11d and T11e, over `!x`: it consumes the error with `next()`, which commits
+/// past it, and peeks, which withholds `x` from offset 1 over no lexer error. Two items.
+fn look_ahead_past_the_error(inp: &mut FatalRef<'_, '_>) {
+  let withheld = inp.look_ahead(|inp| {
+    let consumed = matches!(inp.next(), Err(BombErr::Lex));
+    consumed && matches!(inp.peek_one(), Ok(None))
+  });
+  assert!(
+    withheld,
+    "the look-ahead consumes the error and withholds `x` from offset 1"
+  );
+  assert_eq!(inp.token_budget().look_ahead_spent(), 2);
+}
+
+/// The retries over `!x`: a peek that stops at the error, three that cross it and withhold `x`,
+/// and a consume that asks for more input. `spent() - look_ahead_spent()` after each.
+fn retries(inp: &mut FatalRef<'_, '_>) -> [usize; 5] {
+  fn difference(inp: &FatalRef<'_, '_>) -> usize {
+    let budget = inp.token_budget();
+    budget.spent() - budget.look_ahead_spent()
+  }
+  let mut after = [0; 5];
+  assert!(
+    matches!(inp.peek_one(), Err(BombErr::Lex)),
+    "the first peek stops at the error"
+  );
+  after[0] = difference(inp);
+  for slot in &mut after[1..4] {
+    assert!(
+      matches!(inp.peek_one(), Ok(None)),
+      "a later peek crosses the error and withholds `x`"
+    );
+    *slot = difference(inp);
+  }
+  assert!(
+    matches!(inp.next(), Err(BombErr::Incomplete)),
+    "the consume asks for more input rather than stopping"
+  );
+  after[4] = difference(inp);
+  after
+}
+
+/// The control records the verdict at offset 0 on its second peek, and every read after it is
+/// free. The look-ahead reaches a verdict at offset 1, where the committed path does not start.
+/// Kept, it answered each committed peek once that peek had crossed the error, so none of them
+/// recorded the verdict at 0 and every retry charged the error again: at a ceiling of 6 the four
+/// peeks spent it, and the consume turned a read that only needed more bytes into a terminal
+/// stop. Not kept, the committed reads charge what the control's do, and the look-ahead's two
+/// items come on top, inside the ceiling.
+#[test]
+fn a_verdict_a_look_ahead_reached_ahead_of_the_committed_path_leaves_its_reads_the_budget() {
+  const SRC: &str = "!x";
+
+  let mut control = partial_fatal(SRC, TokenBudget::with_limitation(6));
+  let mut ctl = control.as_ref();
+  let control_after = retries(&mut ctl);
+  assert_eq!(
+    control_after,
+    [1, 3, 3, 3, 3],
+    "the control records the verdict at 0 on its second peek"
+  );
+
+  let mut input = partial_fatal(SRC, TokenBudget::with_limitation(6));
+  let mut inp = input.as_ref();
+  look_ahead_past_the_error(&mut inp);
+  assert_eq!(
+    retries(&mut inp),
+    control_after,
+    "the committed reads charge what the control's do"
+  );
+  assert_eq!(
+    inp.token_budget().spent(),
+    ctl.token_budget().spent() + 2,
+    "and the look-ahead's two items come on top"
+  );
+}
+
+// ── T11e: the same retries, with no ceiling ───────────────────────────────────────────
+
+/// With no ceiling the kept verdict could not end the parse, and it showed as cost instead: the
+/// difference climbed by one on every retry. Not kept, the second committed peek records the
+/// verdict at offset 0, and the retries after it add nothing to the difference.
+#[test]
+fn retries_after_a_verdict_a_look_ahead_reached_ahead_of_the_committed_path_are_free() {
+  const SRC: &str = "!x";
+
+  let mut control = partial_fatal(SRC, TokenBudget::unlimited());
+  let mut ctl = control.as_ref();
+  let control_after = retries(&mut ctl);
+
+  let mut input = partial_fatal(SRC, TokenBudget::unlimited());
+  let mut inp = input.as_ref();
+  look_ahead_past_the_error(&mut inp);
+  let after = retries(&mut inp);
+  assert!(
+    after[1..].iter().all(|kept| *kept == after[1]),
+    "once the second peek has recorded the verdict at offset 0, the retries add nothing: \
+     {after:?}"
+  );
+  assert_eq!(after, control_after, "and every reading is the control's");
 }
 
 // ── T12: a session point opened and abandoned inside ──────────────────────────────────

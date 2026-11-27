@@ -352,8 +352,9 @@ pub(crate) const fn same_regime(a: u64, b: u64) -> bool {
 ///   raised. A rollback that takes those reports back takes the verdict's standing with them;
 /// - and the input must still be non-final, since a sealed input withholds nothing.
 ///
-/// `Clone` for [`InputRef::look_ahead`], which copies the memo when it begins and puts the copy
-/// back after its rollback: the slot holds one verdict, and one `f` reaches replaces it.
+/// `Clone` for [`InputRef::look_ahead`], which copies the slot when it begins and puts the copy
+/// back after its rollback, `None` included: the slot holds one verdict, and one `f` reaches
+/// replaces it.
 #[derive(Clone)]
 pub(crate) struct WithheldHead<O> {
   from: O,
@@ -1069,9 +1070,8 @@ where
   /// it depends on, the dedup watermark its run's lexer-error reports raised, is part of its key.
   ///
   /// Its writers are the two places a withheld verdict is reached, the peek fill and the scanner,
-  /// each through `InputRef::remember_withheld`, and a look-ahead's settle, which puts back the
-  /// memo the look-ahead copied at entry or takes out a verdict its closure reached over lexer
-  /// errors. Its one reader is the lexing site.
+  /// each through `InputRef::remember_withheld`, and a look-ahead's settle, which puts back exactly
+  /// the memo the look-ahead found at entry, `None` included. Its one reader is the lexing site.
   withheld: Option<WithheldHead<L::Offset>>,
   /// The **bound emitter** — the one emission log this input's parse writes, owned here for the
   /// input's whole life and paired with it at
