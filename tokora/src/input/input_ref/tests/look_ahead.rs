@@ -653,6 +653,163 @@ fn an_unwind_out_of_the_look_ahead_s_own_rollback_leaves_what_attempt_leaves() {
   }
 }
 
+// ── T6c: an unwind out of the settle's own drop site ──────────────────────────────────
+
+/// What a cell reads off a Bomb input: its committed span, its cache window and push count, the
+/// two counts, and what is registered on its behalf.
+#[derive(Debug, PartialEq, Eq)]
+struct Reading {
+  committed: (usize, usize),
+  cached: usize,
+  front: Option<(usize, usize)>,
+  pushes: u64,
+  spent: usize,
+  look_ahead_spent: usize,
+  pins: usize,
+  live: usize,
+  marks: usize,
+}
+
+type BombInputRef<'inp, 'cl> = InputRef<'inp, 'cl, BombLexer<'inp>, BombCtx<'inp>, ()>;
+
+fn reading(inp: &mut BombInputRef<'_, '_>) -> Reading {
+  Reading {
+    committed: (inp.span().start, inp.span().end),
+    cached: inp.cache().len(),
+    front: inp
+      .cache()
+      .front()
+      .map(|entry| (entry.token().span.start, entry.token().span.end)),
+    pushes: inp.session.lineage.cache_pushes(),
+    spent: inp.token_budget().spent(),
+    look_ahead_spent: inp.token_budget().look_ahead_spent(),
+    pins: inp.session.lineage.pinned_len(),
+    live: inp.session.lineage.live_len(),
+    marks: inp.emitter().live_rows(),
+  }
+}
+
+/// What one run of `peek_then_settle` leaves: the input on entry and afterwards, the panic's
+/// message if the run unwound, how many bombs fired and how many `L::Span` drops the run made
+/// after the arming, and then the next consume and the lexes it ran.
+struct PeekRun {
+  entry: Reading,
+  after: Reading,
+  unwound: Option<std::string::String>,
+  fired: usize,
+  drops: usize,
+  next: Option<(usize, usize)>,
+  next_lexes: usize,
+}
+
+/// Runs a look-ahead — or, with `look` false, an `attempt` in its place — whose closure only
+/// peeks, the resident head and the entry behind it, and then arms the `bomb_at`-th `L::Span` drop
+/// (0 = disarmed). `f` consumes nothing, so the rollback prunes the entry it pushed and keeps the
+/// head. A look-ahead's settle then swaps its copy of the window in and drops the head it
+/// displaced, the last span drop of the run.
+fn peek_then_settle(look: bool, bomb_at: usize) -> PeekRun {
+  let mut input = Input::<BombLexer<'_>, BombCtx<'_>, ()>::with_state_and_context(
+    "ab cd ef gh",
+    BombTally::default(),
+    InputContext::new(
+      BombEmitter::default(),
+      DefaultCache::<'_, BombLexer<'_>>::default(),
+    ),
+  );
+  let mut inp = input.as_ref();
+  let _ = inp.peek_one().unwrap();
+  let entry = reading(&mut inp);
+
+  reset_bomb_fired();
+  let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    if look {
+      inp.look_ahead(|inp| {
+        let _ = inp.peek::<U2>().unwrap();
+        arm_span_drop(bomb_at);
+        true
+      })
+    } else {
+      inp
+        .attempt(|inp| {
+          let _ = inp.peek::<U2>().unwrap();
+          arm_span_drop(bomb_at);
+          None::<bool>
+        })
+        .is_some()
+    }
+  }));
+  let drops = disarm_span_drop();
+  let fired = bomb_fired();
+  let unwound = caught.err().map(|payload| {
+    payload
+      .downcast_ref::<std::string::String>()
+      .cloned()
+      .unwrap_or_default()
+  });
+  let after = reading(&mut inp);
+  reset_lex_calls();
+  let next = inp.next().unwrap().map(|t| (t.span.start, t.span.end));
+  PeekRun {
+    entry,
+    after,
+    unwound,
+    fired,
+    drops,
+    next,
+    next_lexes: lex_calls(),
+  }
+}
+
+/// A destructor that panics at the settle's own drop site finds the settle whole. Every write of
+/// the settle comes before that drop, so the panic leaves the look-ahead with the entry window
+/// back, the count raised and the difference at its entry value, and the head is then served
+/// without a lex.
+///
+/// The armed drop is the head the settle displaced: the one span drop the look-ahead makes that an
+/// `attempt` running the same closure does not, and the last of the run.
+#[test]
+fn an_unwind_out_of_the_settle_s_drop_site_leaves_the_settle_whole() {
+  let returned = peek_then_settle(true, 0);
+  let attempted = peek_then_settle(false, 0);
+  assert!(returned.unwound.is_none() && attempted.unwound.is_none());
+  assert_eq!(
+    returned.drops,
+    attempted.drops + 1,
+    "the settle drops one span after the rollback's own, the head it displaced"
+  );
+
+  let armed = peek_then_settle(true, returned.drops);
+  assert_eq!(armed.fired, 1, "the armed destructor was not reached");
+  let message = armed
+    .unwound
+    .as_deref()
+    .expect("a panic at the settle's drop site leaves the look-ahead");
+  assert!(
+    message.contains("0..2) panics"),
+    "the armed drop is the displaced head's, at 0..2: {message}"
+  );
+  assert_eq!(
+    (armed.after.cached, armed.after.front, armed.after.pushes),
+    (armed.entry.cached, armed.entry.front, armed.entry.pushes),
+    "the entry window is installed: its length, its head and its push count"
+  );
+  assert!(
+    armed.after.look_ahead_spent > armed.entry.look_ahead_spent,
+    "the count was raised before the drop"
+  );
+  assert_eq!(
+    armed.after.spent - armed.after.look_ahead_spent,
+    armed.entry.spent - armed.entry.look_ahead_spent,
+    "the difference is at its entry value"
+  );
+  assert_eq!(
+    armed.after, returned.after,
+    "and the input reads as after the look-ahead that returned"
+  );
+  assert_eq!(armed.next, Some((0, 2)), "the head is the front");
+  assert_eq!(armed.next_lexes, 0, "and it is served without a lex");
+}
+
 // ── A panicking `Clone` at entry ──────────────────────────────────────────────────────
 
 /// The window is copied before anything is registered, so a `Clone` that unwinds there strands no
