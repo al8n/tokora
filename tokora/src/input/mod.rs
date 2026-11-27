@@ -336,6 +336,12 @@ pub(crate) const fn same_regime(a: u64, b: u64) -> bool {
 /// scan that begins lexing where that one began is owed the same answer. This keeps it, and the
 /// lexing site gives it back without lexing the item again or charging for it again.
 ///
+/// Every later scan but those after a [look-ahead](InputRef::look_ahead) that reached the verdict
+/// first. Its settle puts this memo back exactly as it found it, so the committed read that
+/// reaches the same head lexes it again and is charged for it: one more lex of a withheld head
+/// for each look-ahead that reaches it before the committed path does. Under a ceiling that charge
+/// counts, as the ceiling row of `look_ahead`'s table says.
+///
 /// Without it a peek that met a withheld head and the consume after it each lexed and charged the
 /// item. A consume that found the budget spent by the peek then reported a **terminal** stop over
 /// input that only needed more bytes, and a partial session latched shut instead of asking for
@@ -351,6 +357,11 @@ pub(crate) const fn same_regime(a: u64, b: u64) -> bool {
 /// - `diagnosed`, when the run crossed lexer errors on its way: the dedup watermark their reports
 ///   raised. A rollback that takes those reports back takes the verdict's standing with them;
 /// - and the input must still be non-final, since a sealed input withholds nothing.
+///
+/// `Clone` for [`InputRef::look_ahead`], which copies the slot when it begins and puts the copy
+/// back after its rollback, `None` included: the slot holds one verdict, and one `f` reaches
+/// replaces it.
+#[derive(Clone)]
 pub(crate) struct WithheldHead<O> {
   from: O,
   regime: u64,
@@ -661,6 +672,10 @@ where
   /// parked token's start, so the region re-lexes and — by the `Lexer` determinism contract —
   /// reproduces it. The extra scan a drop costs is the *baseline* behaviour of the only cache that
   /// can park anything.
+  ///
+  /// One rollback puts it back instead: an [`InputRef::look_ahead`]'s. The look-ahead copies the
+  /// slot when it begins, and once its own rollback has cleared the slot, its settle re-parks the
+  /// copy, so the read that follows serves the token rather than re-lexing it.
   pending: Option<CachedTokenOf<'inp, L>>,
   /// The completeness finality (`is_final`) storage: the zero-sized `()` for [`Complete`] — so the
   /// complete input has the identical layout it had before this typestate existed — and a `bool`
@@ -889,14 +904,16 @@ where
   /// Configured at [`with_state_and_context`](Self::with_state_and_context) from
   /// [`InputContext::with_token_budget`] and defaulting to [`TokenBudget::unlimited`].
   ///
-  /// Its one writer is `InputRef::lex_within_boundary`, the single lexing site both lexing
-  /// drivers reach, which tests the ceiling *before* it invokes the lexer — a check taken after
-  /// the work, behind a stop a rollback can refund, bounds nothing — and charges one item after a
-  /// step produces one. Its cold sibling `InputRef::settle_met_ceiling` writes the other half: a
-  /// met ceiling is not an end of input, and where the two differ it spends a **one-shot probe**
-  /// latched in this same value. There is no
-  /// `token_budget_mut` on either this type or [`InputRef`], so grammar code has no route to lower
-  /// it — the same absence [`recursion`](Self::recursion) and [`emitter`](Self::emitter) rely on.
+  /// The charge's one writer is `InputRef::lex_within_boundary`, the single lexing site both
+  /// lexing drivers reach, which tests the ceiling *before* it invokes the lexer — a check taken
+  /// after the work, behind a stop a rollback can refund, bounds nothing — and charges one item
+  /// after a step produces one. Its cold sibling `InputRef::settle_met_ceiling` writes the second
+  /// half: a met ceiling is not an end of input, and where the two differ it spends a **one-shot
+  /// probe** latched in this same value. A third half counts what was charged while a
+  /// [look-ahead](InputRef::look_ahead) was open, and that look-ahead's settle is its one writer.
+  /// There is no `token_budget_mut` on either this type or [`InputRef`], so grammar code has no
+  /// route to lower it — the same absence [`recursion`](Self::recursion) and
+  /// [`emitter`](Self::emitter) rely on.
   ///
   /// # Deliberately outside the rollback set
   ///
@@ -1102,8 +1119,9 @@ where
   /// same answer a re-lex would give, or it matches nothing and is not used. The one lineage fact
   /// it depends on, the dedup watermark its run's lexer-error reports raised, is part of its key.
   ///
-  /// Its writers are the two places a withheld verdict is reached: the peek fill and the scanner,
-  /// each through `InputRef::remember_withheld`. Its one reader is the lexing site.
+  /// Its writers are the two places a withheld verdict is reached, the peek fill and the scanner,
+  /// each through `InputRef::remember_withheld`, and a look-ahead's settle, which puts back exactly
+  /// the memo the look-ahead found at entry, `None` included. Its one reader is the lexing site.
   withheld: Option<WithheldHead<L::Offset>>,
   /// The **bound emitter** — the one emission log this input's parse writes, owned here for the
   /// input's whole life and paired with it at

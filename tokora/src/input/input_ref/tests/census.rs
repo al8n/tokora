@@ -62,19 +62,21 @@
 //! and position read reaches the front through them, never through `Ctx::Cache` directly
 //! — a path that talks to the cache sees a zero-capacity one as empty and re-lexes a token
 //! that is parked right there. The `self.pending` counts the census pins per file are the
-//! checklist: `mod.rs` 16 (the five primitives and the three cold parked halves they gate
+//! checklist: `mod.rs` 21 (the five primitives and the three cold parked halves they gate
 //! into, the `park` write and the head guard above it, `resume` and its cold parked arm,
-//! `cursor`, `offset`, the re-key, the restore), `peek/mod.rs` 4 (one accounting read and
-//! the three window exits), `scan.rs` 1 (the fetch's origin probe), everywhere else 0.
+//! `cursor`, `offset`, the re-key, the restore, `has_front_parked`, `unwind_clear_stream`,
+//! `settle_fatal`'s store-empty guard, and the look-ahead's copy of the token and its re-park),
+//! `peek/mod.rs` 4 (one accounting read and the three window exits), everywhere else 0.
 //!
 //! **Every hot-path probe of the slot is gated on `Cache::RETAINS_FRONT`**, through
 //! `InputRef::can_park()`. Only a cache that can *refuse* a front push into an empty cache
 //! ever parks anything, so under a retaining cache the slot is statically `None` and the
 //! probe folds away at monomorphization. The gate counts are censused beside the slot
-//! counts — `mod.rs` 8, `peek/mod.rs` 4, `scan.rs` 1 — so a new reader of the slot has to
+//! counts — `mod.rs` 9, `peek/mod.rs` 4, `scan.rs` 1 — so a new reader of the slot has to
 //! decide its gating rather than inherit an ungated probe; the touches that are
 //! deliberately ungated are the cold ones (the parked halves reached through a gate, the
-//! `park` write, and the two drops in the re-key and the restore).
+//! `park` write, the two drops in the re-key and the restore, and the look-ahead's re-park,
+//! which writes only a token its gated copy took).
 //!
 //! Counting is line-based and skips `//`-prefixed lines, so doc references to these
 //! names do not count; only code does. Keep code mentions of the counted names off
@@ -430,6 +432,18 @@ fn settle_census_nothing_fallible_once_a_restore_has_begun() {
     // omission from this list became a blind spot with no other symptom. `set_state` wrote the
     // state and then ran an `L::Offset::clone`, and the rail read clean.
     "core::mem::replace(self.state",
+    // A look-ahead's settle, its writes as `install_look_ahead` spells them: the window back
+    // into the cache, the copied token back into the parked slot, the withheld-head memo back to
+    // its entry value, `None` included, and the exclusion. A caller destructor between two of them
+    // would leave a host holding half a settle — the window without its exclusion, or the
+    // reverse — so they are fact writes like the rest of this list. The parked slot is written in
+    // its `Option`-native spelling, for the reason `self.poison_boundary.replace(` above gives:
+    // clippy's `mem_replace_option_with_some` requires it. The memo's new value is an `Option`,
+    // not a `Some(..)`, so that lint does not reach its `mem::replace`.
+    "core::mem::replace(self.cache",
+    "self.pending.replace(",
+    "core::mem::replace(self.withheld",
+    "token_budget.settle_look_ahead(",
   ];
 
   // Two shapes of caller code, not one. The `.clone()` family is the obvious one. The second is
@@ -446,6 +460,9 @@ fn settle_census_nothing_fallible_once_a_restore_has_begun() {
     "*self.emitted_error_end = ",
     "*self.state = ",
     "*self.span = ",
+    // The cache in place drops the cache it displaces, and with it every entry it held: a `Cache`
+    // destructor and the destructors of tokens, spans and states, all caller code.
+    "*self.cache = ",
     // A clone nobody wrote. The position funnel takes `MaybeRef<L::Span>`, so passing `(&span)`
     // infers `MaybeRef::Borrowed` and `clamped_span` then clones the span to own it — caller code
     // appearing inside a restore purely from an inferred conversion, invisible to a rail that
@@ -596,6 +613,10 @@ fn settle_census_nothing_fallible_once_a_restore_has_begun() {
     // the point: the count has to be publishable with nothing at all around it, because the
     // already-spent refusal publishes it before it has derived anything.
     "mod.rs::count_scanner_trip",
+    // A look-ahead's settle. Its region runs from the cache swap through the exclusion, and
+    // between them are the parked slot's `Option::replace` and the memo slot's `mem::replace`;
+    // what the writes displace is dropped after the last of them.
+    "mod.rs::install_look_ahead",
     // `commit_token` is deliberately ABSENT: the body is a clamp followed by a call to
     // `settle_committed_token`, and neither is a fact write, so it holds no window of its own. The
     // window is in the half it calls. The two INFALLIBLE install halves, both lit up by classifying
@@ -2443,8 +2464,11 @@ fn front_census_one_front_surface() {
   // `mod.rs` gained three readers with the scanner's unwind edge: `has_front_parked` (which is
   // how `scan.rs` now asks, so its own count fell to zero), `unwind_clear_stream` (the rewinding
   // arm's stream restore), and `settle_fatal`'s store-empty guard — the invariant the unwind
-  // settle leans on, asserted at the one site that could break it.
-  let pending: &[(&str, usize)] = &[("mod.rs", 19), ("peek/mod.rs", 4)];
+  // settle leans on, asserted at the one site that could break it. It gained two more with the
+  // look-ahead: `look_ahead`'s gated copy of the parked token at entry, and
+  // `install_look_ahead`'s re-park of that copy after the rollback, an `Option::replace` reached
+  // only when a token was copied.
+  let pending: &[(&str, usize)] = &[("mod.rs", 21), ("peek/mod.rs", 4)];
   for (name, want) in pending {
     let got = count(source(name), "self.pending");
     assert!(
@@ -2561,9 +2585,9 @@ fn front_census_every_probe_is_const_gated() {
   let gates: &[(&str, usize, &str)] = &[
     (
       "mod.rs",
-      8,
-      "`front`, `has_front`, `take_front`, `take_front_if`, `resume`, `cursor`, `offset`, and \
-       `park`'s lying-cache assert",
+      9,
+      "`front`, `has_front`, `take_front`, `take_front_if`, `resume`, `cursor`, `offset`, \
+       `look_ahead`'s copy of the parked token, and `park`'s lying-cache assert",
     ),
     (
       "peek/mod.rs",

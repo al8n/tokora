@@ -1644,58 +1644,39 @@ fn drive() {{
 }}
 """ + WITNESS
     if owner == "TokenBudgetTally":
-        # `TokenBudgetTally` is minted by this same diff, so this is the NEW-OWNER shape — the
-        # base side cannot resolve the type at all, and the call has to be built at each item's
-        # REAL arity with the `used` spelling bound to its REAL return type (see
-        # `INHERENT_SUBJECTS`'s header). It is not an `INHERENT_SUBJECTS` entry, though every
-        # other new owner is, because that table's shared template constructs its subject with a
-        # `build` line evaluated once at the top of `drive()` and used afterward — and this type
-        # has no route to a value that could survive past that point.
+        # A PRE-EXISTING owner: it shipped in 0.13.0, and 0.13.3 gives it `look_ahead_spent`. So
+        # this is the pre-existing-owner shape `INHERENT_SUBJECTS`' header prescribes. The base side
+        # has to compile and run the consumer's item, so that item returns `u8` and the `used`
+        # spelling binds that `u8`; a head-side E0308 against tokora's real return type is then the
+        # honest `loud` verdict.
         #
-        # By design: no `TokenBudgetTally::new` is public, and it is neither `Clone` nor `Copy` —
-        # see the type's own doc, "It is per input, and it cannot be moved between inputs". A
-        # template that called a constructor, or that squirreled a value out through a `Clone`,
-        # would defeat the exact thing that round closed. The one door a real consumer has is
-        # `InputRef::token_budget(&self) -> &TokenBudgetTally`, so the subject is REACHED inside
-        # a real parse, the same shape `ParseState`'s branch above already uses for the same
-        # reason — and it is a BORROW, not an owned value, so it cannot outlive the callback
-        # either. Every statement below therefore runs inside `body`, not before it.
+        # The subject is REACHED, never constructed. No `TokenBudgetTally::new` is public, and the
+        # type is neither `Clone` nor `Copy`: see its own doc, "It is per input, and it cannot be
+        # moved between inputs". The one door a consumer has is
+        # `InputRef::token_budget(&self) -> &TokenBudgetTally`, so every statement runs inside a
+        # real parse, the shape `ParseState`'s branch uses for the same reason, and the borrow
+        # cannot outlive the callback.
         #
-        # The consumer's extension trait still declares `&mut self`, matching every other
-        # template in this file, even though the borrow this accessor hands back makes that
-        # candidate unreachable in principle: `subject: &TokenBudgetTally` cannot be reborrowed
-        # `&mut`, so tokora's `&self` item is found at the FIRST step of the receiver walk
-        # (`self: &TokenBudgetTally` matches the receiver expression's own type exactly) and the
-        # consumer's item is never even a candidate, let alone a losing one. That is a stronger
-        # result than the owned-value shape the other new-owner tables get — there the consumer's
-        # `&mut self` item is merely a later, losing pick — and it is a direct consequence of the
-        # type's own contract rather than a limitation of the probe: a caller who can only ever
-        # borrow shared cannot write an extension method that would contend for the call at all.
-        returns = {
-            "is_exhausted": "bool",
-            "limitation": "usize",
-            "refused_an_item": "bool",
-            "spent": "usize",
-        }.get(name)
-        if returns is None:
-            sys.exit(
-                f"gen_probe: no return-type mapping for TokenBudgetTally::{name!r} in "
-                f"gen_probe.py's inherent_method — add one, at the item's real return type."
-            )
-        call = (
-            f"let _v: {returns} = subject.{name}();"
-            if spelling == "used"
-            else f"subject.{name}();"
-        )
+        # That door hands out a SHARED borrow, so the consumer's item takes `&self`, unlike every
+        # other template in this file. A `&mut self` item cannot be called through a
+        # `&TokenBudgetTally`: on the base side it is the only candidate and the call is E0596, so
+        # the row would be INCONCL. That is what this branch did while the owner was new, when the
+        # base side was not expected to compile. `&self` is the extension method a consumer holding
+        # the tally can actually write. It meets tokora's `&self` getters at the first step of the
+        # receiver walk, `self: &TokenBudgetTally` matching the receiver's own type, and an
+        # inherent item outranks a trait item there. So on the head side tokora's takes the call:
+        # `used` is E0308 against the consumer's `-> u8`, and `discarded` runs tokora's getter and
+        # drops a plain `usize`, which `unused_must_use` does not fire on.
+        call = f"let _v: u8 = subject.{name}();" if spelling == "used" else f"subject.{name}();"
         return ITEM_FIXTURE + f"""
 use tokora::input::TokenBudgetTally;
 
 pub trait ConsumerExt {{
-  fn {name}(&mut self) -> u8;
+  fn {name}(&self) -> u8;
 }}
 
 impl ConsumerExt for TokenBudgetTally {{
-  fn {name}(&mut self) -> u8 {{
+  fn {name}(&self) -> u8 {{
     ran();
     7
   }}
