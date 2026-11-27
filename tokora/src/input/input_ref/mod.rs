@@ -2868,9 +2868,9 @@ where
     } else {
       None
     };
-    // The id the parked token wears now. The settle puts the copy back under it unless another
-    // token enters the slot in between, so an identity read before the look-ahead still names the
-    // token after it.
+    // The id the parked token wears now. The settle puts the copy back under it, whatever enters
+    // the slot in between, so an identity read before the look-ahead still names the token after
+    // it.
     #[cfg(feature = "pratt")]
     let park_id = self.session.lineage.park_id();
     #[cfg(not(feature = "pratt"))]
