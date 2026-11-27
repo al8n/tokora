@@ -2,8 +2,10 @@
 
 //! Deep chains on a small stack: the flat driver's `parse_into`, in both modes, its `folding`, and
 //! a machine fed from a slice, each parse a chain of 2^17 operators on a thread of 256 KiB, an
-//! eighth of the stack tokora's figures are stated on. Then the cap: under either adapter, the
-//! operator past `max_depth` is a full stack, terminal, and recovery re-raises it.
+//! eighth of the stack tokora's figures are stated on. The token-level driver, which keeps its
+//! pending operators on the native stack four to a frame, parses two chains of that length there
+//! that keep few pending. Then the cap: under either flat adapter, the operator past `max_depth`
+//! is a full stack, terminal, and recovery re-raises it.
 
 mod flat_fixture;
 
@@ -11,8 +13,8 @@ use core::cell::Cell;
 use std::thread;
 
 use tokora::{
-  Emitter, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser, ParserContext,
-  SimpleSpan, TryParseInput,
+  Emitter, EmitterView, InputRef, Parse, ParseAttempt, ParseContext, ParseInput, Parser,
+  ParserContext, SimpleSpan, TryParseInput,
   emitter::Fatal,
   error::MaybeTerminal,
   pratt::{
@@ -20,9 +22,10 @@ use tokora::{
     flat, pratt,
   },
   span::Spanned,
+  state::RecursionLimiter,
 };
 
-use flat_fixture::{Fail, FatalIr, InfixOp, LexErr, Operand, Skip, TABLE, Tk, Tok, landing};
+use flat_fixture::{Expr, Fail, FatalIr, InfixOp, LexErr, Operand, Skip, TABLE, Tk, Tok, landing};
 
 /// The stack each deep case runs on.
 const STACK: usize = 256 * 1024;
@@ -386,6 +389,87 @@ fn a_machine_fed_from_a_slice_resolves_a_deep_chain_on_the_small_stack() {
     };
     assert_eq!(operands as usize, expected, "{chain:?}");
   }
+}
+
+// ── The token-level driver ────────────────────────────────────────────────────────────────────
+
+/// A token-level prefix fold: its operand.
+fn tok_prefix<'inp, E>(
+  _operator: Tk,
+  operand: Tk,
+  _: EmitterView<'_, 'inp, Skip<'inp>, E>,
+) -> Result<Tk, Fail> {
+  Ok(operand)
+}
+
+/// A token-level infix fold: a token over both operands, so the value spans what was folded.
+fn tok_infix<'inp, E>(
+  left: Tk,
+  right: Tk,
+  _operator: Spanned<PrattInfix<Tok, Tok, Tok>, SimpleSpan>,
+  _: EmitterView<'_, 'inp, Skip<'inp>, E>,
+) -> Result<Tk, Fail> {
+  Ok(Spanned::new(
+    SimpleSpan::new(left.span().start(), right.span().end()),
+    Tok(b'1'),
+  ))
+}
+
+/// A token-level postfix fold: its operand.
+fn tok_postfix<'inp, E>(
+  operand: Tk,
+  _operator: Tk,
+  _: EmitterView<'_, 'inp, Skip<'inp>, E>,
+) -> Result<Tk, Fail> {
+  Ok(operand)
+}
+
+/// Parses `src` with the token-level driver under no recursion budget, and hands back the span of
+/// the value and the token after the expression.
+fn token_level(src: &str) -> (Result<Option<SimpleSpan>, Fail>, Option<(u8, usize)>) {
+  Parser::with_context(
+    ParserContext::new(Fatal::new()).with_recursion_limiter(RecursionLimiter::unlimited()),
+  )
+  .apply(|input: &mut FatalIr<'_, '_, true>| {
+    let result = input.pratt::<_, _, _, Expr, u8>(
+      tok_prefix::<Fatal<Fail>>,
+      tok_infix::<Fatal<Fail>>,
+      tok_postfix::<Fatal<Fail>>,
+    );
+    Ok((
+      result.map(|value| value.map(|token| token.span())),
+      landing(input)?.next,
+    ))
+  })
+  .parse_str(src)
+  .expect("the parse's own error is caught")
+}
+
+/// 2^17 left-associative operators parse on the small stack under the token-level driver, with no
+/// budget at all: such a chain keeps one operator pending however long it is.
+#[test]
+fn a_long_left_chain_parses_under_the_token_level_driver_on_the_small_stack() {
+  let src = Chain::Left.source(DEPTH);
+  let end = src.len() - 1;
+  let got = on_a_small_stack(move || token_level(&src));
+  assert_eq!(got, (Ok(Some(SimpleSpan::new(0, end))), Some((b';', end))));
+}
+
+/// 2^17 operators that cross a segment's boundary again and again parse on the small stack under
+/// the token-level driver, with no budget at all. Each `1^1^1^1^1^1` keeps five `^` pending over
+/// the `+` before it, six at most, so the driver holds two segments at its deepest: the loop
+/// returns to the frame below once a segment's own frames are gone. A loop that stayed in the
+/// deepest frame would make a segment for each group, some twenty thousand native frames.
+#[test]
+fn a_long_chain_that_crosses_a_segment_s_boundary_parses_on_the_small_stack() {
+  let mut src = String::from("1^1^1^1^1^1");
+  for _ in 1..DEPTH / 6 {
+    src.push_str("+1^1^1^1^1^1");
+  }
+  src.push(';');
+  let end = src.len() - 1;
+  let got = on_a_small_stack(move || token_level(&src));
+  assert_eq!(got, (Ok(Some(SimpleSpan::new(0, end))), Some((b';', end))));
 }
 
 // ── The cap ───────────────────────────────────────────────────────────────────────────────────

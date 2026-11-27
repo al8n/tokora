@@ -1,6 +1,8 @@
 use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 
+#[cfg(feature = "pratt")]
+use crate::state::RecursionLimitExceeded;
 use crate::{
   error::RecursionLimitReached,
   state::{RecursionLimiter, RecursionTracker},
@@ -249,8 +251,10 @@ where
   /// # What one level means
   ///
   /// Whatever the caller says it means — the primitive counts calls, not grammar constructs. The
-  /// two Pratt engines call it once at each frame prologue, so for them the budget reads "live
-  /// pratt frames on this input", the root expression included. The budget is a property of the
+  /// typed Pratt driver calls it once at each frame prologue, so for it the budget reads "live
+  /// pratt frames on this input", the root expression included. The token-level driver calls it
+  /// once for the expression, and counts each operator waiting for its operand against the levels
+  /// left, which reads the same. The budget is a property of the
   /// **input session**, not of a parser, so two recursive parsers composed into one grammar draw
   /// on one depth: that is what makes it a bound on native stack use rather than on any single
   /// production.
@@ -362,8 +366,9 @@ where
   /// **one writer** of the session's resource-trip counter, which is what makes "grammar code
   /// cannot lower the latch" a property of the module rather than of discipline: the cell is
   /// `pub(super)`, no method hands out a mutable route to it, and both Pratt engines — typed and
-  /// token — reach the budget only through here, so both inherit the latch by construction rather
-  /// than by each remembering to set it.
+  /// token — reach the budget only through here and through `trip`, its twin for a level that is
+  /// counted and never entered, which counts through the same writer. So both inherit the latch by
+  /// construction rather than by each remembering to set it.
   #[inline(always)]
   fn raise_level(
     &mut self,
@@ -396,8 +401,8 @@ where
   ///
   /// It only raises the count, and it is crate-private, so no route outside the crate reaches it.
   /// [`raise_level`](Self::raise_level)'s trip arm calls it before it builds anything a grammar can
-  /// see, and so does the flat expression driver when its stack is full, before it builds
-  /// `PrattStackFull`.
+  /// see, and so do `trip`, for the token-level driver, and the flat expression driver when its
+  /// stack is full, before it builds `PrattStackFull`.
   #[inline(always)]
   pub(crate) fn count_resource_trip(&mut self) {
     // Counting rather than latching a `bool` is what makes the reading attempt-relative: a
@@ -417,6 +422,31 @@ where
     *self.resource_trips = self.resource_trips.saturating_add(1);
   }
 
+  /// The budget's refusal of a descent that is never entered: for a driver that holds its pending
+  /// levels as a count of its own, above this handle's depth, and not as live frames.
+  ///
+  /// `levels` is that count. The value is the one [`raise_level`](Self::raise_level) builds for
+  /// the descent that would stand above them: at `span().end()`, with the depth that descent
+  /// would reach, `depth + levels + 1`, and the limit. The trip is counted on the session first,
+  /// before anything a grammar can see is built, as `raise_level` counts its own; and the depth
+  /// cell is not touched, since no level was raised. The token-level driver's loop raises it, at
+  /// the cap it gives its machine.
+  #[cfg(feature = "pratt")]
+  #[cold]
+  #[inline(never)]
+  pub(crate) fn trip(&mut self, levels: usize) -> RecursionLimitReached<L::Offset, Lang> {
+    self.count_resource_trip();
+    let depth = self
+      .recursion
+      .depth()
+      .saturating_add(levels)
+      .saturating_add(1);
+    RecursionLimitReached::of(
+      self.span().end(),
+      RecursionLimitExceeded::at(depth, self.recursion.limitation()),
+    )
+  }
+
   /// Snapshots the session's **resource-trip counter** — how many times a resource budget has been
   /// exceeded in this input session so far — for an attempt-relative terminality witness.
   ///
@@ -426,10 +456,11 @@ where
   /// judging that attempt's failure.
   ///
   /// The counter itself is a **monotone session fact**, counted up by the trip arm behind
-  /// [`descend`](Self::descend), and by a flat expression driver whose stack is full
-  /// (`PrattStackFull`, with `pratt`), and never lowered: a
+  /// [`descend`](Self::descend), by the token-level driver where an operator would hold a level
+  /// past the limit, and by a flat expression driver whose stack is full (`PrattStackFull`), the
+  /// last two with `pratt`; and it is never lowered: a
   /// [`Checkpoint`](crate::input::Checkpoint) does not carry it, a restore does not touch it, and
-  /// [`Descent`]'s `Drop` releases only the depth. Those two count through one crate-private
+  /// [`Descent`]'s `Drop` releases only the depth. All three count through one crate-private
   /// writer, and no method on this handle hands out a mutable route to the cell, so a consumer can
   /// read this witness and cannot forge it.
   ///

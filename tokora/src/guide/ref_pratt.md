@@ -26,8 +26,11 @@ Reach for the token-level API when an expression's value is itself a token — a
 folds `1 + 2` into `Int(3)`. Reach for the AST-level API when the result is a tree over your own
 node type.
 
-Both recurse once for each pending operator. A third driver, [`flat`](crate::pratt::flat), keeps
-them on a stack of its own instead: see [Flat driver](#flat-driver).
+The AST-level driver recurses once for each pending operator. The token-level one runs on the
+precedence machine, [`PrattResolver`](crate::pratt::PrattResolver), and keeps its pending operators
+four to a native frame, so it allocates nothing and recurses only once for each four. A third
+driver, [`flat`](crate::pratt::flat), runs on the same machine and keeps them on a stack of its
+own: see [Flat driver](#flat-driver).
 
 ## Folds are `fn` items, not closures
 
@@ -144,11 +147,13 @@ One further knob shares the same mechanism, and one idiom does not exist:
 
 ## Recursion limits
 
-**Both engines bound their own descent, and the bound is on by default.** Each pratt frame enters
-one level of the input's shared
+**Both engines bound their own descent, and the bound is on by default.** Each frame of the
+AST-level driver enters one level of the input's shared
 [`RecursionLimiter`](crate::state::RecursionLimiter) through
 [`InputRef::descend`](crate::InputRef::descend), whose [`Descent`](crate::input::Descent) guard
-releases the level on every exit — return, `?`, or unwind, identically in `std` and `no_std`.
+releases the level on every exit — return, `?`, or unwind, identically in `std` and `no_std`. The
+token-level driver enters one level for the expression the same way, and counts each operator
+waiting for its operand against the levels left, so it refuses where it refused when it recursed.
 Exceeding the limit fails the parse with
 [`RecursionLimitReached`](crate::error::RecursionLimitReached). Your own recursive combinators
 draw on the same budget through
@@ -213,9 +218,10 @@ numbers bound different resources and meet by coincidence; where they meet the a
 refusal rather than an abort.
 
 - **`stacker` is not a substitute for the budget.** The feature puts a fresh heap stack segment
-  under each Pratt frame prologue, which is what makes `SEGMENTED_PRATT_DEPTH` defensible; it does
-  not make a too-deep input refusable. Without a budget a segmented run ends when the machine's
-  memory does.
+  under each frame of the AST-level driver, and under the token-level driver's own frame and each
+  native frame it enters for four more pending operators, when the native stack is nearly exhausted,
+  which is what makes `SEGMENTED_PRATT_DEPTH` defensible; it does not make a too-deep input
+  refusable. Without a budget a segmented run ends when the machine's memory does.
 - **One budget per input, not per parser.** Two pratt parsers composed into one grammar share the
   depth, because what the limit protects — the native stack — is shared too. The root expression
   counts as one level.

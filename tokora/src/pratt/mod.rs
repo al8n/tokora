@@ -30,7 +30,9 @@ pub use table::*;
 mod cst;
 mod expr;
 mod flat;
-mod resolve;
+// `pub(crate)` for the token-level driver, `InputRef::pratt`, which carries the machine's state,
+// `resolve::ResolverState`, between the native frames of its loop.
+pub(crate) mod resolve;
 mod stack;
 mod table;
 
@@ -40,11 +42,12 @@ mod sealed {
   pub trait Sealed {}
 }
 
-// How a default stack grows on the native stack, a segment at a time, where there is no heap.
-// `allow(dead_code)` outside tests: the loops that grow by segments are adapters', and a build that
-// compiles none of them reaches this module from the machine's tests alone.
+// How a default stack grows on the native stack, a segment at a time: where there is no heap, and
+// for the token-level driver in every tier. `pub(crate)` for that driver, which lives in the input
+// layer. `allow(dead_code)` outside tests: `Segment::drained`, the segment's own spelling of the
+// return test, is read by the tests alone, since a loop spells it over the machine's storage.
 #[cfg_attr(not(test), allow(dead_code))]
-mod segment;
+pub(crate) mod segment;
 
 /// PRATT_CENSUS — source-census tests over `include_str!` snapshots. The census greps the
 /// same source bytes in every configuration, so one allocator-enabled run locks it for all of

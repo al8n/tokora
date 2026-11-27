@@ -4,8 +4,9 @@ use crate::state::RecursionLimitExceeded;
 
 /// The configured recursion limit was exceeded while entering one level of recursive descent.
 ///
-/// Raised by [`InputRef::descend`](crate::InputRef::descend), the RAII primitive both Pratt
-/// engines enter their frame prologue through, and carried out on the `Err` channel — it is
+/// Raised by [`InputRef::descend`](crate::InputRef::descend), the RAII primitive the Pratt engines
+/// take their levels through, and by the token-level driver beside it when an operator waiting for
+/// its operand would hold a level past the limit; and carried out on the `Err` channel — it is
 /// **returned, never emitted**, so no rewind can erase it and no recording emitter can turn a
 /// tripped budget into a truncated-but-successful parse.
 ///
