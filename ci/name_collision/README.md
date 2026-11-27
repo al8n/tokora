@@ -290,7 +290,8 @@ evidence of the thing, not of a word.
 
 **For the three item categories it probes exactly one shape of consumer: an extension item
 whose signature is *incompatible* with tokora's** — `-> u8`, hardcoded in **all three** item templates:
-`inherent_method` (`fn name(&mut self) -> u8`), `inherent_assoc_fn`
+`inherent_method` (`fn name(&mut self) -> u8`, and `&self` on `TokenBudgetTally`, which a consumer
+can only borrow shared), `inherent_assoc_fn`
 (`fn name() -> u8`) and `trait_method`. That shape produces the *loud* outcome, and the
 harness reports it faithfully.
 

@@ -12,8 +12,11 @@
 //!
 //! - **Ground truth** — the live scanning position and regime the next token is lexed from: the
 //!   lexer state, the last-consumed span, the token cache, and the emitter's emission log. The
-//!   scan/consume paths are their sole writer. **Restore OVERWRITES them** with the saved values
-//!   (the emission log by truncation to the saved mark). These live directly on
+//!   scan/consume paths are their sole writer but for one: a
+//!   [look-ahead](super::InputRef::look_ahead)'s settle writes the token cache and the parked
+//!   front slot back to the copies it took at entry, once its own rollback has returned and every
+//!   other fact is where those copies were taken. **Restore OVERWRITES them** with the saved
+//!   values (the emission log by truncation to the saved mark). These live directly on
 //!   [`Input`](super::Input); the layout keeps them packed ahead of this module's memos.
 //! - **Lineage memos** — the bookkeeping gathered here, plus the two lineage facts that live on
 //!   [`Input`](super::Input) for layout reasons (the poison boundary and the lexer-error dedup
@@ -23,12 +26,11 @@
 //!   the live-checkpoint stack (restore *pops through* the restored id rather than copying a
 //!   snapshot) and the pin set (a restore never changes which guards are live).
 //! - **Monotone id sources** — the counters that hand out never-reused ids: the checkpoint-id
-//!   source, the savepoint sequence and, with the `pratt` feature, the id of the token in the
-//!   parked front slot. They are memos in spirit but **restore must NOT touch
-//!   them**: rewinding a counter would reissue a live id, and an id that can collide is worse than
-//!   no id. Distinguished from a *restored* memo like the cache-push counter — which is a fact
-//!   *about* the lineage, not an identity source — precisely because their restore semantics are
-//!   opposite.
+//!   source, the savepoint sequence and, with the `pratt` feature, the park-id source. They are
+//!   memos in spirit but **restore must NOT touch them**: rewinding a counter would reissue a live
+//!   id, and an id that can collide is worse than no id. Distinguished from a *restored* memo like
+//!   the cache-push counter — which is a fact *about* the lineage, not an identity source —
+//!   precisely because their restore semantics are opposite.
 //!
 //!   The general law behind that opposition, and the one to apply when adding a cell: **a witness
 //!   must share the rollback semantics of the fact it witnesses.** `cache_pushes` is restored
@@ -60,24 +62,29 @@
 //!   whose lifetime *is* the frame it counts.
 //! - **Keyed memos** — a verdict kept under the whole key that decides it: the withheld-head
 //!   memo, which records that lexing from one offset under one regime reaches an item a non-final
-//!   partial input withholds. Its one writer is the input layer's `remember_withheld`, reached from
-//!   the two places such a verdict is reached, and **restore does NOT touch it**. What it records
-//!   is a fact about the deterministic lexer, not about the lineage, so a restore cannot make it
-//!   false: afterwards it either matches the lex being asked about, and is the answer a re-lex
-//!   would give, or it matches nothing. The one lineage fact it rests on — the dedup watermark its
+//!   partial input withholds. It is written by the input layer's `remember_withheld`, reached from
+//!   the two places such a verdict is reached, and by a look-ahead's settle, `install_look_ahead`,
+//!   which puts back exactly the memo the look-ahead found at entry, `None` included, so no
+//!   verdict its closure reached survives it. **Restore does NOT touch it**. What it records is a
+//!   fact about the deterministic lexer, not about the lineage, so a restore cannot make it false:
+//!   afterwards it either matches the lex being asked about, and is the answer a re-lex would
+//!   give, or it matches nothing. The one lineage fact it rests on — the dedup watermark its
 //!   run's lexer-error reports raised — is part of its key rather than a reason to restore it.
 //! - **Witness / instrumentation** — cells that do not affect scanning at all, and are therefore
 //!   never restored: the debug-only, process-unique cross-input identity a checkpoint is stamped
 //!   with (see [`Witness`](super::Witness); its atomic id source keeps it behind the debug +
-//!   `target_has_atomic = "ptr"` gate), and the `trace` nesting depth, whose events travel out of
-//!   band (stderr) and so cannot be un-emitted by a rewind anyway.
+//!   `target_has_atomic = "ptr"` gate), the `trace` nesting depth, whose events travel out of
+//!   band (stderr) and so cannot be un-emitted by a rewind anyway, and, with the `pratt` feature,
+//!   the parked token's id. That one names the token in the parked front slot for the flat
+//!   expression driver, and is read only while the slot holds one: a restore clears the slot, and
+//!   every token that enters it writes the id.
 //!
 //! This module is the guardian of the lineage memos: the cells are private to it and reachable
 //! only through the operations below, each of which carries the invariant it maintains. Every
 //! memo but the cache-push counter is a live-checkpoint concept that only exists where an
 //! allocator does, so all of them except [`cache_pushes`](Lineage::cache_pushes) sit behind the
 //! allocator gate; an allocator-less build keeps only the counter, and with the `pratt` feature
-//! the parked token's id source, and every stack operation compiles out.
+//! the park ids, and every stack operation compiles out.
 //!
 //! # CELL_CENSUS — every mutable cell, and its class
 //!
@@ -120,8 +127,8 @@
 //! | `input` (the source slice) | `Input` | — (immutable borrow, fixed for the input's life) | nothing |
 //! | `state` (the lexer regime) | `Input` | ground truth | overwrite from the checkpoint |
 //! | `span` (last-consumed) | `Input` | ground truth | overwrite from the checkpoint |
-//! | `cache` (the token cache) | `Input` | ground truth | the input layer rewinds the front against the restored cursor through `Cache::pop_front`/`Cache::clear`, then drops the post-save tail through `Cache::pop_back`, sized by the count below |
-//! | `pending` (the parked front token) | `Input` | ground truth | **clear** it — a parked token is not a cache entry and is uncounted, so it is dropped rather than replayed and the region re-lexes it back under the `Lexer` determinism contract |
+//! | `cache` (the token cache) | `Input` | ground truth | the input layer rewinds the front against the restored cursor through `Cache::pop_front`/`Cache::clear`, then drops the post-save tail through `Cache::pop_back`, sized by the count below. A look-ahead's own rollback is followed by one more write: `InputRef::install_look_ahead` swaps back in the copy `InputRef::look_ahead` took at entry, which the restored count already describes, so nothing is pushed or lexed |
+//! | `pending` (the parked front token) | `Input` | ground truth | **clear** it — a parked token is not a cache entry and is uncounted, so it is dropped rather than replayed and the region re-lexes it back under the `Lexer` determinism contract. After a look-ahead's own rollback, `InputRef::install_look_ahead` re-parks the copy `InputRef::look_ahead` took at entry, under the park id it wore then |
 //! | `emitter` (the emission log) | `Input` (owned; borrowed through `InputRef`) | ground truth | truncate to the saved mark |
 //! | `emitted_error_end` (dedup watermark) | `Input` | lineage memo | pure-copy the saved value |
 //! | `front_reported_end` (front-report watermark) | `Input` | lineage memo | pure-copy the saved value — beside the emitter rewind, so the witness and the report it names move as one |
@@ -134,13 +141,14 @@
 //! | `points` (open session points) | `Session` | lineage memo | settle the suffix below the restored id (the *checked* rewind is refused by the pin first) |
 //! | [`next_ckp_id`](Lineage) | `Lineage` | monotone id source | **nothing** — rewinding would reissue a live id |
 //! | [`savepoint_seq`](Lineage) | `Lineage` | monotone id source | **nothing** — same |
-//! | [`parks`](Lineage) (the parked token's id) | `Lineage` | monotone id source | **nothing** — a rewound count would give a token parked after the restore the id of one parked before it. Bumped by `Lineage::record_park` each time the parked slot takes a token it did not just hand out; present with the `pratt` feature |
+//! | [`parks`](Lineage) (the park-id source) | `Lineage` | monotone id source | **nothing** — a rewound count would give a token parked after the restore the id of one parked before it. Bumped by `Lineage::record_park` each time the parked slot takes a token it did not just hand out. A look-ahead's re-park, `Lineage::record_repark`, leaves it alone, so every id issued inside the look-ahead stays issued; present with the `pratt` feature |
+//! | [`park_id`](Lineage) (the parked token's id) | `Lineage` | witness, of `pending` | **nothing** — a restore clears the slot, and nothing reads the id while the slot is empty. Every token that enters the slot writes it: `Lineage::record_park` gives a token the slot did not just hand out the next id from `parks`, `Lineage::record_repark` gives a look-ahead's copy the id it wore at entry, and a token the slot just handed out comes back under the id it still holds; present with the `pratt` feature |
 //! | `finality` (`is_final`) | `Input` (snapshot on `InputRef`) | **world fact** | **nothing** — and it cannot change while a handle lives |
 //! | `recursion` (the descent budget) | `Input` (borrowed through `InputRef`) | **control-stack fact** | **nothing** — a checkpoint does not carry it; the `Descent` guard's drop balances it with the frame it counts |
-//! | `token_budget` (the item ceiling) | `Input` (borrowed through `InputRef`) | **monotone session fact** | **nothing** — and here the reason is not that the cell cannot be observed to change, as it is for the two rows around it, but that a budget a rollback refunds is not a budget. An attempt that lexed a thousand items and declined performed a thousand items of scanning; giving the count back would hand an adversary who forces speculation free work without limit. Tested by `InputRef::lex_within_boundary` **before** it invokes the lexer and charged there, one per item a step produced, so the enforcement sits in front of the work rather than behind a stop a rollback can refund; the refusal records that stop through `InputRef::publish_scanner_trip`, staged before the lexer call that decides one is owed. It carries a **second** durable bit, for the same reason: the gate answers "would an item be refused?" and a driver needs "is there an item?", so `InputRef::settle_met_ceiling` runs a one-shot probe wherever the two answers differ and latches it here — outside the rollback set exactly as the counter is, since a flag any of these doors cleared would buy a fresh probe every round. No lowering writer exists for either half, and there is no `token_budget_mut`. What it costs is that a re-lex is charged again, so the ceiling bounds produce-events rather than distinct document tokens |
+//! | `token_budget` (the item ceiling) | `Input` (borrowed through `InputRef`) | **monotone session fact** | **nothing** — and here the reason is not that the cell cannot be observed to change, as it is for the two rows around it, but that a budget a rollback refunds is not a budget. An attempt that lexed a thousand items and declined performed a thousand items of scanning; giving the count back would hand an adversary who forces speculation free work without limit. Tested by `InputRef::lex_within_boundary` **before** it invokes the lexer and charged there, one per item a step produced, so the enforcement sits in front of the work rather than behind a stop a rollback can refund; the refusal records that stop through `InputRef::publish_scanner_trip`, staged before the lexer call that decides one is owed. It carries a **second** durable bit, for the same reason: the gate answers "would an item be refused?" and a driver needs "is there an item?", so `InputRef::settle_met_ceiling` runs a one-shot probe wherever the two answers differ and latches it here — outside the rollback set exactly as the counter is, since a flag any of these doors cleared would buy a fresh probe every round. A **third** half rides in the same value: the count of items charged while a look-ahead was open. It is outside the set for the counter's sake rather than its own, because it witnesses part of the spend: restored by a rollback that keeps the charge, it would erase the exclusion while the spend it excluded stayed. Its one writer is `InputRef::install_look_ahead`, the settle of `InputRef::look_ahead`, which raises it and lowers nothing. No lowering writer exists for any of the three halves, and there is no `token_budget_mut`. What it costs is that a re-lex is charged again, so the ceiling bounds produce-events rather than distinct document tokens |
 //! | `resource_trips` (how many budget trips) | `Input` (borrowed through `InputRef`) | **monotone session fact** | **nothing** — it only counts up, and there is no writer that lowers it. A rollback rewinds *input progress*; it cannot un-exceed a budget, so restoring this cell would erase a stop that has already been decided. Sites that need a *per-attempt* answer snapshot it and compare rather than reading it absolutely |
 //! | `scanner_trips` (how many scanner trips) | `Input` (borrowed through `InputRef`) | **monotone session fact** | **nothing** — the same class and the same argument as the cell above, for the other budget. It is the row that makes the `poison_boundary` row *safe*: a trip's **position** is a lineage memo and comes back with a restore, so no comparison of that memo can witness a trip across a rollback — at one level or at ten. The *fact* of the trip is recorded here instead, where nothing reaches it, which is why the recovery gate judges a scanner stop on this and reads the boundary only as the narrower standing-stop reading |
-//! | `withheld` (the withheld-head memo) | `Input` (borrowed through `InputRef`) | **keyed memo** | **nothing** — it records what lexing from one offset under one regime does to this source, and its key carries all of that: the offset, the regime id, the source length and, when the run crossed lexer errors, the dedup watermark their reports raised. A restore cannot make it false, so afterwards it either matches a lex and gives the answer re-lexing would, or matches nothing. Written by `InputRef::remember_withheld`, read by `InputRef::lex_within_boundary` |
+//! | `withheld` (the withheld-head memo) | `Input` (borrowed through `InputRef`) | **keyed memo** | **nothing** — it records what lexing from one offset under one regime does to this source, and its key carries all of that: the offset, the regime id, the source length and, when the run crossed lexer errors, the dedup watermark their reports raised. A restore cannot make it false, so afterwards it either matches a lex and gives the answer re-lexing would, or matches nothing. It is one slot, though, so a verdict reached inside a look-ahead replaces the committed path's under a regime or an offset the rollback retires; after the look-ahead's own rollback, `InputRef::install_look_ahead` puts back exactly the memo `InputRef::look_ahead` found at entry, `None` included, so no verdict the look-ahead reached survives it. Written by `InputRef::remember_withheld` and `InputRef::install_look_ahead`, read by `InputRef::lex_within_boundary` |
 //! | `witness` (input identity) | `Input` | witness | nothing (identity is fixed for the input's life) |
 //! | `depth` (trace nesting) | `Input` | instrumentation | nothing (trace events are out of band) |
 
@@ -239,8 +247,10 @@ pub(crate) fn census<'inp, L, Ctx, Lang, Cmpl>(
     //   and a state re-key both clear. The one-shot at-limit probe's latch rides in the same value
     //   and is outside the set for the identical reason: `settle_met_ceiling` spends it to tell a
     //   met ceiling from an end of input, and a flag the poison boundary's doors could clear would
-    //   fund that lexer call again on every round. No lowering writer, no `token_budget_mut`, not
-    //   in `Checkpoint`.
+    //   fund that lexer call again on every round. The look-ahead count is its third half and is
+    //   outside the set for the spend's sake: it witnesses part of `spent`, so a restore that put
+    //   it back would drop an exclusion whose charge stayed. Raised by `install_look_ahead`, a
+    //   look-ahead's settle. No lowering writer, no `token_budget_mut`, not in `Checkpoint`.
     token_budget: _,
     // — MONOTONE SESSION FACT: restore does NOT touch it, and must not. It is the sibling of the
     //   cell above and the opposite kind of fact from it: the *depth* is restored by the unwind
@@ -266,8 +276,8 @@ pub(crate) fn census<'inp, L, Ctx, Lang, Cmpl>(
     //   withholds — and its key holds all of that: the offset, the regime id, the source length,
     //   and the dedup watermark its run's lexer-error reports raised. After a restore it either
     //   still matches a lex, and gives the answer a re-lex would, or matches nothing. Written by
-    //   `remember_withheld` from the peek fill and the scanner, read by `lex_within_boundary`. Not
-    //   in `Checkpoint`.
+    //   `remember_withheld` from the peek fill and the scanner, and by `install_look_ahead`, a
+    //   look-ahead's settle; read by `lex_within_boundary`. Not in `Checkpoint`.
     withheld: _,
     // — GROUND TRUTH, and the aggregate's anchor: the emission log itself, bound at construction
     //   and owned for the input's whole life. Restore truncates it to the saved mark — the same
@@ -283,6 +293,10 @@ pub(crate) fn census<'inp, L, Ctx, Lang, Cmpl>(
         //   parked after the restore the id of one parked before it).
         #[cfg(feature = "pratt")]
           parks: _,
+        // — witness of `pending`: restore leaves it, since it clears the slot and nothing reads the
+        //   id of an empty slot; every token entering the slot writes it.
+        #[cfg(feature = "pratt")]
+          park_id: _,
         // — monotone id source: restore must NOT touch it (a reissued id could collide).
         #[cfg(any(feature = "std", feature = "alloc"))]
           savepoint_seq: _,
@@ -328,9 +342,9 @@ pub(crate) fn census<'inp, L, Ctx, Lang, Cmpl>(
     //   drop, never restored. Same class as the `Input` field above it.
     recursion: _,
     // — MONOTONE SESSION FACT (borrowed): gated and charged one per produced item by
-    //   `lex_within_boundary`, and carrying the one-shot at-limit probe `settle_met_ceiling`
-    //   spends; never lowered and never restored in either half. Same class as the `Input` field
-    //   above it.
+    //   `lex_within_boundary`, carrying the one-shot at-limit probe `settle_met_ceiling` spends,
+    //   and the look-ahead count `install_look_ahead` raises; never lowered and never restored in
+    //   any of the three halves. Same class as the `Input` field above it.
     token_budget: _,
     // — MONOTONE SESSION FACT (borrowed): counted up by `raise_level`'s trip arm, never lowered
     //   and never restored. Same class as the `Input` field above it.
@@ -338,8 +352,8 @@ pub(crate) fn census<'inp, L, Ctx, Lang, Cmpl>(
     // — MONOTONE SESSION FACT (borrowed): counted up by `publish_scanner_trip`, never lowered
     //   and never restored. Same class as the `Input` field above it.
     scanner_trips: _,
-    // — KEYED MEMO (borrowed): written by `remember_withheld`, read by `lex_within_boundary`, never
-    //   restored. Same class as the `Input` field above it.
+    // — KEYED MEMO (borrowed): written by `remember_withheld` and by `install_look_ahead`, read by
+    //   `lex_within_boundary`, never restored. Same class as the `Input` field above it.
     withheld: _,
     // — WORLD FACT, as a read-only `Copy` snapshot: no mutator, and the handle's borrow of the
     //   input locks out the seal, so it is CONSTANT for this handle's life.
@@ -369,7 +383,7 @@ pub(crate) fn census<'inp, L, Ctx, Lang, Cmpl>(
 ///
 /// The fields are private: callers reach them only through the operations, so every invariant
 /// that governs a cell lives on the one method that maintains it. In an allocator-less build
-/// only [`cache_pushes`](Self::cache_pushes) exists, and with the `pratt` feature `parks`; the
+/// only [`cache_pushes`](Self::cache_pushes) exists, and with the `pratt` feature the park ids; the
 /// live-checkpoint stack, the pin set, and their counters all compile out with the backtracking
 /// machinery that needs them.
 pub(crate) struct Lineage {
@@ -381,13 +395,20 @@ pub(crate) struct Lineage {
   /// memo present without an allocator. It starts at the entries the cache arrived holding, which
   /// count as pushed, so that it is never short of the entries resident.
   cache_pushes: u64,
-  /// Monotone id source for the token in the parked front slot, bumped by
-  /// [`record_park`](Self::record_park) each time the slot takes a token it did not just hand out.
-  /// While one token stays parked, peeked past or taken and put back, its id stays; any other token
-  /// that takes the slot, one with an equal span among them, takes a new one. Read by the flat
-  /// expression driver, to keep the classification of a head it staged.
+  /// Monotone id source for the tokens the parked front slot takes: how many ids
+  /// [`record_park`](Self::record_park) has issued, one each time the slot takes a token it did
+  /// not just hand out. Nothing lowers it, so no two tokens wear one id short of `u64::MAX`, where
+  /// it saturates and names no token, and a look-ahead's re-park leaves it past every id issued
+  /// inside the look-ahead.
   #[cfg(feature = "pratt")]
   parks: u64,
+  /// The id of the token in the parked front slot. While one token stays parked, peeked past or
+  /// taken and put back, its id stays; any other token that takes the slot, one with an equal span
+  /// among them, takes the next id from `parks`. A look-ahead's copy of the token the slot held at
+  /// entry comes back under that token's id. Read by the flat expression driver, to keep the
+  /// classification of a head it staged.
+  #[cfg(feature = "pratt")]
+  park_id: u64,
   /// Input-global savepoint sequence counter for [`StackedTransaction`](super::StackedTransaction),
   /// handed out monotonically by [`next_savepoint_seq`](Self::next_savepoint_seq) and never reset.
   /// It is monotone across every stacked transaction of this input, so a
@@ -469,6 +490,8 @@ impl Lineage {
       cache_pushes: resident,
       #[cfg(feature = "pratt")]
       parks: 0,
+      #[cfg(feature = "pratt")]
+      park_id: 0,
       #[cfg(any(feature = "std", feature = "alloc"))]
       savepoint_seq: 0,
       #[cfg(any(feature = "std", feature = "alloc"))]
@@ -514,23 +537,40 @@ impl Lineage {
       .expect(CACHE_PUSHES_EXHAUSTED);
   }
 
-  /// The id of the token in the parked front slot: how many tokens the slot has taken that it had
-  /// not just handed out. `u64::MAX` names no token, since the count saturates there.
+  /// The id of the token in the parked front slot. Read only while the slot holds one: a restore
+  /// clears the slot and leaves the id naming the token it dropped. `u64::MAX` names no token,
+  /// since the id source saturates there.
   #[cfg(feature = "pratt")]
   #[inline(always)]
-  pub(crate) fn parks(&self) -> u64 {
-    self.parks
+  pub(crate) fn park_id(&self) -> u64 {
+    self.park_id
   }
 
-  /// Records a token entering the parked front slot that the slot did not just hand out. Only the
-  /// cold park path reaches it, once for each such token, and the count saturates rather than wrap.
-  /// Without the `pratt` feature nothing reads the id, and there is nothing to record.
+  /// Records a token entering the parked front slot that the slot did not just hand out: it takes
+  /// the next id from the source. The cold park path reaches it, once for each such token, and
+  /// the source saturates rather than wrap. Without the `pratt` feature nothing reads the id, and
+  /// there is nothing to record.
   #[inline(always)]
   pub(crate) fn record_park(&mut self) {
     #[cfg(feature = "pratt")]
     {
       self.parks = self.parks.saturating_add(1);
+      self.park_id = self.parks;
     }
+  }
+
+  /// Records a look-ahead's copy of the parked token coming back into the slot, under `id`, the id
+  /// it wore when the look-ahead began. The copy is that token, so whatever was read off its id
+  /// still describes it, whatever entered the slot in between. The source is left alone: a token
+  /// parked inside the look-ahead keeps its id issued, so a later park takes a newer one, and no
+  /// id short of the sentinel is worn by two tokens.
+  ///
+  /// Present with the `pratt` feature only, like the id it writes: without the feature a
+  /// look-ahead's copy carries no id, and its settle has nothing to record.
+  #[cfg(feature = "pratt")]
+  #[inline(always)]
+  pub(crate) fn record_repark(&mut self, id: u64) {
+    self.park_id = id;
   }
 
   /// Rewinds the cache-push counter to a checkpoint's saved value on restore.
@@ -737,6 +777,35 @@ const _: () = {
         .rev()
         .take_while(|p| **p >= target_id)
         .any(|p| doomed.binary_search(p).is_ok())
+      {
+        panic!(
+          "restore would invalidate a live transaction guard or attempt (the target predates its begin point)"
+        );
+      }
+    }
+
+    /// [`assert_restore_preserves_pins`](Self::assert_restore_preserves_pins) for
+    /// [`InputRef::rollback_point`](super::InputRef::rollback_point), asked while the point is still
+    /// open: the target is the point's own begin point, and its own pin, which that rollback
+    /// releases, is not counted. Only a pin strictly younger than the target refuses it.
+    ///
+    /// Asked here, a refusal leaves the point open, pinned and settleable. Asked by the restore,
+    /// after the point had left the session stack and lost its pin, the same refusal left its
+    /// lineage entry and its emitter mark with nothing that could settle them.
+    #[inline(always)]
+    pub(crate) fn assert_point_rollback_preserves_pins(&self, target_id: u64) {
+      let Ok(pos) = self.live_ckpts.binary_search(&target_id) else {
+        return;
+      };
+      // The restore pops the target and every younger checkpoint; the target's own pin is the
+      // point's, so only the younger ones can belong to a live guard or attempt.
+      let younger = &self.live_ckpts[pos + 1..];
+      if self
+        .pinned
+        .iter()
+        .rev()
+        .take_while(|p| **p > target_id)
+        .any(|p| younger.binary_search(p).is_ok())
       {
         panic!(
           "restore would invalidate a live transaction guard or attempt (the target predates its begin point)"

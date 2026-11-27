@@ -21,6 +21,10 @@
 //!   pre-op values (the documented "leaves no trace" law).
 //! - **LIFO/pin** — a guard/savepoint rollback restores the cursor and emission count to the exact
 //!   begin/savepoint state.
+//! - **Look-ahead** — a `look_ahead` leaves the cursor, the emission count, the cache window, the
+//!   push count and the parked slot as it found them, and `spent − look_ahead_spent` with them;
+//!   `look_ahead_spent` only climbs and never passes `spent`. The parked setting runs on a
+//!   capacity-0 twin of the stream, since this tree's cache never parks.
 //! - **Termination & no-panic** — every script terminates (bounded generation), and a debug build
 //!   reaching any assertion — including the machinery's own witness asserts — is a finding.
 
@@ -137,6 +141,7 @@ const SCOPES: &[Op] = &[
   Op::StackedCommit,
   Op::StackedRollback,
   Op::StackedDropCommit,
+  Op::LookAhead,
 ];
 
 /// Generates a top-level / attempt / transaction body: a bounded sequence of leaves and (below the
@@ -148,6 +153,10 @@ pub(crate) fn gen_seq(rng: &mut Rng, depth: usize) -> Vec<Step> {
     // ~45% a scope when depth allows, else a leaf.
     if depth < MAX_DEPTH && rng.chance(45, 100) {
       let op = SCOPES[rng.below(SCOPES.len())];
+      if op == Op::LookAhead {
+        steps.extend(gen_look_ahead(rng, depth));
+        continue;
+      }
       let body = if matches!(op, Op::StackedCommit | Op::StackedRollback) {
         gen_stacked_body(rng, depth + 1)
       } else {
@@ -159,6 +168,27 @@ pub(crate) fn gen_seq(rng: &mut Rng, depth: usize) -> Vec<Step> {
     }
   }
   steps
+}
+
+/// Generates a look-ahead, in one of the three settings the window restore has to hold in: over a
+/// window a peek has just filled, inside a declining attempt over such a window, and over whatever
+/// the stream holds. Its body opens with a consume and ends with a peek, so the rollback has a
+/// resident head to drop and pushed entries to prune — the two things the restored window undoes.
+fn gen_look_ahead(rng: &mut Rng, depth: usize) -> Vec<Step> {
+  let setting = rng.below(3);
+  let inner = if setting == 1 { depth + 2 } else { depth + 1 };
+  let mut body = vec![Step::leaf(Op::Next)];
+  body.extend(gen_seq(rng, inner));
+  body.push(Step::leaf(Op::Peek));
+  let look = Step::scope(Op::LookAhead, body);
+  match setting {
+    0 => vec![Step::leaf(Op::Peek), look],
+    1 => vec![Step::scope(
+      Op::AttemptDecline,
+      vec![Step::leaf(Op::Peek), look],
+    )],
+    _ => vec![look],
+  }
 }
 
 /// Generates a stacked-transaction body. It always opens with a [`Op::Savepoint`] so the
@@ -271,6 +301,9 @@ fn run_step(
     Op::AttemptDecline => run_attempt(ir, &step.body, model, cov, rng, marks, false, false),
     Op::TryAttemptOk => run_attempt(ir, &step.body, model, cov, rng, marks, true, true),
     Op::TryAttemptErr => run_attempt(ir, &step.body, model, cov, rng, marks, false, true),
+
+    // ── the look-ahead ──
+    Op::LookAhead => run_look_ahead(ir, &step.body, model, cov, rng, marks),
 
     // ── the CST bracket ──
     Op::Node => {
@@ -503,6 +536,165 @@ fn run_attempt(
     *model = saved;
   }
   // On the kept path the body's committed progress stays in `model`.
+}
+
+/// Everything a look-ahead must leave as it found it, as the oracle reads it.
+#[derive(Debug, PartialEq, Eq)]
+struct LookAheadTrace {
+  cursor: usize,
+  emissions: u64,
+  cached: usize,
+  front: Option<SimpleSpan>,
+  pushes: u64,
+  parked: bool,
+  /// `spent − look_ahead_spent`: what a recovery allowance reads.
+  kept: usize,
+}
+
+impl LookAheadTrace {
+  fn of(ir: &mut Ir<'_, '_>) -> Self {
+    let budget = ir.token_budget();
+    let kept = budget.spent() - budget.look_ahead_spent();
+    Self {
+      cursor: *ir.cursor().as_inner(),
+      emissions: ir.emitter().count(),
+      cached: ir.cache().len(),
+      front: ir.cache().front().map(|entry| *entry.token().span),
+      pushes: ir.cache_pushes(),
+      parked: ir.has_front_parked(),
+      kept,
+    }
+  }
+}
+
+/// Runs a `look_ahead` scope and checks what it promises. Nothing the body did is left behind: the
+/// committed cursor, the emission count, the cache window, the push count an enclosing restore
+/// keys on and the parked slot all read as before, and so does `spent − look_ahead_spent`, while
+/// `look_ahead_spent` only climbs and never passes `spent`. The model comes back with the input,
+/// which keeps the faithfulness oracle of every later step exact.
+///
+/// The consume tree's cache never parks a token, so the parked setting is driven on a capacity-0
+/// twin of the same stream at the same position ([`run_parked_look_ahead`]).
+fn run_look_ahead(
+  ir: &mut Ir<'_, '_>,
+  body: &[Step],
+  model: &mut Model<'_>,
+  cov: &mut Coverage,
+  rng: &mut Rng,
+  marks: &mut Vec<EventMark>,
+) {
+  cov.mark(Op::LookAhead);
+  let before = LookAheadTrace::of(ir);
+  let look_ahead_before = ir.token_budget().look_ahead_spent();
+  let saved = model.clone();
+  let entry_marks = marks.len();
+  let m = &mut *model;
+  let cv = &mut *cov;
+  let rg = &mut *rng;
+  let mk = &mut *marks;
+  let reached = ir.look_ahead(move |ir2| {
+    run_seq(ir2, body, m, cv, rg, mk, entry_marks);
+    *ir2.cursor().as_inner()
+  });
+  assert!(
+    reached >= before.cursor,
+    "look_ahead: the body moved the cursor below where the look-ahead began"
+  );
+  // The rollback takes back every mark minted inside, as a declined attempt's does.
+  marks.truncate(entry_marks);
+  *model = saved;
+  let after = LookAheadTrace::of(ir);
+  assert_eq!(
+    after, before,
+    "look_ahead left a trace: the window, the counts or the difference moved (no-trace oracle)"
+  );
+  let budget = ir.token_budget();
+  assert!(
+    budget.look_ahead_spent() >= look_ahead_before && budget.look_ahead_spent() <= budget.spent(),
+    "look_ahead_spent must only climb and never pass spent"
+  );
+  run_parked_look_ahead(model.src, model.o);
+}
+
+/// The parked setting: a capacity-0 input over the same stream, advanced to the same committed
+/// position, with its head parked by a declined `try_expect`. A look-ahead that consumes the parked
+/// head and peeks past it must put the head back in the slot, so the read after it is served from
+/// there without a lex, and must leave the difference where it found it.
+fn run_parked_look_ahead(src: &[u8], at: usize) {
+  let context = crate::input::InputContext::new(super::fixtures::CountEmitter::new(), ());
+  let state = super::fixtures::initial_state(src);
+  let mut input = crate::input::Input::<
+    '_,
+    ScriptLexer<'_>,
+    (super::fixtures::CountEmitter, ()),
+    (),
+  >::with_state_and_context(src, state, context);
+  let mut ir = input.as_ref();
+  for _ in 0..at {
+    let _ = ir.next().expect("complete + non-fatal emitter never errs");
+  }
+  let _ = ir
+    .try_expect(|_| false)
+    .expect("complete + non-fatal emitter never errs");
+  if !ir.has_front_parked() {
+    // At the end of input there is no head to park.
+    return;
+  }
+  let cursor = *ir.cursor().as_inner();
+  let emissions = ir.emitter().count();
+  let budget = ir.token_budget();
+  let (spent, look_ahead_spent) = (budget.spent(), budget.look_ahead_spent());
+
+  let took = ir.look_ahead(|ir2| {
+    let took = ir2
+      .next()
+      .expect("complete + non-fatal emitter never errs")
+      .is_some();
+    let _ = ir2
+      .peek::<U4>()
+      .expect("complete + non-fatal emitter never errs");
+    took
+  });
+  assert!(
+    took,
+    "parked look_ahead: the body's consume took the parked head"
+  );
+  assert!(
+    ir.has_front_parked(),
+    "parked look_ahead: the parked head was not put back in the slot"
+  );
+  assert_eq!(
+    *ir.cursor().as_inner(),
+    cursor,
+    "parked look_ahead: cursor trace"
+  );
+  assert_eq!(
+    ir.emitter().count(),
+    emissions,
+    "parked look_ahead: emission trace"
+  );
+  let budget = ir.token_budget();
+  assert_eq!(
+    budget.spent() - budget.look_ahead_spent(),
+    spent - look_ahead_spent,
+    "parked look_ahead: the difference moved"
+  );
+  assert!(budget.look_ahead_spent() <= budget.spent());
+  let spent = budget.spent();
+  let head = ir
+    .next()
+    .expect("complete + non-fatal emitter never errs")
+    .expect("the parked head is consumable");
+  assert_eq!(
+    head.into_components().0,
+    SimpleSpan::new(at, at + 1),
+    "parked look_ahead: the head served after it is the one at the committed position"
+  );
+  assert_eq!(
+    ir.token_budget().spent(),
+    spent,
+    "parked look_ahead: the head after it was lexed again rather than served from the slot"
+  );
 }
 
 /// A live savepoint: its id plus the cursor/emission/mark-stack facts it must restore to.

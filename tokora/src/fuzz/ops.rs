@@ -100,6 +100,8 @@ define_ops! {
   TryAttemptOk => "try_attempt(ok)",
   /// `InputRef::try_attempt(|_| Err(..))` — a fallible attempt that errors and rolls back.
   TryAttemptErr => "try_attempt(err)",
+  /// `InputRef::look_ahead` — speculation that is always taken back and whose lexing the budget reports apart: its body consumes and then peeks, and the cursor, the emissions, the cache window, the push count, the parked slot and `spent − look_ahead_spent` must all read as they did before it.
+  LookAhead => "look_ahead",
   /// `InputRef::begin` + `Transaction::commit` — a guard committed explicitly.
   TxnCommit => "transaction.commit",
   /// `InputRef::begin` + `Transaction::rollback` — a guard rolled back explicitly.
@@ -144,7 +146,7 @@ define_ops! {
 /// in the **same** commit: add the `define_ops!` line, wire the op into a generator so the coverage
 /// test exercises it, add its executor arm, and drop a `# Fuzz coverage` note in the op-adding
 /// module's contract docs pointing here. `grep OP_SURFACE_CENSUS` finds every anchor.
-pub const EXPECTED_OP_COUNT: usize = 36;
+pub const EXPECTED_OP_COUNT: usize = 37;
 
 // Compile-time census tripwire: the alphabet cannot change size without this failing to compile at
 // a named location, forcing the checklist above.

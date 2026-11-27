@@ -28,6 +28,9 @@ mod census;
 #[cfg(all(feature = "logos_0_16", feature = "std"))]
 mod fast_path;
 
+#[cfg(all(feature = "logos_0_16", feature = "std"))]
+mod look_ahead;
+
 // ── A limiter whose scan counter is SHARED across every cloned lexer ──────────
 //
 // `InputRef` builds a fresh lexer per operation by cloning the state, so a

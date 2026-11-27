@@ -3571,3 +3571,288 @@ where
     );
   }
 }
+
+// The `Clone` law has an entry of its own rather than a check inside `run`. `run` is bounded on
+// `C: Cache` alone, and a `Clone` bound there would stop every cache without one compiling
+// against the kit, for a law that binds only the caches that implement `Clone`.
+impl<'inp, L, C, Lang> CacheHarness<'inp, L, C, Lang>
+where
+  L: Lexer<'inp>,
+  L::State: Clone,
+  L::Token: PartialEq,
+  L::State: PartialEq,
+  Lang: ?Sized,
+  C: Cache<'inp, L, Lang> + Clone,
+{
+  /// Runs the [`Cache`] contract's `Clone` law against a cache that implements `Clone`, panicking
+  /// on the first violation.
+  ///
+  /// The law is what [`InputRef::look_ahead`](crate::InputRef::look_ahead) relies on: it copies
+  /// the cache when it begins and installs the copy after its rollback. At every residency from
+  /// empty to full, the kit clones a filled cache and checks that the clone holds the same
+  /// entries, in the same order and in all three components, with the same `len` and the same
+  /// `remaining`, and that cloning left the original as it was. The clone's entries are read by
+  /// popping it from the front.
+  ///
+  /// Then it checks the two are independent, which a copy that is right when it is taken can
+  /// still fail: it drains one handle from the front, or clears it, and checks that the other
+  /// still holds every entry, in order, and nothing else. It does this to the original and then
+  /// to the clone. It then does the same after the three operations a look-ahead runs on the live
+  /// cache besides those two: a `pop_back` from a handle that holds entries, and a `push_back` or
+  /// a `push_front` of a token the queue does not hold, onto a handle that holds entries and has
+  /// room. A clone that shares storage passes only where that storage does not change under
+  /// either handle; one that shares a read index with the original fails at the first residency
+  /// that holds an entry, and so does one that shares the index of the back.
+  ///
+  /// It makes the passes [`run`](Self::run) makes: once against caches built by [`Cache::new`],
+  /// and once more against caches built by the constructor given to
+  /// [`also_built_by`](Self::also_built_by).
+  ///
+  /// # Panics
+  ///
+  /// Panics — every message tagged `clone-law`, naming the residency, the capacity and the
+  /// constructor — the moment a clone differs from the queue it was taken of, or a handle's queue
+  /// moves with the other's. Returns normally when every clone is an independent copy.
+  pub fn run_clone(&self) {
+    Self {
+      source: self.source,
+      name: self.name,
+      built_by: None,
+      via: "",
+      lex_multiple: self.lex_multiple,
+      _cache: PhantomData,
+      _lang: PhantomData,
+    }
+    .clone_pass();
+
+    if self.built_by.is_some() {
+      Self {
+        source: self.source,
+        name: self.name,
+        built_by: self.built_by,
+        via: " built by with_options",
+        lex_multiple: self.lex_multiple,
+        _cache: PhantomData,
+        _lang: PhantomData,
+      }
+      .clone_pass();
+    }
+  }
+
+  /// One pass of the `Clone` law, against caches built by [`make`](Self::make).
+  fn clone_pass(&self) {
+    let name = self.label();
+    let cap = self.make().remaining();
+    let corpus = self.corpus(cap);
+    assert!(
+      corpus.len() >= cap,
+      "tokora cache conformance [{name} clone-law]: the source lexed {} token(s), but this cache's capacity is {cap}, and the law is checked at every residency up to full. This is a kit-usage problem, not a cache defect: lengthen the source.",
+      corpus.len()
+    );
+    for held in 0..=cap {
+      self.check_clone_at(cap, held);
+      self.check_clone_writes_at(cap, held);
+    }
+  }
+
+  /// The law at one residency: a cache holding `held` of its `cap` entries, cloned.
+  ///
+  /// First the copy as it is taken: the clone holds the queue, and cloning left the original as
+  /// it was. Then independence, in four rounds over a fresh pair each: the original drained, the
+  /// original cleared, the clone drained, the clone cleared, and each time the handle left alone
+  /// must still hold every entry in order.
+  ///
+  /// Every read goes through the kit's own routed helpers — the residency oracle, the front
+  /// drain and the empty-state probe — so the entries are compared whole, as everywhere else.
+  fn check_clone_at(&self, cap: usize, held: usize) {
+    let name = self.label();
+    let (cache, want) = self.filled(held);
+    let copy = cache.clone();
+    let taken = format!("clone-law: the clone of a cache holding {held} of {cap}");
+    self.assert_resident(&copy, cap, &want, &taken);
+    self.assert_resident(
+      &cache,
+      cap,
+      &want,
+      &format!("clone-law: the original of a clone, holding {held} of {cap}"),
+    );
+    self.assert_holds_in_order(copy, cap, &want, &taken);
+
+    for original_moves in [true, false] {
+      for clear in [false, true] {
+        let (cache, want) = self.filled(held);
+        let copy = cache.clone();
+        let (mut moved, kept) = if original_moves {
+          (cache, copy)
+        } else {
+          (copy, cache)
+        };
+        let verb = if clear {
+          moved.clear();
+          "cleared"
+        } else {
+          for (i, expected) in want.iter().enumerate() {
+            let _ = self.drained_front(
+              &mut moved,
+              expected,
+              &format!(
+                "clone-law: pop_front #{i} draining one handle of a cloned cache holding {held} of {cap}"
+              ),
+              format_args!(
+                "tokora cache conformance [{name} clone-law]: one handle of a cloned cache holding {held} of {cap} answered nothing at pop_front #{i}, expected {:?}.",
+                span_of::<L>(expected)
+              ),
+              " Each handle of a clone is a queue of its own.",
+            );
+          }
+          "drained"
+        };
+        let when = if original_moves {
+          format!(
+            "clone-law: the clone of a cache holding {held} of {cap}, after the original was {verb}"
+          )
+        } else {
+          format!("clone-law: a cache holding {held} of {cap}, after its clone was {verb}")
+        };
+        self.assert_resident(&kept, cap, &want, &when);
+        self.assert_holds_in_order(kept, cap, &want, &when);
+      }
+    }
+  }
+
+  /// Independence at one residency, through the writes: a cloned pair holding `held` of its `cap`
+  /// entries, with one handle given a `pop_back`, a `push_back` or a `push_front`, and the other
+  /// checked to hold every entry in order, each time over a fresh pair, with the original moved
+  /// and then the clone.
+  ///
+  /// These are the three queue operations a look-ahead runs on the live cache besides a drain and
+  /// a clear, while its copy waits: the closure's peeks push to the back, its put-backs push to
+  /// the front, and every rollback prunes from the back. Each runs on a handle that holds
+  /// entries, so storage the two handles might share is written rather than only read: a push
+  /// only where the handle has room, with the next corpus token, which the queue does not hold.
+  fn check_clone_writes_at(&self, cap: usize, held: usize) {
+    /// The write the moved handle is given.
+    #[derive(Clone, Copy)]
+    enum Write {
+      PopBack,
+      PushBack,
+      PushFront,
+    }
+    if held == 0 {
+      return;
+    }
+    let name = self.label();
+    // `clone_pass` has checked that the corpus holds `cap` tokens, so a handle with room has one
+    // beyond the queue.
+    let fresh = if held < cap {
+      self.corpus(held + 1).into_iter().nth(held)
+    } else {
+      None
+    };
+    for original_moves in [true, false] {
+      for write in [Write::PopBack, Write::PushBack, Write::PushFront] {
+        let room = matches!(write, Write::PopBack) || held < cap;
+        if !room {
+          continue;
+        }
+        let (cache, want) = self.filled(held);
+        let copy = cache.clone();
+        let (mut moved, kept) = if original_moves {
+          (cache, copy)
+        } else {
+          (copy, cache)
+        };
+        let verb = match write {
+          Write::PopBack => {
+            let back = want.last().expect("a handle holding an entry has a back");
+            let _ = self.drained_back(
+              &mut moved,
+              back,
+              &format!(
+                "clone-law: pop_back from one handle of a cloned cache holding {held} of {cap}"
+              ),
+              format_args!(
+                "tokora cache conformance [{name} clone-law]: one handle of a cloned cache holding {held} of {cap} answered nothing at pop_back, expected {:?}.",
+                span_of::<L>(back)
+              ),
+              " Each handle of a clone is a queue of its own.",
+            );
+            "given a pop_back"
+          }
+          Write::PushBack => {
+            let tok = fresh
+              .clone()
+              .expect("a handle with room has a corpus token beyond the queue");
+            let _ = self.accepted_push_back(
+              &mut moved,
+              tok,
+              &format!(
+                "clone-law: push_back onto one handle of a cloned cache holding {held} of {cap}"
+              ),
+              format_args!(
+                "tokora cache conformance [{name} clone-law]: one handle of a cloned cache holding {held} of {cap} refused a push_back with {} slot(s) free. Each handle of a clone is a queue of its own.",
+                cap - held
+              ),
+            );
+            "given a push_back"
+          }
+          Write::PushFront => {
+            let tok = fresh
+              .clone()
+              .expect("a handle with room has a corpus token beyond the queue");
+            let _ = self.accepted_push_front(
+              &mut moved,
+              tok,
+              &format!(
+                "clone-law: push_front onto one handle of a cloned cache holding {held} of {cap}"
+              ),
+              format_args!(
+                "tokora cache conformance [{name} clone-law]: one handle of a cloned cache holding {held} of {cap} refused a push_front with {} slot(s) free. Each handle of a clone is a queue of its own.",
+                cap - held
+              ),
+            );
+            "given a push_front"
+          }
+        };
+        let when = if original_moves {
+          format!(
+            "clone-law: the clone of a cache holding {held} of {cap}, after the original was {verb}"
+          )
+        } else {
+          format!("clone-law: a cache holding {held} of {cap}, after its clone was {verb}")
+        };
+        self.assert_resident(&kept, cap, &want, &when);
+        self.assert_holds_in_order(kept, cap, &want, &when);
+      }
+    }
+  }
+
+  /// Drains `cache` from the front against `want`, entry by entry, and checks that it is then
+  /// empty: one handle of a clone holds the queue, and nothing else.
+  fn assert_holds_in_order(
+    &self,
+    mut cache: C,
+    cap: usize,
+    want: &[CachedTokenOf<'inp, L>],
+    when: &str,
+  ) {
+    let name = self.label();
+    for (i, expected) in want.iter().enumerate() {
+      let _ = self.drained_front(
+        &mut cache,
+        expected,
+        &format!("{when}: pop_front #{i}"),
+        format_args!(
+          "tokora cache conformance [{name} clone-law] {when}: answered nothing at pop_front #{i}, expected {:?}. A clone is an independent copy of the queue.",
+          span_of::<L>(expected)
+        ),
+        " A clone is an independent copy of the queue: the same entries, in the same order.",
+      );
+    }
+    self.assert_empty(
+      &mut cache,
+      cap,
+      &format!("{when}, drained of the entries it held"),
+    );
+  }
+}
