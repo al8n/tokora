@@ -1211,6 +1211,77 @@ fn a_withheld_head_a_look_ahead_reached_is_answered_without_a_charge() {
   );
 }
 
+// ── T11b: a withheld verdict the committed path paid for survives a re-key inside ─────
+
+/// The withheld-head memo is one slot. On a non-final partial input under a five-item budget, a
+/// peek crosses one lexer error and withholds the last token: two items, and a memo the committed
+/// path paid for. A look-ahead that re-keys and peeks again reaches the same verdict under its own
+/// regime, for two items more, and replaces the memo. The settle puts the entry memo back, so the
+/// committed read is answered from it: `Incomplete`, with no lex and four items spent.
+///
+/// Without the put-back that read lexed the error again as the fifth item, and the ceiling refused
+/// the token: a terminal stop over input that only needed more bytes.
+#[test]
+fn a_re_key_inside_a_look_ahead_keeps_the_withheld_verdict_the_committed_path_paid_for() {
+  fn partial_budgeted(src: &str, max: usize) -> Input<'_, LaLexer<'_>, LaCtx<'_>, (), Partial> {
+    Input::with_state_and_context(
+      src,
+      LaState::default(),
+      context().with_token_budget(TokenBudget::with_limitation(max)),
+    )
+  }
+  const SRC: &str = "?a";
+
+  let mut control = partial_budgeted(SRC, 5);
+  let mut ctl = control.as_ref();
+  assert!(
+    matches!(ctl.peek_one(), Ok(None)),
+    "the control: the peek withholds the head"
+  );
+  assert_eq!(
+    ctl.token_budget().spent(),
+    2,
+    "the error and the withheld token"
+  );
+  let lexes = la_lexes();
+  assert!(matches!(ctl.next(), Err(BombErr::Incomplete)));
+  assert_eq!(
+    la_lexes(),
+    lexes,
+    "the control's read is answered from the memo"
+  );
+  assert_eq!(ctl.token_budget().spent(), 2);
+
+  let mut input = partial_budgeted(SRC, 5);
+  let mut inp = input.as_ref();
+  assert!(matches!(inp.peek_one(), Ok(None)));
+  assert_eq!(inp.token_budget().spent(), 2);
+  let withheld = inp.look_ahead(|inp| {
+    inp.set_state(LaState::default());
+    matches!(inp.peek_one(), Ok(None))
+  });
+  assert!(
+    withheld,
+    "the look-ahead's peek withholds the head under its own regime"
+  );
+  assert_eq!(
+    inp.token_budget().spent(),
+    4,
+    "the look-ahead lexed the error and the token again, and both were charged"
+  );
+  let lexes = la_lexes();
+  assert!(
+    matches!(inp.next(), Err(BombErr::Incomplete)),
+    "the committed read is answered from the memo the committed path paid for"
+  );
+  assert_eq!(la_lexes(), lexes, "without a lex");
+  assert_eq!(
+    inp.token_budget().spent(),
+    4,
+    "and four items spent, not five"
+  );
+}
+
 // ── T12: a session point opened and abandoned inside ──────────────────────────────────
 
 /// A session point the closure opens and abandons is reconciled by the look-ahead's rollback: no

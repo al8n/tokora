@@ -328,10 +328,11 @@ method by name.
   taken back, and a reading of the token budget that reports its lexing apart.
   - `look_ahead(f)` runs `f` as `attempt` would, then puts the input back as it found it and
     returns `f`'s value. Put back means the position, the lexer state and regime, the emissions,
-    both watermarks and the poison boundary, and also the tokens the cache held and the one parked
-    in front of them. The window is what an `attempt` cannot give back: a declined one that
-    consumed a resident head drops it, and the next read lexes the head again with every lexer
-    error in front of it. After a look-ahead that read lexes what it would have lexed without one.
+    both watermarks and the poison boundary, and also the tokens the cache held, the one parked
+    in front of them and a partial input's withheld-head memo. The window is what an `attempt`
+    cannot give back: a declined one that consumed a resident head drops it, and the next read
+    lexes the head again with every lexer error in front of it. After a look-ahead that read lexes
+    what it would have lexed without one.
   - Every item `f` lexes is still charged to the budget, and the ceiling refuses it like any other.
     `look_ahead_spent()` counts the items charged while a look-ahead was open, once under nesting,
     and is durable as `spent` is. `spent() - look_ahead_spent()` is then the spend outside every

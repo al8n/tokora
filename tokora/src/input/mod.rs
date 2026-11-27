@@ -351,6 +351,10 @@ pub(crate) const fn same_regime(a: u64, b: u64) -> bool {
 /// - `diagnosed`, when the run crossed lexer errors on its way: the dedup watermark their reports
 ///   raised. A rollback that takes those reports back takes the verdict's standing with them;
 /// - and the input must still be non-final, since a sealed input withholds nothing.
+///
+/// `Clone` for [`InputRef::look_ahead`], which copies the memo when it begins and puts the copy
+/// back after its rollback: the slot holds one verdict, and one `f` reaches replaces it.
+#[derive(Clone)]
 pub(crate) struct WithheldHead<O> {
   from: O,
   regime: u64,

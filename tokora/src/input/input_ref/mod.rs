@@ -2734,7 +2734,8 @@ where
   /// returns, the input is put back as it stood when this was called, and `f`'s value is
   /// returned. Put back means the position, the lexer state, the regime, the emissions, the
   /// dedup watermark, the front-report watermark, the poison boundary, **the tokens the cache
-  /// held and the token parked in front of them**. Nothing `f` consumed is kept.
+  /// held, the token parked in front of them and a partial input's withheld-head memo**. Nothing
+  /// `f` consumed is kept.
   ///
   /// # What it costs, and where the cost is reported
   ///
@@ -2799,8 +2800,9 @@ where
   /// # If `f` panics
   ///
   /// The rollback, the window and the exclusion settle on an unwind out of `f` exactly as on a
-  /// return: the guard rolls the input back, and then the window and the count are installed. A
-  /// host that catches it holds an input that reads as if the look-ahead had returned.
+  /// return: the guard rolls the input back, and then the window, the memo and the count are
+  /// installed. A host that catches it holds an input that reads as if the look-ahead had
+  /// returned.
   ///
   /// The rollback itself runs caller code before it restores anything: `Source::len`, offset
   /// comparisons, `Emitter::release`, and the destructors of what it evicts. If that unwinds,
@@ -2813,7 +2815,9 @@ where
   /// - the budget's `spent` and its one-shot probe;
   /// - the scanner and resource trip counters;
   /// - the regime id source;
-  /// - a partial input's withheld-head memo.
+  /// - a withheld-head verdict `f` reached where the input held none, which is the withheld-head
+  ///   exception above. The memo is one slot, so a verdict the input already held is put back
+  ///   over whatever `f` left there.
   ///
   /// Nor a session point opened before the look-ahead that `f` commits. `attempt` behaves the same
   /// way. In allocator builds, rolling back to such a point inside `f` is refused at the restore,
@@ -2844,12 +2848,20 @@ where
     Ctx::Cache: Clone,
   {
     trace_event!(self, "look_ahead");
-    // CAPTURE_WINDOW — the window is copied FIRST, while nothing is registered. Both clones are
-    // caller code, and an unwind out of either strands nothing: the guard that takes the pin, the
-    // lineage entry and the emitter mark does not exist yet.
+    // CAPTURE_WINDOW — the window is copied FIRST, while nothing is registered. Every clone here is
+    // caller code, and an unwind out of any of them strands nothing: the guard that takes the pin,
+    // the lineage entry and the emitter mark does not exist yet.
     let cache = self.cache().clone();
     let parked = if Self::can_park() {
       self.pending.clone()
+    } else {
+      None
+    };
+    // The withheld-head memo is one slot. A verdict `f` reaches replaces it, under `f`'s regime and
+    // from `f`'s offset, and the rollback that puts the regime back cannot make the replacement
+    // answer for the verdict the committed path paid for. Only a partial input holds one.
+    let memo = if Cmpl::PARTIAL {
+      self.withheld.clone()
     } else {
       None
     };
@@ -2869,7 +2881,7 @@ where
       .saturating_sub(self.token_budget.look_ahead_spent());
     let mut settle = LookAheadSettle {
       input: self,
-      window: Some((cache, parked)),
+      window: Some((cache, parked, memo)),
       kept,
       armed: false,
     };
@@ -2889,22 +2901,29 @@ where
     value
   }
 
-  /// SETTLE_CENSUS / FRONT_CENSUS — a look-ahead's settle: the window it was entered with goes
-  /// back in, and what it lexed is excluded.
+  /// SETTLE_CENSUS / FRONT_CENSUS — a look-ahead's settle: the window and the withheld-head memo
+  /// it was entered with go back in, and what it lexed is excluded.
   ///
   /// Reached only once the look-ahead's rollback has returned, so every other fact is back at its
   /// entry value, `cache_pushes` included, and the window installed here is the one those facts
-  /// describe. Installing it pushes nothing and lexes nothing. The three fact writes have no caller
+  /// describe. Installing it pushes nothing and lexes nothing. The four fact writes have no caller
   /// code between them, and what they displace dies at the one drop site below, with the settle
   /// whole.
   ///
   /// A copied parked token re-enters the slot under [`park`](Self::park)'s rule: it is not the
   /// token the slot just handed out, so it takes a new id. After the rollback the slot is empty.
+  ///
+  /// The memo goes back only when the input held one at entry. The parts of its key a rollback can
+  /// move, the regime and the dedup watermark, are back at their entry values, and the source and
+  /// the finality cannot move while a handle lives, so it answers as it did before `f` ran. With
+  /// none to put back, a verdict `f` reached stays in the slot, which is the withheld-head
+  /// exception [`look_ahead`](Self::look_ahead) documents.
   #[inline(always)]
   fn install_look_ahead(
     &mut self,
     cache: Ctx::Cache,
     parked: Option<CachedTokenOf<'inp, L>>,
+    memo: Option<super::WithheldHead<L::Offset>>,
     kept: usize,
   ) {
     let displaced_cache = core::mem::replace(self.cache, cache);
@@ -2917,10 +2936,14 @@ where
       }
       None => None,
     };
+    let displaced_memo = match memo {
+      Some(memo) => self.withheld.replace(memo),
+      None => None,
+    };
     self.token_budget.settle_look_ahead(kept);
     // The one drop site, with the settle whole: the displaced cache's `Drop`, and its entries',
-    // are caller code.
-    drop((displaced_cache, displaced_park));
+    // are caller code, and so are a displaced memo's offsets.
+    drop((displaced_cache, displaced_park, displaced_memo));
   }
 
   /// Closure-scoped span capture — the imperative twin of
@@ -5079,9 +5102,13 @@ where
   Cmpl: Completeness,
 {
   input: &'s mut InputRef<'inp, 'closure, L, Ctx, Lang, Cmpl>,
-  /// The cache and the parked token as the look-ahead found them. `Some` until the settle takes
-  /// them; dropped with the guard when it does not.
-  window: Option<(Ctx::Cache, Option<CachedTokenOf<'inp, L>>)>,
+  /// The cache, the parked token and the withheld-head memo as the look-ahead found them. `Some`
+  /// until the settle takes them; dropped with the guard when it does not.
+  window: Option<(
+    Ctx::Cache,
+    Option<CachedTokenOf<'inp, L>>,
+    Option<super::WithheldHead<L::Offset>>,
+  )>,
   /// `spent() - look_ahead_spent()` when the look-ahead began, the value the settle restores.
   kept: usize,
   /// Whether the input stands where the window belongs, or will once the attempt guard's
@@ -5098,7 +5125,8 @@ where
   Ctx: ParseContext<'inp, L, Lang>,
   Cmpl: Completeness,
 {
-  /// Installs the window and the exclusion when the guard is armed, and does nothing otherwise.
+  /// Installs the window, the memo and the exclusion when the guard is armed, and does nothing
+  /// otherwise.
   ///
   /// Outlined for `Transaction`'s reason: a destructor is emitted at every unwind edge of its
   /// owner. It asserts nothing, because it may run while unwinding.
@@ -5107,8 +5135,10 @@ where
     if !self.armed {
       return;
     }
-    if let Some((cache, parked)) = self.window.take() {
-      self.input.install_look_ahead(cache, parked, self.kept);
+    if let Some((cache, parked, memo)) = self.window.take() {
+      self
+        .input
+        .install_look_ahead(cache, parked, memo, self.kept);
     }
   }
 }
